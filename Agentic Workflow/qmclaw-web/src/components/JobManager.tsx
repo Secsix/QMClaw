@@ -114,7 +114,7 @@ export default function JobManager({ currentJobId, onJobSelect }: JobManagerProp
       try {
         const list = await api.listJobs();
         setJobs(list);
-        setRunningIds(new Set(list.filter((j) => j.status === "pending" || j.status === "running").map((j) => j.id)));
+        setRunningIds(new Set(list.filter((j: any) => j.status === "pending" || j.status === "running").map((j: any) => j.id)));
       } catch { /* ignore */ }
     };
     fetchJobs();
