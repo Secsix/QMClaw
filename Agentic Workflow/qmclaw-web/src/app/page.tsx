@@ -16,6 +16,9 @@ import WorkflowDesigner from "../components/WorkflowDesigner";
 import { CompactSessionManager } from "../components/SessionManager";
 import DatasetBrowser from "../components/DatasetBrowser";
 import ServiceControlPanel from "../components/ServiceControlPanel";
+import ImageClassificationPanel from "../components/ImageClassificationPanel";
+import AgentChatPanel from "../components/AgentChatPanel";
+import AgentToolsPanel from "../components/AgentToolsPanel";
 import QubitParamsPanel from "../components/QubitParamsPanel";
 import ModelRegistry from "../components/ModelRegistry";
 import ExperimentConfigs from "../components/ExperimentConfigs";
@@ -106,7 +109,7 @@ function saveArray(key: string, value: string[]) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
-type Tab = "experiments" | "jobs" | "workflow" | "services";
+type Tab = "experiments" | "jobs" | "workflow" | "services" | "images" | "agent" | "agent-tools";
 type ExpType = "spectroscopy" | "s21" | "iqraw" | "t1" | "xeb" | "ramsey" | "piamp" | "s21_dis" | "allxy" | "single_shot" | "pulsed_spec" | "swap" | "drag_calibrate";
 
 // ── Default values (used for SSR and fallback) ────────────────────────────────
@@ -492,7 +495,7 @@ export default function Dashboard() {
     setIsSummarizing(true);
     try {
       const result = await api.analyzePlot({
-        analysisOutput: plotAnalysisOutput,
+        analysis_output: plotAnalysisOutput,
       });
       if (result.success && result.content) {
         setLlmSummary(result.content);
@@ -713,7 +716,7 @@ export default function Dashboard() {
 
           {/* Tab bar */}
           <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
-            {(["experiments", "jobs", "workflow", "services"] as Tab[]).map((t) => (
+            {(["experiments", "jobs", "workflow", "services", "images", "agent", "agent-tools"] as Tab[]).map((t) => (
               <button key={t} onClick={() => setActiveTab(t)} style={{
                 padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none",
                 background: activeTab === t ? "#38bdf8" : "#1e293b",
@@ -1064,6 +1067,21 @@ export default function Dashboard() {
           {/* SERVICES TAB */}
           {activeTab === "services" && (
             <ServiceControlPanel />
+          )}
+
+          {/* IMAGES TAB */}
+          {activeTab === "images" && (
+            <ImageClassificationPanel />
+          )}
+
+          {/* AGENT TAB */}
+          {activeTab === "agent" && (
+            <AgentChatPanel />
+          )}
+
+          {/* AGENT-TOOLS TAB */}
+          {activeTab === "agent-tools" && (
+            <AgentToolsPanel />
           )}
         </main>
 

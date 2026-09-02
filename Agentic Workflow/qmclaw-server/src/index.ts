@@ -1520,6 +1520,280 @@ app.put("/api/rules", (req, res) => {
   }
 });
 
+// ── Image Classification ───────────────────────────────────────────────────────
+
+/** POST /api/classify/images — batch classify images in a folder */
+app.post("/api/classify/images", async (req, res) => {
+  try {
+    const { folderPath, backend, reviewThreshold, marginThreshold } = req.body as {
+      folderPath?: string;
+      backend?: string;
+      reviewThreshold?: number;
+      marginThreshold?: number;
+    };
+    const data = await sendFlaskRequest("classify_images", {
+      folderPath: folderPath || "",
+      backend: backend || "pytorch",
+      reviewThreshold: reviewThreshold ?? 0.75,
+      marginThreshold: marginThreshold ?? 0.15,
+    }) as { results?: unknown[]; error?: string };
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** POST /api/classify/single — single image inference */
+app.post("/api/classify/single", async (req, res) => {
+  try {
+    const { imagePath, backend } = req.body as { imagePath?: string; backend?: string };
+    const data = await sendFlaskRequest("classify_single", {
+      imagePath: imagePath || "",
+      backend: backend || "pytorch",
+    }) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** POST /api/classify/latest-experiment — classify latest experiment image from DataVault */
+app.post("/api/classify/latest-experiment", async (req, res) => {
+  try {
+    const { qubit, experimentType, backend, reviewThreshold, marginThreshold } = req.body as {
+      qubit?: string;
+      experimentType?: string;
+      backend?: string;
+      reviewThreshold?: number;
+      marginThreshold?: number;
+    };
+    const data = await sendFlaskRequest("classify_latest_experiment", {
+      qubit: qubit || "",
+      experimentType: experimentType || "spectroscopy",
+      backend: backend || "pytorch",
+      reviewThreshold: reviewThreshold ?? 0.75,
+      marginThreshold: marginThreshold ?? 0.15,
+    }) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** GET /api/classify/stats — get classification statistics */
+app.get("/api/classify/stats", async (req, res) => {
+  try {
+    const sinceHours = parseInt(req.query.sinceHours as string) || 24;
+    const data = await sendFlaskRequest("get_classification_stats", { sinceHours }) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** GET /api/classify/model-info — get model file info */
+app.get("/api/classify/model-info", async (_req, res) => {
+  try {
+    const data = await sendFlaskRequest("get_model_info", {}) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** POST /api/classify/train — trigger model training */
+app.post("/api/classify/train", async (req, res) => {
+  try {
+    const { epochs, batchSize, imbalanceMode } = req.body as {
+      epochs?: number;
+      batchSize?: number;
+      imbalanceMode?: string;
+    };
+    const data = await sendFlaskRequest("train_model", {
+      epochs: epochs ?? 20,
+      batchSize: batchSize ?? 32,
+      imbalanceMode: imbalanceMode || "weighted",
+    }) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+// ── Quantum Agent ───────────────────────────────────────────────────────────────
+
+/** POST /api/agent/chat — send a message to the quantum agent */
+app.post("/api/agent/chat", async (req, res) => {
+  try {
+    const { message, mode, context } = req.body as {
+      message?: string;
+      mode?: string;
+      context?: Record<string, unknown>;
+    };
+    if (!message) { res.status(400).json({ error: "message is required" }); return; }
+    const data = await sendFlaskRequest("agent_chat", {
+      message,
+      mode: mode || "react",
+      context: context || {},
+    }) as Record<string, unknown>;
+    if (data.error) { res.status(502).json({ error: data.error }); return; }
+    res.json(data);
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
+});
+
+/** GET /api/agent/modes — get available agent reasoning modes */
+app.get("/api/agent/modes", (_req, res) => {
+  res.json({ modes: ["react", "plan_and_execute", "reflexion"] });
+});
+
+/** POST /api/agent/reset — reset agent session (no-op, session is stateless) */
+app.post("/api/agent/reset", (_req, res) => {
+  res.json({ success: true });
+});
+
+// ── MCP Tools CRUD ─────────────────────────────────────────────────────────────
+
+const MCP_TOOLS_FILE = path.join(__dirname, "..", "config", "mcp_tools.json");
+
+function loadMcpTools() {
+  try {
+    const raw = fs.readFileSync(MCP_TOOLS_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch { return { mcp_servers: [], mcp_tools: [] }; }
+}
+
+function saveMcpTools(data: unknown) {
+  fs.writeFileSync(MCP_TOOLS_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+app.get("/api/mcp-tools", (_req, res) => {
+  res.json({ success: true, ...loadMcpTools() });
+});
+
+app.post("/api/mcp-tools", (req, res) => {
+  const data = loadMcpTools();
+  const tool = req.body as Record<string, unknown>;
+  if (!tool.id) { res.status(400).json({ error: "tool.id is required" }); return; }
+  data.mcp_tools = data.mcp_tools || [];
+  data.mcp_tools.push(tool);
+  saveMcpTools(data);
+  res.json({ success: true, tool });
+});
+
+app.put("/api/mcp-tools/:id", (req, res) => {
+  const data = loadMcpTools();
+  const idx = (data.mcp_tools as Record<string, unknown>[]).findIndex(t => t.id === req.params.id);
+  if (idx === -1) { res.status(404).json({ error: "Tool not found" }); return; }
+  data.mcp_tools[idx] = { ...data.mcp_tools[idx], ...req.body };
+  saveMcpTools(data);
+  res.json({ success: true, tool: data.mcp_tools[idx] });
+});
+
+app.delete("/api/mcp-tools/:id", (req, res) => {
+  const data = loadMcpTools();
+  data.mcp_tools = (data.mcp_tools as Record<string, unknown>[]).filter(t => t.id !== req.params.id);
+  saveMcpTools(data);
+  res.json({ success: true });
+});
+
+// ── Skills CRUD ───────────────────────────────────────────────────────────────
+
+const SKILLS_FILE = path.join(__dirname, "..", "config", "skills.json");
+
+function loadSkills() {
+  try {
+    const raw = fs.readFileSync(SKILLS_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch { return { skills: [] }; }
+}
+
+function saveSkills(data: unknown) {
+  fs.writeFileSync(SKILLS_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+app.get("/api/skills", (_req, res) => {
+  res.json({ success: true, skills: loadSkills().skills });
+});
+
+app.post("/api/skills", (req, res) => {
+  const data = loadSkills();
+  const skill = req.body as Record<string, unknown>;
+  if (!skill.name) { res.status(400).json({ error: "skill.name is required" }); return; }
+  skill.id = skill.id || String(skill.name).toLowerCase().replace(/\s+/g, "_");
+  data.skills = data.skills || [];
+  data.skills.push(skill);
+  saveSkills(data);
+  res.json({ success: true, skill });
+});
+
+app.put("/api/skills/:id", (req, res) => {
+  const data = loadSkills();
+  const idx = (data.skills as Record<string, unknown>[]).findIndex(s => s.id === req.params.id);
+  if (idx === -1) { res.status(404).json({ error: "Skill not found" }); return; }
+  data.skills[idx] = { ...data.skills[idx], ...req.body };
+  saveSkills(data);
+  res.json({ success: true, skill: data.skills[idx] });
+});
+
+app.delete("/api/skills/:id", (req, res) => {
+  const data = loadSkills();
+  data.skills = (data.skills as Record<string, unknown>[]).filter(s => s.id !== req.params.id);
+  saveSkills(data);
+  res.json({ success: true });
+});
+
+app.get("/api/skills/match", (req, res) => {
+  const { message } = req.query as { message?: string };
+  if (!message) { res.json({ success: true, matched: [] }); return; }
+  const data = loadSkills();
+  const msgLower = message.toLowerCase();
+  const matched = (data.skills as Record<string, unknown>[]).filter(s => {
+    const kws: string[] = (s.trigger_keywords as string[]) || [];
+    return kws.some(kw => kw.toLowerCase().includes(msgLower) || msgLower.includes(kw.toLowerCase()));
+  });
+  res.json({ success: true, matched });
+});
+
+app.post("/api/skills/execute", (req, res) => {
+  const { skill_id, params } = req.body as { skill_id?: string; params?: Record<string, string> };
+  if (!skill_id) { res.status(400).json({ error: "skill_id is required" }); return; }
+  const data = loadSkills();
+  const skill = (data.skills as Record<string, unknown>[]).find(s => s.id === skill_id);
+  if (!skill) { res.status(404).json({ error: "Skill not found" }); return; }
+  const resolvedSteps = (skill.steps as Record<string, unknown>[]).map((step: Record<string, unknown>) => {
+    const resolvedInput: Record<string, unknown> = {};
+    const input = step.input as Record<string, unknown>;
+    for (const [k, v] of Object.entries(input)) {
+      if (typeof v === "string") {
+        let resolved = v;
+        for (const [pk, pv] of Object.entries(params || {})) {
+          resolved = resolved.replace(new RegExp(`{{\\s*${pk}\\s*}}`, "g"), String(pv));
+        }
+        resolvedInput[k] = resolved;
+      } else {
+        resolvedInput[k] = v;
+      }
+    }
+    return { tool: step.tool, input: resolvedInput };
+  });
+  res.json({ success: true, steps: resolvedSteps });
+});
+
+app.post("/api/skills/import", (req, res) => {
+  const { skills } = req.body as { skills?: unknown[] };
+  if (!Array.isArray(skills)) { res.status(400).json({ error: "skills array is required" }); return; }
+  const data = loadSkills();
+  for (const skill of skills) {
+    const s = skill as Record<string, unknown>;
+    s.id = s.id || String(s.name || "").toLowerCase().replace(/\s+/g, "_");
+    data.skills = data.skills || [];
+    data.skills.push(s);
+  }
+  saveSkills(data);
+  res.json({ success: true, count: skills.length });
+});
+
+app.get("/api/skills/export", (_req, res) => {
+  const data = loadSkills();
+  res.setHeader("Content-Disposition", `attachment; filename="skills.json"`);
+  res.setHeader("Content-Type", "application/json");
+  res.json(data);
+});
+
 /** GET /sessions/config — get current session config */
 app.get("/sessions/config", (_req, res) => {
   const config = loadSessionConfig();
