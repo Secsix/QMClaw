@@ -11,6 +11,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { api, Metrics, ExperimentConfig } from "../lib/api";
 import EditableCommand from "../components/EditableCommand";
 import PlotCommandEditor from "../components/PlotCommandEditor";
+import AnalysisCommandEditor from "../components/AnalysisCommandEditor";
 import JobManager from "../components/JobManager";
 import WorkflowDesigner from "../components/WorkflowDesigner";
 import { CompactSessionManager } from "../components/SessionManager";
@@ -529,6 +530,28 @@ export default function Dashboard() {
     }
   };
 
+  // ── Save analysis command to config ─────────────────────────────────────
+  const handleSaveAnalysisCommand = async (expType: string, analysisCommand: string, metrics: string[]) => {
+    try {
+      await api.updateExperimentConfig(expType, {
+        defaultAnalysisCommand: analysisCommand,
+        metricsToExtract: metrics,
+      });
+      // Reload configs to reflect the change
+      const data = await api.getExperimentConfigs();
+      if (data.success && data.configs) {
+        const configs = data.configs as unknown as Record<string, Record<string, ExperimentConfig>>;
+        if (configs.experiments) {
+          setExperimentConfigs(configs.experiments);
+        }
+      }
+      addLog(`✅ Analysis config for ${expType} saved`);
+    } catch (e: any) {
+      addLog(`❌ Failed to save: ${e.message}`, true);
+      throw e;
+    }
+  };
+
   // ── Measure all metrics ───────────────────────────────────────────────
   const measureAllMetrics = async () => {
     if (running) return;
@@ -782,6 +805,16 @@ export default function Dashboard() {
                 onPlot={(cmd) => handlePlot(cmd)}
                 onSaveToConfig={handleSavePlotCommand}
                 plotDisabled={running}
+              />
+
+              {/* Analysis Command Editor */}
+              <AnalysisCommandEditor
+                expType={selectedExp}
+                initialCommand={experimentConfigs[selectedExp]?.defaultAnalysisCommand || ""}
+                metricsToExtract={experimentConfigs[selectedExp]?.metricsToExtract || []}
+                onSaveToConfig={(cmd, metrics) => handleSaveAnalysisCommand(selectedExp, cmd, metrics)}
+                disabled={running}
+                onLog={addLog}
               />
 
               {/* Auto-analyze toggle */}

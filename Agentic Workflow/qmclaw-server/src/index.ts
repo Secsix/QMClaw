@@ -10,13 +10,17 @@
 // Load environment variables from .env file (override existing to ensure .env takes precedence)
 import dotenv from "dotenv";
 import path from "path";
+const envPath = path.join(__dirname, "..", ".env");
+console.log("[DEBUG] Loading .env from:", envPath);
 dotenv.config({
   override: true,
-  path: path.join(__dirname, "..", ".env"),
+  path: envPath,
 });
 
 // Debug: log loaded env vars
 console.log("[DEBUG] MINIMAX_API_KEY loaded:", process.env.MINIMAX_API_KEY ? "YES (length=" + process.env.MINIMAX_API_KEY.length + ")" : "NO");
+console.log("[DEBUG] CWD:", process.cwd());
+console.log("[DEBUG] __dirname:", __dirname);
 
 import express from "express";
 import { createServer } from "http";
@@ -114,7 +118,7 @@ type FlaskPendingEntry = {
 const flaskPendingRequests = new Map<string, FlaskPendingEntry>();
 
 /** Send a Flask-style message to the subprocess and resolve via correlation ID */
-async function sendFlaskRequest(action: string, data: Record<string, unknown>, timeoutMs = 30_000): Promise<unknown> {
+async function sendFlaskRequest(action: string, data: Record<string, unknown>, timeoutMs = 300_000): Promise<unknown> {
   await ensureSubprocess();
   if (!pyProc || !pyProc.stdin) throw new Error("Worker not running");
 
@@ -179,6 +183,7 @@ function ensureSubprocess(): Promise<void> {
         PYTHONUNBUFFERED: "1",
       },
     });
+    console.log("[DEBUG] Spawning Python with MINIMAX_API_KEY:", process.env.MINIMAX_API_KEY ? "SET (len=" + process.env.MINIMAX_API_KEY.length + ")" : "NOT SET");
 
     pyProc.stderr?.on("data", (data: Buffer) => {
       const raw = data.toString();
@@ -1407,6 +1412,37 @@ app.post("/api/chat/analyze-plot", async (req, res) => {
   }
 });
 
+/** POST /api/experiments/run-analysis — run analysis command on latest dataset */
+app.post("/api/experiments/run-analysis", async (req, res) => {
+  try {
+    const { command, expType } = req.body as { command?: string; expType?: string };
+
+    if (!command) {
+      res.status(400).json({ error: "command is required" });
+      return;
+    }
+
+    // Execute analysis command via job_runner
+    const result = await sendFlaskRequest("run_analysis", {
+      command,
+      expType: expType || ""
+    }) as { success: boolean; stdout?: string; stderr?: string; metrics?: Record<string, number>; error?: string };
+
+    if (result.error) {
+      res.status(500).json({ success: false, error: result.error });
+      return;
+    }
+
+    res.json({
+      success: true,
+      stdout: result.stdout || "",
+      metrics: result.metrics || {},
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Helper: Get API key for provider
 function getAPIKeyForProvider(provider: string): string {
   switch (provider) {
@@ -1643,6 +1679,19 @@ app.get("/api/agent/modes", (_req, res) => {
 /** POST /api/agent/reset — reset agent session (no-op, session is stateless) */
 app.post("/api/agent/reset", (_req, res) => {
   res.json({ success: true });
+});
+
+/** GET /api/agent/debug-env — check environment variables in Python process */
+app.get("/api/agent/debug-env", async (_req, res) => {
+  // First check Express's env vars
+  const expressEnv = {
+    minimax: process.env.MINIMAX_API_KEY ? `SET (len=${process.env.MINIMAX_API_KEY.length})` : "NOT SET",
+    openai: process.env.OPENAI_API_KEY ? "SET" : "NOT SET",
+  };
+  try {
+    const data = await sendFlaskRequest("debug_env", {}) as Record<string, unknown>;
+    res.json({ express: expressEnv, python: data });
+  } catch (err: any) { res.status(502).json({ error: err.message }); }
 });
 
 // ── MCP Tools CRUD ─────────────────────────────────────────────────────────────

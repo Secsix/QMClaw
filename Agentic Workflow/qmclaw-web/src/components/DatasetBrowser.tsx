@@ -11,6 +11,7 @@ export default function DatasetBrowser() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [labradAvailable, setLabradAvailable] = useState(true);
   const [selectedDs, setSelectedDs] = useState<Dataset | null>(null);
   const [sessionConfig, setSessionConfig] = useState<{ user: string; path: string[] } | null>(null);
   const [showSessionSwitcher, setShowSessionSwitcher] = useState(false);
@@ -21,6 +22,19 @@ export default function DatasetBrowser() {
   useEffect(() => {
     loadSessionConfig();
   }, []);
+
+  // Check LabRAD availability before loading datasets
+  const checkLabradAvailable = async (): Promise<boolean> => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+    try {
+      const res = await fetch(`${API_BASE}/hardware/quick`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.labrad === "ok";
+      }
+    } catch { /* ignore */ }
+    return false;
+  };
 
   const loadSessionConfig = async () => {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
@@ -67,14 +81,31 @@ export default function DatasetBrowser() {
         // Reload datasets with new path
         loadDatasets("/" + switchUser + "/" + switchPath);
       } else {
-        throw new Error("Failed to switch session");
+        const errorData = await switchRes.json().catch(() => ({}));
+        if (errorData.error?.includes("data_vault") || errorData.error?.includes("NoneType")) {
+          setLabradAvailable(false);
+          setError("LabRAD 服务器未连接，请先启动测控服务");
+        } else {
+          throw new Error(errorData.error || "Failed to switch session");
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to switch session:", e);
+      setError(e.message);
     }
   };
 
   const loadDatasets = useCallback(async (p: string) => {
+    // Check if LabRAD is available first
+    const available = await checkLabradAvailable();
+    setLabradAvailable(available);
+
+    if (!available) {
+      setLoading(false);
+      setError("LabRAD 服务器未连接");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -85,13 +116,23 @@ export default function DatasetBrowser() {
       setGroups(res.groups);
       setDatasets(res.datasets);
     } catch (e: any) {
-      setError(e.message || "Failed to load datasets");
+      // Check for LabRAD-related errors
+      if (e.message?.includes("data_vault") || e.message?.includes("NoneType")) {
+        setLabradAvailable(false);
+        setError("LabRAD 服务器未连接");
+      } else {
+        setError(e.message || "Failed to load datasets");
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadDatasets(path); }, [loadDatasets, path]);
+  useEffect(() => {
+    if (labradAvailable) {
+      loadDatasets(path);
+    }
+  }, [loadDatasets, path, labradAvailable]);
 
   const pathSegments = path ? path.replace(/^\/+|\/+$/g, '').split("/") : [];
 
@@ -278,6 +319,30 @@ export default function DatasetBrowser() {
         </div>
       )}
 
+      {/* Error / LabRAD unavailable message */}
+      {error && (
+        <div style={{
+          margin: "0.75rem",
+          padding: "0.75rem",
+          background: !labradAvailable ? "#422006" : "#451a1a",
+          border: `1px solid ${!labradAvailable ? "#f59e0b" : "#ef4444"}`,
+          borderRadius: "0.5rem",
+        }}>
+          {!labradAvailable ? (
+            <>
+              <div style={{ fontSize: "0.8rem", color: "#fbbf24", fontWeight: 600, marginBottom: "0.5rem" }}>
+                ⚠️ LabRAD 服务器未连接
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#fcd34d", lineHeight: 1.6 }}>
+                请在「服务控制」面板中启动测控服务后再使用 DataVault 功能。
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: "0.7rem", color: "#f87171" }}>{error}</div>
+          )}
+        </div>
+      )}
+
       {/* Datasets */}
       <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
         {loading && (
@@ -285,10 +350,12 @@ export default function DatasetBrowser() {
             Loading...
           </div>
         )}
-        {error && (
-          <div style={{ padding: "0.75rem", color: "#f87171", fontSize: "0.7rem" }}>{error}</div>
+        {!loading && !error && !labradAvailable && (
+          <div style={{ padding: "1rem", color: "#f59e0b", fontSize: "0.75rem", textAlign: "center" }}>
+            请先启动测控服务
+          </div>
         )}
-        {!loading && !error && datasets.map((ds) => (
+        {!loading && !error && labradAvailable && datasets.map((ds) => (
           <div
             key={ds.id}
             onClick={() => setSelectedDs(selectedDs?.id === ds.id ? null : ds)}
@@ -307,7 +374,7 @@ export default function DatasetBrowser() {
             </div>
           </div>
         ))}
-        {!loading && !error && datasets.length === 0 && groups.length === 0 && (
+        {!loading && !error && datasets.length === 0 && groups.length === 0 && labradAvailable && (
           <div style={{ padding: "1rem", color: "#334569", fontSize: "0.75rem", textAlign: "center" }}>
             No datasets in this folder
           </div>
