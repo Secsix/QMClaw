@@ -18,6 +18,7 @@ Usage:
 import os
 import sys
 import json
+from typing import Dict, Any
 import base64
 import time
 import signal
@@ -42,12 +43,17 @@ def _sanitize_string(s):
         # Remove lone surrogates and any other problematic characters
         result = []
         for char in s:
-            try:
-                # Try to encode each character - lone surrogates will fail
-                char.encode('utf-8')
-                result.append(char)
-            except UnicodeEncodeError:
-                pass  # Skip problematic characters
+            codepoint = ord(char)
+            # Skip UTF-16 surrogates (U+D800 to U+DFFF) which are invalid in UTF-8
+            if 0xD800 <= codepoint <= 0xDFFF:
+                continue
+            # Skip other problematic characters
+            if codepoint < 0x110000:  # Valid Unicode range
+                try:
+                    char.encode('utf-8')
+                    result.append(char)
+                except UnicodeEncodeError:
+                    continue
         return ''.join(result)
 
 
@@ -149,26 +155,113 @@ def _save_rules_config(rules: list):
 _default_rules = _load_rules_config()
 print(f"INIT: Loaded {len(_default_rules)} rules from config file", file=sys.stderr, flush=True)
 
-# ── Backend initialization (done once at startup) ─────────────────────────────
+# ── Backend Adapter Layer ─────────────────────────────────────────────────────
+# Use the new backends adapter for all initialization
+_BACKEND_ADAPTER = None  # New adapter instance
+
+def _setup_backends_path():
+    """Add qmclaw-server directory to Python path for backends module."""
+    # __file__ = scripts/job_runner.py
+    # server_dir = qmclaw-server (parent of scripts)
+    server_dir = os.path.dirname(os.path.dirname(__file__))
+    if server_dir not in sys.path:
+        sys.path.insert(0, server_dir)
+        print(f"BACKENDS: Added server_dir to sys.path: {server_dir}", file=sys.stderr, flush=True)
+
+_setup_backends_path()
+
+# ── Ray initialization ──────────────────────────────────────────────────────────
+
+def _setup_ray():
+    """Initialize Ray connection and start Device Manager actor."""
+    try:
+        import ray
+
+        # Skip if already initialized
+        if ray.is_initialized():
+            print("RAY: Already initialized", file=sys.stderr, flush=True)
+            return True
+
+        # Get Ray config from lqcs.system_config
+        try:
+            from lqcs import system_config
+            head_ip = system_config.get_ray_head()
+            node_ip = system_config.get_config()['ip']
+            port = system_config.get_ray_port()
+        except ImportError:
+            print("RAY: lqcs.system_config not available, skipping Ray init", file=sys.stderr, flush=True)
+            return False
+
+        print(f"RAY: Connecting to {head_ip}:{port}...", file=sys.stderr, flush=True)
+        ray.init(
+            address=f"{head_ip}:{port}",
+            namespace='main',
+            _node_ip_address=node_ip,
+            log_to_driver=False,
+        )
+        print("RAY: Connected successfully", file=sys.stderr, flush=True)
+
+        # Try to get or create Device Manager
+        try:
+            device_manager = ray.get_actor('Device Manager')
+            print("RAY: Device Manager already exists", file=sys.stderr, flush=True)
+        except Exception:
+            print("RAY: Starting Device Manager...", file=sys.stderr, flush=True)
+            try:
+                from lqcs.servers_control.start_server import start_managers
+                start_managers.startServer(
+                    node_ip,
+                    start_managers.DeviceManagerActor,
+                    'Device Manager',
+                    blocking=False
+                )
+                print("RAY: Device Manager started", file=sys.stderr, flush=True)
+            except Exception as e:
+                print(f"RAY: Failed to start Device Manager: {e}", file=sys.stderr, flush=True)
+
+        return True
+    except Exception as e:
+        print(f"RAY: Initialization failed: {e}", file=sys.stderr, flush=True)
+        return False
+
+# Call Ray setup before backend init
+_setup_ray()
+
+# ── Backend initialization (done once at startup) ──────────────────────────────
 
 print("INIT: Starting backend initialization...", file=sys.stderr, flush=True)
 sys.stderr.flush()
 
 _cxn = _s = _sq = _data = _qter = _BasicTuner = _generate_qubit = _backend = None
+_all_qubits: Dict[str, Any] = {}
+_all_couplers: Dict[str, Any] = {}
 _current_session_path = []  # Track current session path for qubit reloading
 
 def reload_qubits(session_path):
-    """Reload qubits for the given session path."""
-    global _s, _data, _qter, _backend, _current_session_path
-    import labrad
-    from lqms.pyle.workflow import switchSession
-    from lqms.utils.save_path import get_info_path
-    from lqms.data_process import dataAnalysisCore as dc
+    """Reload qubits for the given session path using adapter or direct lqms calls."""
+    global _s, _data, _qter, _backend, _current_session_path, _BACKEND_ADAPTER, _all_qubits, _all_couplers
 
     print(f"RELOAD_QUBITS: Starting reload for path={session_path}", file=sys.stderr, flush=True)
     _current_session_path = session_path
 
+    # Try using adapter first, fall back to direct lqms calls
+    if _BACKEND_ADAPTER is not None:
+        try:
+            success = _BACKEND_ADAPTER.reload_qubits(session_path)
+            if success:
+                # Update global references
+                _update_globals_from_adapter()
+            return success
+        except Exception as e:
+            print(f"RELOAD_QUBITS: Adapter failed, falling back to direct calls: {e}", file=sys.stderr)
+
+    # Fall back to direct lqms calls
     try:
+        import labrad
+        from lqms.pyle.workflow import switchSession
+        from lqms.utils.save_path import get_info_path
+        from lqms.data_process import dataAnalysisCore as dc
+
         # Switch session
         if session_path:
             # Extract user from path (e.g., ['', 'LQHL', 'test', '20260324'] -> 'LQHL')
@@ -193,19 +286,13 @@ def reload_qubits(session_path):
             _qter.data = _data
             print(f"RELOAD_QUBITS: Updated _qter.data to new DataLab", file=sys.stderr, flush=True)
 
-        # Regenerate qubits from the new session's info
+        # Regenerate qubits from the new session's info (switchSession already loads qubits)
         if _generate_qubit:
             from lqms.measure import generate_qubit, generate_coupler
             print(f"RELOAD_QUBITS: Calling generate_qubit with session={session_path}", file=sys.stderr, flush=True)
-            all_qubits = generate_qubit({'s': _s}, info=info, sample=_s)
-            all_couplers = generate_coupler({'s': _s}, info=info, sample=_s)
-            print(f"RELOAD_QUBITS: generate_qubit returned {len(all_qubits)} qubits: {list(all_qubits.keys())[:10]}...", file=sys.stderr, flush=True)
-
-            # Inject qubits into _s registry
-            for qname, qobj in all_qubits.items():
-                _s._set(qname, qobj)
-
-            print(f"RELOAD_QUBITS: Injected {len(all_qubits)} qubits into _s", file=sys.stderr, flush=True)
+            _all_qubits = generate_qubit({'s': _s}, info=info, sample=_s)
+            _all_couplers = generate_coupler({'s': _s}, info=info, sample=_s)
+            print(f"RELOAD_QUBITS: generate_qubit returned {len(_all_qubits)} qubits: {list(_all_qubits.keys())[:10]}...", file=sys.stderr, flush=True)
 
         # Count qubits in _s after reload
         q_keys = [k for k in _s.keys() if k.startswith('q')]
@@ -217,25 +304,119 @@ def reload_qubits(session_path):
         print(f"RELOAD_QUBITS ERROR: {tb.format_exc()}", file=sys.stderr, flush=True)
         return False
 
+def _update_globals_from_adapter():
+    """Update job_runner globals from backend adapter for backward compatibility."""
+    global _cxn, _s, _sq, _data, _qter, _BasicTuner, _generate_qubit, _backend, _all_qubits, _all_couplers
+
+    if _BACKEND_ADAPTER is None:
+        return
+
+    _cxn = _BACKEND_ADAPTER.cxn
+    _s = _BACKEND_ADAPTER.s
+    _sq = _BACKEND_ADAPTER.sq
+    _data = _BACKEND_ADAPTER.data
+    _qter = _BACKEND_ADAPTER.qter
+    _BasicTuner = _BACKEND_ADAPTER._BasicTuner
+    _generate_qubit = _BACKEND_ADAPTER._generate_qubit
+    _all_qubits = _BACKEND_ADAPTER._all_qubits
+    _all_couplers = _BACKEND_ADAPTER._all_couplers
+    _backend = _BACKEND_ADAPTER  # Reference to adapter for qubit lookup
+
+
 def init_backend(max_retries=3, delay=5):
-    global _cxn, _s, _sq, _data, _qter, _BasicTuner, _generate_qubit, _backend, _current_session_path
+    global _cxn, _s, _sq, _data, _qter, _BasicTuner, _generate_qubit, _backend, _current_session_path, _BACKEND_ADAPTER, _all_qubits, _all_couplers
     last_error = None
+
+    # Try using the new backends adapter first
+    try:
+        from backends import init_backend as create_backend_adapter, BackendStatus
+
+        # Load session config
+        session_path = _get_full_session_path()
+        print(f"INIT: Using backends adapter, session path = {session_path}", file=sys.stderr, flush=True)
+
+        # Create and initialize backend adapter
+        _BACKEND_ADAPTER = create_backend_adapter(session_path=session_path)
+
+        if _BACKEND_ADAPTER is not None and _BACKEND_ADAPTER.status == BackendStatus.READY:
+            _update_globals_from_adapter()
+            _current_session_path = session_path
+            print(f"INIT: Backends adapter ready — system=lqcs, session={_current_session_path}", file=sys.stderr, flush=True)
+            return True
+        else:
+            print(f"INIT: Backends adapter status = {_BACKEND_ADAPTER.status if _BACKEND_ADAPTER else 'None'}", file=sys.stderr, flush=True)
+    except ImportError as e:
+        print(f"INIT: Backends adapter not available ({e}), using direct lqms import", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"INIT: Backends adapter failed ({e}), using direct lqms import", file=sys.stderr, flush=True)
+
+    # Fall back to direct lqms import (without measure_scripts/backend.py)
     for attempt in range(max_retries):
         try:
-            import backend
-            _backend = backend
-            from backend import cxn, s, sq, data, qter, BasicTuner, generate_qubit
-            _cxn = cxn; _s = s; _sq = sq; _data = data
-            _qter = qter; _BasicTuner = BasicTuner; _generate_qubit = generate_qubit
+            # Add measure_scripts to path for lqms imports
+            if BACKEND_DIR not in sys.path:
+                sys.path.insert(0, BACKEND_DIR)
+
+            import labrad
+            from lqms.pyle.workflow import switchSession
+            from lqms.utils.save_path import get_info_path
+            from lqms.data_process import dataAnalysisCore as dc, QubitUpdater
+            from lqms.measure import generate_qubit, generate_coupler
+            from lqms.measure.basic import BasicTuner, util
+            from lqms.measure.tuners import sq_nodes as sq_module
+
+            # Store for later use
+            _generate_qubit = generate_qubit
+
+            # Connect to LabRAD
+            _cxn = labrad.connect()
+            util.setWiringInfo(_cxn)
 
             # Load session path from config file
             _current_session_path = _get_full_session_path()
             print(f"INIT: Config session path = {_current_session_path}", file=sys.stderr, flush=True)
 
-            # Reload _data with the configured session path
-            from lqms.data_process import dataAnalysisCore as dc
+            # Create session switcher
+            user = _current_session_path[1] if len(_current_session_path) > 1 else 'LQHL'
+            _s = switchSession(_cxn, user=user)
+
+            # Initialize data lab
             _data = dc.DataLab(_current_session_path, _cxn.data_vault, dv_type='data_vault')
-            print(f"INIT: Backend ready — sq={sq}, session={_current_session_path}", file=sys.stderr, flush=True)
+
+            # Load or create info
+            info_path = get_info_path(_s)
+            info = dc.InfoBase(info_path) if os.path.exists(info_path) else None
+
+            # Initialize analysis tools
+            _qter = QubitUpdater(_data, info)
+
+            # Generate qubits (switchSession already loads qubits from registry)
+            _all_qubits = generate_qubit({'s': _s}, info=info, sample=_s)
+            _all_couplers = generate_coupler({'s': _s}, info=info, sample=_s)
+
+            # No need to inject - switchSession loads qubits automatically
+
+            # Initialize BasicTuner
+            auto_config = {
+                'stats': 300,
+                'correctX': False,
+                'correctZ': False,
+                'reset': False,
+                'apply_21': False,
+                'run_mode': 'local',
+            }
+            _BasicTuner = BasicTuner(**auto_config)
+            # Set on CLASS for experiment functions to access (like original backend.py)
+            BasicTuner._sample = _s
+            BasicTuner._all_qobjs = _all_qubits | _all_couplers
+
+            # Get experiment module
+            _sq = sq_module
+
+            # For backward compatibility, _backend is the adapter if available
+            _backend = _BACKEND_ADAPTER if _BACKEND_ADAPTER else _sq
+
+            print(f"INIT: Backend ready (direct lqms) — sq={sq_module}, session={_current_session_path}", file=sys.stderr, flush=True)
             return True
         except Exception as e:
             last_error = e
@@ -285,15 +466,13 @@ def run_job(code_b64, job_id):
             "backend": _backend,
         }
 
-        # Get qubits from backend module (where generate_qubit injects them)
-        # The backend module has qubits like q10lu1, q10lu10 etc. injected by generate_qubit
-        if _backend:
-            for _n in dir(_backend):
-                if _n.startswith('q') and not _n.startswith('qq'):
-                    obj = getattr(_backend, _n)
-                    # Accept actual qubit objects or RegistryWrapper objects
-                    if hasattr(obj, 'qName') or hasattr(obj, 'regs') or 'RegistryWrapper' in str(type(obj)):
-                        exec_globals[_n] = obj
+        # Add qubits from _all_qubits (actual Qubit objects with qName)
+        # These are the actual qubit objects generated by generate_qubit
+        if _all_qubits:
+            for _n, obj in _all_qubits.items():
+                if _n.startswith('q') and _n not in exec_globals:
+                    exec_globals[_n] = obj
+            print(f"EXEC: Added {len(_all_qubits)} qubits from _all_qubits", file=sys.stderr)
 
         # Also try to get qubits from _s registry (for session-switched qubits)
         if _s:
@@ -302,13 +481,14 @@ def run_job(code_b64, job_id):
                 if _n.startswith('q') and _n not in exec_globals:
                     try:
                         obj = _s[_n]
-                        # Accept qubit-like objects
-                        if hasattr(obj, 'qName') or hasattr(obj, 'regs') or 'RegistryWrapper' in str(type(obj)):
+                        # Only accept actual qubit objects, not RegistryWrapper
+                        if hasattr(obj, 'qName') or hasattr(obj, 'regs'):
                             exec_globals[_n] = obj
                             qubit_count += 1
                     except:
                         pass
-            print(f"EXEC: Added {qubit_count} qubits from _s registry", file=sys.stderr)
+            if qubit_count > 0:
+                print(f"EXEC: Added {qubit_count} qubits from _s registry", file=sys.stderr)
 
         # Debug: check q10lu1
         if 'q10lu1' in exec_globals:
@@ -856,12 +1036,14 @@ def run_workflow_node(node, node_results, workflow_ctx, check_cancel_fn):
                 # Resolve qubit name to qubit object if needed
                 exp_qubit_obj = exp_qubit
                 if isinstance(exp_qubit, str):
-                    if _s and exp_qubit in _s:
-                        exp_qubit_obj = _s[exp_qubit]
+                    if exp_qubit in _all_qubits:
+                        exp_qubit_obj = _all_qubits[exp_qubit]
+                    elif _s and exp_qubit in _s:
+                        exp_qubit_obj = _s[exp_qubit]  # Fallback (may be RegistryWrapper)
                     elif _backend and hasattr(_backend, exp_qubit):
                         exp_qubit_obj = getattr(_backend, exp_qubit)
                     else:
-                        q_keys = [k for k in (_s.keys() if _s else []) if k.startswith('q')]
+                        q_keys = [k for k in (_all_qubits.keys() if _all_qubits else []) if k.startswith('q')]
                         print(f"WORKFLOW_DEBUG: batch qubit '{exp_qubit}' NOT found! Available: {q_keys[:5]}...", file=sys.stderr, flush=True)
 
                 # Set the qubit object in exec globals for this experiment
@@ -1805,13 +1987,17 @@ def _get_minimax_key() -> str:
 def call_minimax_api(messages: list, model: str, api_key: str, temperature: float = 0.3, max_tokens: int = 500) -> dict:
     """Call MiniMax API using OpenAI-compatible endpoint (matches Model Registry)."""
     from urllib.request import urlopen, Request
-    from urllib.error import URLError
+    from urllib.error import URLError, HTTPError
+    import socket
 
+    print(f"[MiniMax API] Calling API with {len(messages)} messages", file=sys.stderr, flush=True)
     endpoint = "https://api.minimax.chat/v1/text/chatcompletion_v2"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {api_key}",  # Full key for request
         "Content-Type": "application/json",
     }
+    # Log only first 10 chars for debugging
+    print(f"[MiniMax API] Request headers - Authorization: Bearer {api_key[:10]}...", file=sys.stderr, flush=True)
 
     # Convert messages to the format expected by MiniMax
     minimax_messages = []
@@ -1832,7 +2018,10 @@ def call_minimax_api(messages: list, model: str, api_key: str, temperature: floa
     data_bytes = json.dumps(payload).encode("utf-8")
     req = Request(endpoint, data=data_bytes, headers=headers, method="POST")
     try:
-        resp = urlopen(req, timeout=60)
+        # Use shorter timeout to avoid blocking too long
+        print(f"[MiniMax API] Sending request...", file=sys.stderr, flush=True)
+        resp = urlopen(req, timeout=15)  # 15 second timeout
+        print(f"[MiniMax API] Response received", file=sys.stderr, flush=True)
         result = json.loads(resp.read().decode("utf-8"))
 
         content = ""
@@ -1842,10 +2031,11 @@ def call_minimax_api(messages: list, model: str, api_key: str, temperature: floa
             content = _sanitize_string(msg.get("content", ""))
 
         usage = result.get("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+        print(f"[MiniMax API] Success, content length: {len(content)}", file=sys.stderr, flush=True)
         return {"choices": [{"message": {"content": content}}], "usage": usage}
-    except URLError as e:
-        print(f"[MiniMax API] URLError: {e}", file=sys.stderr, flush=True)
-        raise Exception(f"MiniMax API error: {e}")
+    except (URLError, HTTPError, socket.timeout, Exception) as e:
+        print(f"[MiniMax API] Error: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        raise Exception(f"MiniMax API error: {type(e).__name__}: {e}")
 
 
 def llm_decide(prompt: str, context: str, api_key: str, model: str = "gpt-4o", temperature: float = 0.3, max_tokens: int = 500, system_prompt: str = "", provider: str = "", base_url: str = "") -> dict:
@@ -2544,6 +2734,16 @@ def handle_flask_request(action, data):
                 }
             }}
 
+        elif action == "debug_env":
+            # Debug endpoint to check environment variables
+            minimax_key = os.environ.get("MINIMAX_API_KEY", "")
+            return {"cid": cid, "action": action, "data": {
+                "minimax_api_key_set": bool(minimax_key),
+                "minimax_api_key_len": len(minimax_key),
+                "openai_api_key_set": bool(os.environ.get("OPENAI_API_KEY", "")),
+                "all_env_keys": sorted([k for k in os.environ.keys() if any(x in k.upper() for x in ["KEY", "API", "MINIMAX", "OPENAI", "ANTHROPIC", "DEEPSEEK"])]),
+            }}
+
         elif action == "experiments":
             experiments = []
             for name in dir(_sq):
@@ -2755,7 +2955,6 @@ def handle_flask_request(action, data):
                 # Save the plot with unique filename to avoid cache
                 import time
                 _plots_dir = PLOTS_DIR
-                import os
                 os.makedirs(_plots_dir, exist_ok=True)
                 _plot_filename = f"plot_{int(time.time() * 1000)}.png"
                 _path = os.path.join(_plots_dir, _plot_filename)
@@ -3283,6 +3482,76 @@ def handle_flask_request(action, data):
             except Exception as e:
                 return {"cid": cid, "action": action, "error": str(e)}
 
+        elif action == "run_analysis":
+            # Execute analysis command on the latest dataset
+            command = data.get("command", "")
+            if not command:
+                return {"cid": cid, "action": action, "error": "command is required"}
+
+            try:
+                from io import StringIO
+                import matplotlib.pyplot as plt
+
+                # Load latest dataset
+                if _data is None:
+                    return {"cid": cid, "action": action, "error": "DataLab not initialized"}
+
+                _data.loadDataset(-1)
+
+                # Execute analysis command
+                stdout_buf = StringIO()
+                stderr_buf = StringIO()
+                old_out, old_err = sys.stdout, sys.stderr
+                sys.stdout = stdout_buf
+                sys.stderr = stderr_buf
+
+                try:
+                    analysis_globals = {
+                        "__name__": "__analysis__",
+                        "__builtins__": __builtins__,
+                        "os": os,
+                        "sys": sys,
+                        "data": _data,
+                        "qter": _qter,
+                        "dp": _data,
+                        "plt": plt,
+                    }
+                    exec(command, analysis_globals)
+                finally:
+                    sys.stdout = old_out
+                    sys.stderr = old_err
+
+                analysis_output = stdout_buf.getvalue()
+                analysis_error = stderr_buf.getvalue()
+
+                # Parse metrics from output (look for key=value patterns)
+                metrics = {}
+                for line in analysis_output.split("\n"):
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        parts = line.split("=", 1)
+                        if len(parts) == 2:
+                            key = parts[0].strip()
+                            value_str = parts[1].strip().split()[0]  # Take first part before space
+                            try:
+                                metrics[key] = float(value_str)
+                            except ValueError:
+                                pass
+
+                print(f"RUN_ANALYSIS: executed, output length={len(analysis_output)}, metrics={metrics}", file=sys.stderr, flush=True)
+
+                return {"cid": cid, "action": action, "data": {
+                    "success": True,
+                    "stdout": analysis_output,
+                    "stderr": analysis_error,
+                    "metrics": metrics,
+                }}
+
+            except Exception as e:
+                import traceback as tb
+                print(f"RUN_ANALYSIS: error={e}\n{tb.format_exc()}", file=sys.stderr, flush=True)
+                return {"cid": cid, "action": action, "error": str(e), "traceback": tb.format_exc()}
+
         else:
             return {"cid": cid, "action": action, "error": f"Unknown action: {action}"}
 
@@ -3656,12 +3925,16 @@ class QuantumAgent:
 
     def chat(self, message, context=None):
         """Main entry point. Returns dict with response, steps, results."""
+        print(f"[QuantumAgent.chat] mode={self.mode}, message='{message[:100]}...'", file=sys.stderr, flush=True)
         intent = {"task": message, "context": context or {}}
         if self.mode == "react":
+            print(f"[QuantumAgent.chat] Running ReAct loop...", file=sys.stderr, flush=True)
             return self._react_loop(intent)
         elif self.mode == "plan_and_execute":
+            print(f"[QuantumAgent.chat] Running Plan-and-Execute...", file=sys.stderr, flush=True)
             return self._plan_and_execute(intent)
         elif self.mode == "reflexion":
+            print(f"[QuantumAgent.chat] Running Reflexion...", file=sys.stderr, flush=True)
             return self._reflexion_loop(intent)
         else:
             return {"error": f"Unknown mode: {self.mode}"}
@@ -3725,25 +3998,34 @@ class QuantumAgent:
     # ── ReAct Loop ─────────────────────────────────────────────────────────────
 
     def _react_loop(self, intent):
+        print(f"[ReAct] Starting react loop, max_steps={self.max_steps}", file=sys.stderr, flush=True)
         steps = []
         observation = ""
-        for _ in range(self.max_steps):
+        for step_idx in range(self.max_steps):
+            print(f"[ReAct] Step {step_idx+1}/{self.max_steps}", file=sys.stderr, flush=True)
             prompt = self._build_react_prompt(intent, steps, observation)
+            print(f"[ReAct] Calling _call_llm...", file=sys.stderr, flush=True)
             response = self._call_llm(prompt)
+            print(f"[ReAct] _call_llm returned, response length: {len(response)}", file=sys.stderr, flush=True)
             parsed = self._parse_llm_response(response)
+            print(f"[ReAct] parsed type: {parsed.get('type')}, tool: {parsed.get('tool')}", file=sys.stderr, flush=True)
 
             if parsed["type"] == "finish":
+                print(f"[ReAct] Finish received, summarizing...", file=sys.stderr, flush=True)
                 return self._summarize(intent, steps, parsed["content"])
 
             tool_name = parsed.get("tool", "")
             tool_input = parsed.get("input", {})
+            print(f"[ReAct] Executing tool: {tool_name}", file=sys.stderr, flush=True)
             observation = self._execute_tool(tool_name, tool_input)
+            print(f"[ReAct] Tool executed, observation type: {type(observation)}", file=sys.stderr, flush=True)
             steps.append({
                 "thought": parsed.get("thought", ""),
                 "tool": tool_name,
                 "input": tool_input,
                 "observation": observation,
             })
+        print(f"[ReAct] Max steps reached, summarizing...", file=sys.stderr, flush=True)
         return self._summarize(intent, steps, "执行达到最大步数限制")
 
     # ── Plan-and-Execute ───────────────────────────────────────────────────────
@@ -3752,10 +4034,11 @@ class QuantumAgent:
         # Planning phase
         plan_prompt = self._build_plan_prompt(intent)
         plan_response = self._call_llm(plan_prompt)
+        safe_plan_response = _sanitize_string(plan_response)
         try:
-            plan_steps = json.loads(plan_response)
+            plan_steps = json.loads(safe_plan_response)
         except Exception:
-            plan_steps = [{"tool": "llm_reasoning", "input": {"prompt": plan_response}}]
+            plan_steps = [{"tool": "llm_reasoning", "input": {"prompt": safe_plan_response}}]
 
         # Execution phase
         steps = []
@@ -3798,34 +4081,63 @@ class QuantumAgent:
 
     def _call_llm(self, prompt, temperature=0.3):
         """Call LLM with a text prompt. Returns the response text."""
-        # Try MiniMax first (common default for quantum control)
-        api_key = os.environ.get("MINIMAX_API_KEY", "")
-        if api_key:
+        import sys as _sys
+        # Check both if key exists AND if it's non-empty
+        minimax_key = os.environ.get("MINIMAX_API_KEY", "")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        _sys.stderr.write(f"[Agent LLM] Env check - MINIMAX_API_KEY exists={('MINIMAX_API_KEY' in os.environ)}, len={len(minimax_key)}, OPENAI_API_KEY exists={('OPENAI_API_KEY' in os.environ)}, len={len(openai_key)}\n")
+        _sys.stderr.flush()
+
+        # Try MiniMax first
+        if minimax_key:
+            _sys.stderr.write(f"[Agent LLM] Calling MiniMax API...\n")
+            _sys.stderr.flush()
             try:
                 result = call_minimax_api(
                     messages=[{"role": "user", "content": prompt}],
                     model="MiniMax-M2.7",
-                    api_key=api_key,
+                    api_key=minimax_key,
                     temperature=temperature,
                     max_tokens=2048,
                 )
-                if result.get("content"):
-                    return result["content"]
+                if result and isinstance(result, dict):
+                    choices = result.get("choices", [])
+                    if choices and len(choices) > 0:
+                        msg = choices[0].get("message", {})
+                        if isinstance(msg, dict):
+                            content = msg.get("content", "")
+                            if content:
+                                _sys.stderr.write(f"[Agent LLM] MiniMax success, content length={len(content)}\n")
+                                _sys.stderr.flush()
+                                return content
+                _sys.stderr.write(f"[Agent LLM] MiniMax returned empty content\n")
+                _sys.stderr.flush()
             except Exception as e:
-                print(f"[LLM Debug] MiniMax call failed: {e}", file=sys.stderr)
-        # Fallback to OpenAI-compatible
-        client = get_openai_client(os.environ.get("OPENAI_API_KEY", ""), "openai", None)
-        messages = [{"role": "user", "content": prompt}]
-        try:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=temperature,
-                max_tokens=2048,
-            )
-            return resp.choices[0].message.content or ""
-        except Exception as e:
-            return f"[LLM Error: {e}]"
+                _sys.stderr.write(f"[Agent LLM] MiniMax error: {type(e).__name__}: {e}\n")
+                _sys.stderr.flush()
+
+        # Fallback to OpenAI
+        if openai_key:
+            _sys.stderr.write(f"[Agent LLM] Using OpenAI fallback...\n")
+            _sys.stderr.flush()
+            client = get_openai_client(openai_key, "openai", None)
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=2048,
+                )
+                content = resp.choices[0].message.content or ""
+                return _sanitize_string(content)
+            except Exception as e:
+                _sys.stderr.write(f"[Agent LLM] OpenAI error: {type(e).__name__}: {e}\n")
+                _sys.stderr.flush()
+                return f"[LLM Error: {type(e).__name__}: {e}]"
+
+        _sys.stderr.write(f"[Agent LLM] No API key available, returning error\n")
+        _sys.stderr.flush()
+        return "[LLM Error: No API key configured. Set MINIMAX_API_KEY or OPENAI_API_KEY environment variable.]"
 
     def _build_react_prompt(self, intent, steps, observation):
         tools_desc = "\n".join(
@@ -3878,17 +4190,19 @@ class QuantumAgent:
 
     def _parse_llm_response(self, response):
         """Parse LLM text response to extract action/finish."""
+        # Sanitize the response first to remove problematic surrogate characters
+        safe_response = _sanitize_string(response)
         try:
             # Try to find a JSON object in the response
-            start = response.find("{")
-            end = response.rfind("}") + 1
+            start = safe_response.find("{")
+            end = safe_response.rfind("}") + 1
             if start >= 0 and end > start:
-                obj = json.loads(response[start:end])
+                obj = json.loads(safe_response[start:end])
                 return obj
         except Exception:
             pass
         # Fallback: treat as finish with the raw response
-        return {"type": "finish", "content": response}
+        return {"type": "finish", "content": safe_response}
 
     def _is_ok(self, reflection_text):
         """Check if reflection indicates success."""
@@ -3905,8 +4219,10 @@ class QuantumAgent:
                     results.update(obs["metrics"])
                 if "plot_path" in obs:
                     charts.append(obs["plot_path"])
+        # Sanitize final_content to remove any problematic characters
+        safe_content = _sanitize_string(final_content) if final_content else "执行完成"
         return {
-            "response": final_content or "执行完成",
+            "response": safe_content,
             "steps": steps,
             "results": results,
             "charts": charts,
@@ -4005,10 +4321,12 @@ def _run_single_experiment(qubit, fn, params):
     # Build call code using the qubit object from _s registry
     call_code = f"{fn_name}(_current_qubit, {', '.join(f'{k}={repr(v)}' for k, v in params.items())})"
 
-    # Get qubit object
+    # Get qubit object from _all_qubits (actual Qubit objects)
     qubit_obj = None
-    if isinstance(qubit, str) and _s and qubit in _s:
-        qubit_obj = _s[qubit]
+    if isinstance(qubit, str) and qubit in _all_qubits:
+        qubit_obj = _all_qubits[qubit]
+    if qubit_obj is None and _s and qubit in _s:
+        qubit_obj = _s[qubit]  # Fallback to _s (may be RegistryWrapper)
     if qubit_obj is None:
         return {"error": f"Qubit not found: {qubit}"}
 
@@ -4041,10 +4359,38 @@ def _run_single_experiment(qubit, fn, params):
 
 def _run_agent_chat(message, mode, context):
     """Top-level handler for agent_chat Flask action."""
+    print(f"[Agent] Starting agent_chat: message='{message[:50]}...', mode={mode}", file=sys.stderr, flush=True)
+
+    # Debug: Check environment variables - print all keys containing API or KEY
+    api_keys = [k for k in os.environ.keys() if 'KEY' in k.upper() or 'API' in k.upper()]
+    print(f"[Agent] API-related env keys: {api_keys}", file=sys.stderr, flush=True)
+
+    # Try to load .env file directly in Python if MINIMAX_API_KEY is not set
+    if not os.environ.get("MINIMAX_API_KEY"):
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
+        print(f"[Agent] MINIMAX_API_KEY not in env, trying to load from: {env_file}", file=sys.stderr, flush=True)
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            os.environ[key.strip()] = value.strip()
+                print(f"[Agent] Loaded .env, MINIMAX_API_KEY now: {bool(os.environ.get('MINIMAX_API_KEY'))}", file=sys.stderr, flush=True)
+            except Exception as e:
+                print(f"[Agent] Failed to load .env: {e}", file=sys.stderr, flush=True)
+        else:
+            print(f"[Agent] .env file does not exist at: {env_file}", file=sys.stderr, flush=True)
+
     ctx = dict(context) if context else {}
     model_name = ctx.pop("model_name", None)
+    print(f"[Agent] Creating QuantumAgent: mode={mode}, model_name={model_name}", file=sys.stderr, flush=True)
     agent = QuantumAgent(mode=mode, model_name=model_name)
-    return agent.chat(message, ctx)
+    print(f"[Agent] Calling agent.chat()...", file=sys.stderr, flush=True)
+    result = agent.chat(message, ctx)
+    print(f"[Agent] agent.chat() completed, result keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}", file=sys.stderr, flush=True)
+    return result
 
 
 # ── Flask background thread ──────────────────────────────────────────────────
@@ -4152,13 +4498,18 @@ for line in sys.stdin:
             action = obj.get("action", "health")
             flask_data = obj.get("data", {})  # Extract the data field
             flask_data["cid"] = cid  # Pass cid in data for handle_flask_request
+            print(f"[EVENT] Flask request: cid={cid}, action={action}", file=sys.stderr, flush=True)
             try:
                 result = handle_flask_request(action, flask_data)
+                print(f"[EVENT] handle_flask_request returned, cid={cid}", file=sys.stderr, flush=True)
                 output = json.dumps(result)
                 sys.stdout.write(output + "\n")
                 sys.stdout.flush()
+                print(f"[EVENT] Response written for cid={cid}", file=sys.stderr, flush=True)
             except Exception as e:
                 import traceback
+                print(f"[EVENT] Exception in flask handling: {e}", file=sys.stderr, flush=True)
+                print(traceback.format_exc(), file=sys.stderr, flush=True)
                 result = {"cid": cid, "action": action, "error": str(e)}
                 output = json.dumps(result)
                 sys.stdout.write(output + "\n")

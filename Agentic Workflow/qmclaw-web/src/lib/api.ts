@@ -494,6 +494,24 @@ print(f"readout_fidelity=0.95 t1=2500.0 gate_fidelity=0.992")
     return res.json();
   },
 
+  // ── Analysis Command Execution ────────────────────────────────────────────────
+
+  runAnalysis: async (command: string, expType?: string): Promise<{
+    success: boolean;
+    stdout?: string;
+    stderr?: string;
+    metrics?: Record<string, number>;
+    error?: string;
+  }> => {
+    const r = await fetch(`${API_BASE}/api/experiments/run-analysis`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command, expType }),
+    });
+    if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+    return r.json();
+  },
+
   // ── Image Classification ────────────────────────────────────────────────────
 
   classifyImages: async (params: {
