@@ -1449,5 +1449,7 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
      图底列表 `[6.2835, ...]` 做交叉校验
   4. 波形"悬崖"是竖直线段，不能靠"竖直暗线"判网格线（第一版用 55% 覆盖率即误判）
   5. 合成测试第一版把比特名画在曲线上 → OCR 必然读不出（是生成器的锅，不是工具的锅）
-- **提交**：`feat(s21-photo)`
+- **提交**：`feat(s21-photo)` = `c7fc265`；`fix(s21-photo)` = `e7448b9`
+  （修 `run.ps1` 编码：Windows PowerShell 5.1 按 ANSI 读 .ps1，脚本里必须纯 ASCII；
+  另把误提交的测试产物 `_tmp_test/` 从版本库移除并加进 `.gitignore`）
 
