@@ -72,3 +72,6 @@ auth.lock
 # 本地离线依赖（rapidocr-onnxruntime 等 OCR 运行时，约 200MB；由 tools/s21_photo_reader 使用）
 .pylibs/
 
+# 工具的本地测试产物（合成图与真值文件）
+tools/s21_photo_reader/_tmp_test/
+
