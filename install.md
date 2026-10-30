@@ -236,6 +236,7 @@ print(f"Frequency: {value}")
 | `qmclaw-data-analysis` | T1/Rabi fitting, XEB/RB fidelity, quality metrics | "数据分析", "保真度", "T1", "quality" |
 | `quantum-calibration` | Complete single-qubit calibration and labeling | "校准", "标定", "单比特", "qubit" |
 | `quantum-experiment-plotter` | 1D/2D plotting, academic figures, data fitting | "绘图", "可视化", "plot", "figure" |
+| `lqms-offline-datavault-plotting` | Offline DataVault HDF5 -> lqms DataLab -> batch figures, vector export | "离线出图", "DataVault", "历史数据出图" |
 
 ---
 

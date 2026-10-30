@@ -1397,3 +1397,24 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **新发现（已登记 BACKLOG I5，P1）**：**并发 `/execute` 使服务挂死**——19:56 两个并发离线实验服务端都跑完出图，但响应双双未回，此后 quantum `:3003` 与 hermes `:3012` 全无响应（TCP 可连、HTTP 无响应），重启后恢复；**与 B1（单线程 HTTPServer）不同源**
 - **施工方式**：brain-worker-team（Lead 拆单/侦察/对抗式审查/亲自 live 验收；打手为 deepseek-flash——本机 `settings.yaml` 缺失使 `subagent` 显式模型选择被禁用，靠「Lead=flash → 子代继承」达成，见 BACKLOG I6）
 - **提交**：`feat(hermes)` + `fix(agent)` ×2 + `docs`
+
+---
+## 2026-10-30  沉淀 skill：lqms-offline-datavault-plotting（离线 DataVault 出图）
+- **范围**：feat / docs（只新增 skill 与索引登记；不触碰测控链路、不启停服务）
+- **来源**：继承 Codex 会话 `01a185d6` 后完成 9 张图（342~350）的过程中踩的坑，逐条固化成 skill
+- **改动（4 个文件）**：
+  1. **A1** `skills/lqms-offline-datavault-plotting/SKILL.md`（新）：读 HDF5 → 重建 `dc.DataLab` → 参数别名 → 分析分派 → 出图 → 矢量导出的完整链路，含 9 条错误速查、6 条已知数据陷阱
+  2. **A2** `skills/lqms-offline-datavault-plotting/scripts/plot_datavault.py`（新，460 行）：按文件名自动分派实验类型、批量出图、PNG/SVG/PDF 三格式 + 多页合订；lqms 入口失败自动转自绘兜底
+  3. **A3** `skills/lqms-offline-datavault-plotting/README.md`（新）：skill 卡片
+  4. **A4** `README.md` / `install.md`：skill 索引各加一行（+ 目录树一行）
+- **验证（实跑，非推断）**：
+  - `LQHL/test/20260324` 全 session **738 个数据集批量出图，失败 0 / 738**（中途两轮修复：13 → 4 → 0）
+  - 9 张目标图（342~350）三种格式齐出；SVG 逐个校验 `<image>` 计数 = 0（纯矢量）；合订 PDF 逐页校验内嵌位图 = 0
+  - 兜底路径实测生效：9 个单模 IQraw（依赖量仅 `Is|0`/`Qs|0`）→ lqms `IQ_raw` 抛 `IndexError` → 自绘 I/Q 散点；4 个二维 T1（zpa×delay）→ `dp.T1` 抛 `zpa2freq`/`GridData` 错 → 自绘热图 + 逐 zpa 单指数拟合
+- **沉淀的关键结论**（此前无文档）：
+  1. lqms 自带 local vault 初始化依赖 LabRAD/Registry 认证，离线必须用 `lv.dataset_loader_hdf5` 直接读
+  2. `dc.DataLab` 离线重建的关键字段：`datasets_num` 必须 list、`data_shape` 必须 dict、`name_info` 必须带 `q_name`、`measure_info` 必须带 `units`
+  3. ind/dep 表项要同时是 dict（带 `units` 与 `unit` 两个键）且有 `values()` → 自定义 `Header(dict)`
+  4. `q3ld4.*` 参数需在内存里补 `q.*` 别名，否则 `ramsey`/`dispersive_shift`/`IQ_raw` 报 `KeyError: 'q.f10'`
+  5. `fitFunc.find_peaks` 返回 dict（`peaks`/`dips`/`max point`/`min point`），不是数组
+  6. **矢量导出**：`imshow` 与 `pcolormesh` 的色标条会在 SVG/PDF 内嵌位图，2D 图须用 `contourf` 才纯矢量
