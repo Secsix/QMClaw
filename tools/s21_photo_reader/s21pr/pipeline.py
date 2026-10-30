@@ -68,9 +68,7 @@ def analyze(image_path, ocr_scale: float = 2.0, lib_dir: str | None = None,
     res.warnings.extend(axes.warnings)
     res.x_label = axes.x_label
     res.y_label = axes.y_label
-    for bx in cls.titles:
-        if bx.cy < axes.top and "freq" not in bx.text.lower():
-            res.title = bx.text
+    res.title = cls.figure_title
 
     if axes.x_ticks:
         res.x_range = (min(v for v, _ in axes.x_ticks), max(v for v, _ in axes.x_ticks))

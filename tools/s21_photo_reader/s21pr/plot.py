@@ -138,6 +138,8 @@ class Classified:
     y_ticks: list = field(default_factory=list)
     list_texts: list = field(default_factory=list)     # [TextBox] 形如 [a, b, c]
     titles: list = field(default_factory=list)
+    figure_title: str = ""
+    y_margin_text: str = ""      # 左侧竖排文字拼起来的碎片（旋转轴标题常被切碎）
     other: list = field(default_factory=list)
 
 
@@ -184,6 +186,23 @@ def classify(boxes: list[TextBox], axes: Axes) -> Classified:
     res.y_ticks.sort(key=lambda p: p[1])
     res.annotations.sort(key=lambda p: p.x0)
     res.qubit_labels.sort(key=lambda p: p.cx)
+
+    # 图题：坐标框上方、且不是坐标轴标题的那块最大文字
+    above = [b for b in boxes if b.y1 <= t + 2 and b.h >= 8 and b not in res.titles]
+    if above:
+        res.figure_title = max(above, key=lambda b: b.w * b.h).text.strip()
+
+    # 左侧竖排碎片（旋转的 Y 轴标题常被 OCR 切碎）
+    frag = [fb for fb in boxes
+            if fb.x1 <= l + 12 and fb.y0 >= t and fb.y1 <= b + 2
+            and not is_numericish(fb.text) and fb.text.strip()]
+    frag.sort(key=lambda fb: fb.y0)
+    if frag:
+        res.y_margin_text = "".join(fb.text.strip() for fb in frag)
+        for kw in ("amplitude", "amp", "mag", "count"):
+            if kw in res.y_margin_text.lower():
+                axes.y_label = axes.y_label or kw
+                break
     return res
 
 
