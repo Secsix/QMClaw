@@ -59,6 +59,10 @@ def main(argv=None):
     ap.add_argument("--no-annotate", action="store_true", help="不生成标注核对图")
     ap.add_argument("--dump-ocr", default=None, help="把 OCR 原始结果存成 JSON")
     ap.add_argument("--summary", default=None, help="批量模式下的汇总 CSV 路径")
+    ap.add_argument("--no-labrad-script", action="store_true",
+                    help="不生成 LabRAD 赋值脚本（默认会生成 <名字>_labrad_assign.py）")
+    ap.add_argument("--assign-csv", default=None,
+                    help="生成 LabRAD 赋值脚本时改用这个 CSV（默认用本次图片的结果 CSV）")
     args = ap.parse_args(argv)
 
     target = Path(args.target)
@@ -95,6 +99,20 @@ def main(argv=None):
         report.write_markdown(res, out_base.with_suffix(".md"), METHOD_NOTE)
         if not args.no_annotate:
             report.write_annotated(res, out_base.with_name(base + "_annotated.png"))
+
+        # LabRAD 赋值脚本：照片读数 → 各比特 regs.fread
+        if not args.no_labrad_script:
+            csv_path = Path(args.assign_csv) if args.assign_csv else out_base.with_suffix(".csv")
+            try:
+                from s21pr import assign
+                assign_rows = assign.parse_assignments(csv_path)
+                script = assign.build_labrad_script(
+                    assign_rows, title=res.title or Path(img).name, source=str(csv_path))
+                sp = out_base.with_name(base + "_labrad_assign.py")
+                sp.write_text(script, encoding="utf-8")
+                print(f"      LabRAD 赋值脚本: {sp}")
+            except Exception as e:
+                print(f"      ! 生成 LabRAD 赋值脚本失败: {type(e).__name__}: {e}")
 
         print(f"[OK] {img.name}: {len(res.dips)} 个比特")
         for d in res.dips:

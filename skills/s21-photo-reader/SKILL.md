@@ -25,6 +25,21 @@ D:\QMClaw\tools\s21_photo_reader\run.ps1 "<图片路径>" -OutDir "<输出目录
 D:\QMClaw\tools\s21_photo_reader\run.ps1 "<照片目录>" -Summary "<汇总.csv>"
 ```
 
+## 第二步：写回 LabRAD（regs.fread）
+
+识别后工具会一并生成 `<名字>_labrad_assign.py`（粘贴即用的赋值脚本）。
+比特对象只存在于 LabRAD 进程内，赋值必须在 LabRAD 里执行，二选一：
+
+```python
+# A. 直接执行生成的脚本（在 LabRAD 笔记里）
+exec(open(r"D:\QMClaw\s21_image\读取线6上的待测比特_labrad_assign.py").read())
+
+# B. 从 CSV 批量赋值（读数更新后不用重新生成脚本）
+exec(open(r"D:\QMClaw\tools\s21_photo_reader\labrad_assign_fread.py").read())
+```
+
+脚本只写 `regs.fread`，逐条回读校验，单条失败不影响其它比特。
+
 ## 读图要点（回答用户时务必说明）
 
 - 图上标在比特旁边的数字是**波谷所在的频率（GHz）**——这是"波谷值"的正解；
@@ -35,7 +50,7 @@ D:\QMClaw\tools\s21_photo_reader\run.ps1 "<照片目录>" -Summary "<汇总.csv>
 
 ## 结果交付
 
-工具会生成：`<名字>.csv`、`<名字>.md`、`<名字>_annotated.png`。
+工具会生成：`<名字>.csv`、`<名字>.md`、`<名字>_annotated.png`、`<名字>_labrad_assign.py`。
 回答时给用户 **Markdown 表格**（比特号 | S21 波谷值），并说明：
 
 1. 波谷值的单位与含义（频率 GHz）；

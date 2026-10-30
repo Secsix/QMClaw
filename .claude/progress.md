@@ -1453,3 +1453,29 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   （修 `run.ps1` 编码：Windows PowerShell 5.1 按 ANSI 读 .ps1，脚本里必须纯 ASCII；
   另把误提交的测试产物 `_tmp_test/` 从版本库移除并加进 `.gitignore`）
 
+---
+## 2026-10-30  S21 读数 → LabRAD regs.fread 自动赋值（承接上一条）
+- **范围**：feat（新增赋值层；不动测控服务、不启停任何服务）
+- **需求**：用户给出 LabRAD 笔记里的写法 `q21_5.regs.fread = 6.556`，
+  要求"以后每个照片得到的信息直接再进行 s21 赋值"
+- **改动（6 个文件）**：
+  1. `tools/s21_photo_reader/s21pr/assign.py`（新，~300 行，纯标准库）：
+     解析 CSV / 粘贴文本 → 写 `regs.fread` → 逐条回读校验 → 生成 LabRAD 赋值脚本
+  2. `tools/s21_photo_reader/labrad_assign_fread.py`（新）：LabRAD 侧入口
+     （读 `s21_image` 下最新结果 CSV，用**调用方**的 globals 找比特设备）
+  3. `tools/s21_photo_reader/s21pr/cli.py`：识别后自动产出 `<名字>_labrad_assign.py`
+  4. `tools/s21_photo_reader/tests/test_assign.py`（新）：mock 设备回归测试
+  5. `tools/s21_photo_reader/README.md`：新增"写回 LabRAD"章节
+  6. `skills/s21-photo-reader/SKILL.md`：技能卡补上赋值步骤
+- **关键设计**：
+  - 比特对象只存在于 LabRAD 进程内 → 外部只能"备好读数"，赋值必须在 LabRAD 里执行；
+    因此提供两条路：**粘贴即用脚本**（值已内联）与**读 CSV 批量赋值**（读数更新不必重新生成）
+  - 与仓库既有写法一致（`vendor/QubitClient/.../mcp_tools.py` 用 `globals()[qname]` + `set_nested_attr`）
+  - 只写 `regs.fread`，不碰 f10 / bias_z / fc；单条失败不中断其它比特并单列失败清单
+  - 命名空间里没有该比特时明确报"找不到比特对象"，不静默跳过
+- **验证（实跑）**：赋值回归 **PASS**（dry-run 不写硬件 / 真写入 9/9 / 缺失比特单列失败 /
+  粘贴文本解析 / 生成脚本在 mock 设备上执行 9/9）；照片识别回归仍 **PASS**；端到端重跑正常
+- **踩坑**：CLI 里新加的 `rows = assign.parse_assignments(...)` 覆盖了汇总用的 `rows`
+  → 汇总表被污染（"完成: 10/1"）→ 改名 `assign_rows`
+- **提交**：`feat(s21-assign)`
+
