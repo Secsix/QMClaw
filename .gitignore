@@ -69,3 +69,6 @@ auth.lock
 # 服务运行日志（start-services-quiet.ps1 写到这里；含 services-status.json 里的 PID）
 .runtime-logs/
 
+# 本地离线依赖（rapidocr-onnxruntime 等 OCR 运行时，约 200MB；由 tools/s21_photo_reader 使用）
+.pylibs/
+
