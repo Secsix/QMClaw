@@ -19,6 +19,8 @@ else:
     from . import pipeline, report
 
 IMG_SUFFIX = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+# 工具自己产出的文件（标注核对图等），批量处理时跳过
+SKIP_STEM_SUFFIX = ("_annotated",)
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -38,8 +40,14 @@ METHOD_NOTE = """1. OCR（RapidOCR / ONNX，放大 2 倍）识别全部文字与
 def collect_images(path: Path):
     if path.is_file():
         return [path]
-    return sorted(p for p in path.rglob("*")
-                  if p.is_file() and p.suffix.lower() in IMG_SUFFIX)
+    out = []
+    for p in sorted(path.rglob("*")):
+        if not (p.is_file() and p.suffix.lower() in IMG_SUFFIX):
+            continue
+        if any(p.stem.endswith(sfx) for sfx in SKIP_STEM_SUFFIX):
+            continue
+        out.append(p)
+    return out
 
 
 def main(argv=None):
