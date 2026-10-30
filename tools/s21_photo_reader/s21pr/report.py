@@ -45,8 +45,9 @@ def write_markdown(result, path, method_note: str = ""):
     if result.x_label:
         lines.append(f"X 轴：{result.x_label}"
                      + (f"（范围 {result.x_range[0]} ~ {result.x_range[1]}）" if result.x_range else ""))
-    if result.y_label:
-        lines.append(f"Y 轴：{result.y_label}"
+    if result.y_label or result.y_range:
+        yname = result.y_label or "（轴标题未识别）"
+        lines.append(f"Y 轴：{yname}"
                      + (f"（范围 {result.y_range[0]:.0f} ~ {result.y_range[1]:.0f}）" if result.y_range else ""))
     lines.append("")
 
