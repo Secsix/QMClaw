@@ -67,6 +67,7 @@ A scalable general-purpose framework for quantum measurement and control, provid
 | [QMClaw数据分析与质量评估](./skills/qmclaw-data-analysis/README.md) | v1.0 | T1/Rabi 拟合、XEB 保真度、质量指标 | "数据分析", "保真度", "T1", "quality" |
 | [量子比特单比特校准标定](./skills/quantum-calibration/README.md) | v1.0 | 完整校准标定流程、参数管理、质量判定 | "校准", "标定", "单比特", "qubit" |
 | [量子实验绘图与分析](./skills/quantum-experiment-plotter/README.md) | v1.0 | 一维/二维绘图、学术图表、数据拟合 | "绘图", "可视化", "plot", "figure" |
+| [离线DataVault数据出图](./skills/lqms-offline-datavault-plotting/README.md) | v1.0 | 无LabRAD环境读hdf5重建DataLab、批量出图、矢量导出 | "离线出图", "DataVault", "历史数据出图", "datavault" |
 
 ---
 
@@ -176,7 +177,8 @@ qmclaw-skills/
 │   ├── qmclaw-tool-scheduling/          # Tool scheduling
 │   ├── qmclaw-data-analysis/            # Data analysis
 │   ├── quantum-calibration/             # Single-qubit calibration
-│   └── quantum-experiment-plotter/      # Visualization
+│   ├── quantum-experiment-plotter/      # Visualization
+│   └── lqms-offline-datavault-plotting/ # Offline DataVault figures
 │
 └── docs/                        # Documentation (optional)
 ```
