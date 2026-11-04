@@ -1479,3 +1479,32 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   → 汇总表被污染（"完成: 10/1"）→ 改名 `assign_rows`
 - **提交**：`feat(s21-assign)`
 
+---
+## 2026-11-04  DataVault 单比特体检报告（离线读 20260822_device1 序号 3648–4455）
+- **范围**：feat（新增只读分析工具 + 报告；不连 LabRAD、不改任何硬件寄存器）
+- **需求**：查看 `D:\DataVault\LQHL.dir\test.dir\20260822_device1.dir` 中序号 3648–4455 的
+  昨夜测试数据，总结各比特单比特性质，并给出"活比特"（iqraw>0.1 且 piamp 实验正常）的
+  **zpa / f10 / f21 / fread**
+- **改动（新目录 `tools/qubit_health_report/`，5 个文件）**：
+  1. `dvread.py`：DataVault HDF5 离线读取——文件名解析、`Param.*` 的 LabRAD tagged data
+     解码（urlsafe base64 + 大端 float64 @偏移 11）
+  2. `metrics.py`：各实验指标——IQraw(SNR/归一化分离度/保真度)、Rabi、Ramsey(T2*)、谱扫、S21
+  3. `health_report.py`：主入口——按比特聚合、按工作点对齐各实验、判活、出 CSV+MD 报告
+  4. `test_health_report.py`：自检 9 项（解码往返 / IQraw 可分性 / Rabi 判据 / Ramsey 已知 T2）
+  5. `README.md`：用法、数据约定、判活口径、踩坑记录
+  - 报告输出：`reports/20260822_device1/qubit_health.{md,csv}`
+- **结论**：808 个文件 / 8 个比特 → **活比特 3 个：q13_15、q21_5、q7_21**
+- **关键实现要点**：
+  1. **zpa = `regs.bias_z`**（比特直流偏置），不是 `PiGate.zpa`（后者是单次 π 脉冲的 z 偏置）——
+     依据 `measure_scripts/.../backend.py` 里 `sq.t1(qobj, zpa=qobj.regs.bias_z)`
+  2. 本批会话是在 `(f10, zpa)` 网格上**扫描**，寄存器里的 f10 是被扫描的值（含 −201 GHz 之类越界值）
+     → 参数一律取**判活那条记录**的寄存器值，其它实验按与工作点最近的文件对齐
+  3. **Rabi 判据改模型无关法**（内部峰 + 峰后谷 + 落差 ≥0.15 且 ≥4σ）：噪声数据做 5 参数
+     阻尼余弦拟合会发散，曾算出对比度 292、1120 这种荒谬值
+  4. **Ramsey 拟合用 FFT 主频初始化**：直接拟合退化到错误频率（T2* 差 3 个量级）；
+     不成立（r²<0.3）标"未测得"
+  5. 谱扫 f10 = P1(freq) 共振峰；个别文件 `fread` 被误写成 182 GHz，按会话中位数修正
+- **验证**：自检 **9/9 PASS**；全量 808 文件实跑 2.8 s；活比特判定在
+  "IQraw 用 SNR" 与 "用归一化分离度" 两种口径下结论一致
+- **提交**：`feat(qubit-health)`
+
