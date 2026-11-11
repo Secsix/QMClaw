@@ -1,0 +1,120 @@
+{
+  "id": "t-20261106-094949",
+  "objective": "DRY 校验授权闸门命令（无硬件）",
+  "stopCondition": {},
+  "budgets": {
+    "experiments": 1,
+    "datasets": 50,
+    "writes": 0,
+    "wallSeconds": 300
+  },
+  "qubits": [],
+  "manifests": [
+    {
+      "writes": [
+        {
+          "key": "f10",
+          "qubit": "q2ld3",
+          "count": 1,
+          "maxDelta": 0.05,
+          "delegable": true
+        },
+        {
+          "key": "f21",
+          "qubit": "q2ld3",
+          "count": 1,
+          "maxDelta": 0.05,
+          "delegable": true
+        }
+      ],
+      "hash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "taskId": "t-20261106-094949"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "tk-3f206383",
+      "taskId": "t-20261106-094949",
+      "grantedBy": "human",
+      "issuedAt": "2026-11-06T09:49:49",
+      "expiresAt": "2026-11-07T09:49:49",
+      "manifestHash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "scope": [
+        {
+          "cls": "write",
+          "qubit": null,
+          "keys": [
+            "f10"
+          ],
+          "limit": 1,
+          "used": 1,
+          "maxDelta": {
+            "f10": 0.05
+          }
+        }
+      ],
+      "neverDelegable": [
+        "timing."
+      ],
+      "revoked": false,
+      "usedAt": "2026-11-06T09:49:49"
+    }
+  ],
+  "usage": {
+    "experiments": 0,
+    "datasets": [],
+    "writes": 0,
+    "wallSeconds": 0.0
+  },
+  "events": [
+    {
+      "at": "2026-11-06T09:49:49",
+      "kind": "manifest",
+      "hash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "writes": 2
+    },
+    {
+      "at": "2026-11-06T09:49:49",
+      "kind": "ticket_issued",
+      "ticket": "tk-3f206383",
+      "manifestHash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5"
+    },
+    {
+      "at": "2026-11-06T09:49:49",
+      "kind": "authorize",
+      "keys": [
+        "f10",
+        "f21"
+      ],
+      "ok": false,
+      "by": "none",
+      "reason": "partial_scope",
+      "matched": [
+        "f10"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:49:49",
+      "kind": "authorize",
+      "keys": [
+        "f10",
+        "f21"
+      ],
+      "ok": false,
+      "by": "none",
+      "reason": "out_of_scope"
+    },
+    {
+      "at": "2026-11-06T09:49:49",
+      "kind": "authorize",
+      "keys": [
+        "f10"
+      ],
+      "ok": true,
+      "by": "agent-delegated:tk-3f206383"
+    }
+  ],
+  "state": "released",
+  "createdAt": "2026-11-06T09:49:49",
+  "releasedAt": "2026-11-06T09:49:49"
+}
