@@ -1,0 +1,134 @@
+{
+  "id": "t-20261106-101603",
+  "objective": "P3 ????????",
+  "stopCondition": {},
+  "budgets": {
+    "experiments": 1,
+    "datasets": 50,
+    "writes": 0,
+    "wallSeconds": 300
+  },
+  "qubits": [],
+  "manifests": [
+    {
+      "writes": [
+        {
+          "qubit": "q2ld3",
+          "key": "f10",
+          "delegable": true,
+          "count": 1,
+          "maxDelta": 0.05
+        },
+        {
+          "qubit": "q2ld3",
+          "key": "f21",
+          "delegable": true,
+          "count": 1,
+          "maxDelta": 0.05
+        }
+      ],
+      "hash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "taskId": "t-20261106-101603"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "tk-4ad9b219",
+      "taskId": "t-20261106-101603",
+      "grantedBy": "human",
+      "issuedAt": "2026-11-06T10:21:00",
+      "expiresAt": "2026-11-07T10:21:00",
+      "manifestHash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "scope": [
+        {
+          "cls": "write",
+          "qubit": null,
+          "keys": [
+            "f10"
+          ],
+          "limit": 1,
+          "used": 0,
+          "maxDelta": {
+            "f10": 0.05
+          }
+        }
+      ],
+      "neverDelegable": [
+        "timing."
+      ],
+      "revoked": false
+    }
+  ],
+  "usage": {
+    "experiments": 1,
+    "datasets": [
+      null
+    ],
+    "writes": 0,
+    "wallSeconds": 10.26
+  },
+  "events": [
+    {
+      "at": "2026-11-06T10:20:01",
+      "kind": "manifest",
+      "hash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5",
+      "writes": 2
+    },
+    {
+      "at": "2026-11-06T10:21:00",
+      "kind": "ticket_issued",
+      "ticket": "tk-4ad9b219",
+      "manifestHash": "sha256:36ef4b077f4764cb14d3cb50eef41aae7deb9ccc3a2725261e73c87738be8af5"
+    },
+    {
+      "at": "2026-11-06T10:22:00",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T10:22:02",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T10:22:04",
+      "kind": "authorize",
+      "keys": [
+        "f10",
+        "f21"
+      ],
+      "ok": false,
+      "by": "none",
+      "reason": "partial_scope",
+      "matched": [
+        "f10"
+      ]
+    },
+    {
+      "at": "2026-11-06T10:22:04",
+      "kind": "authorize",
+      "keys": [
+        "f10",
+        "f21"
+      ],
+      "ok": false,
+      "by": "none",
+      "reason": "out_of_scope"
+    },
+    {
+      "at": "2026-11-06T10:22:06",
+      "kind": "charge",
+      "chargeKind": "wallSeconds",
+      "count": 10,
+      "dataset": null
+    }
+  ],
+  "state": "active",
+  "createdAt": "2026-11-06T10:16:03"
+}

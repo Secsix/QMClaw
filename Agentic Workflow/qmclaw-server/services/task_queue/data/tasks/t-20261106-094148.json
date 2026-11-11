@@ -1,0 +1,223 @@
+{
+  "id": "t-20261106-094148",
+  "objective": "P3.1 live: experiments charged per measure node (expect 3), dataset ids backfilled, wallSeconds>0",
+  "stopCondition": {},
+  "budgets": {
+    "experiments": 5,
+    "datasets": 50,
+    "writes": 0,
+    "wallSeconds": 300
+  },
+  "qubits": [
+    "q4ld3"
+  ],
+  "manifests": [],
+  "tickets": [],
+  "usage": {
+    "experiments": 5,
+    "datasets": [
+      960,
+      961,
+      962,
+      963,
+      964
+    ],
+    "writes": 0,
+    "wallSeconds": 117.51
+  },
+  "events": [
+    {
+      "at": "2026-11-06T09:41:54",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:41:56",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:41:58",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T09:42:08",
+      "kind": "dataset",
+      "dataset": 960,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:15",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:17",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:20",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T09:42:30",
+      "kind": "dataset",
+      "dataset": 961,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:37",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:39",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:41",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T09:42:51",
+      "kind": "dataset",
+      "dataset": 962,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:42:58",
+      "kind": "charge",
+      "chargeKind": "wallSeconds",
+      "count": 68,
+      "dataset": null
+    },
+    {
+      "at": "2026-11-06T09:43:28",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:43:30",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:43:32",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T09:43:42",
+      "kind": "dataset",
+      "dataset": 963,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:43:49",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:43:51",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:43:54",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T09:44:04",
+      "kind": "dataset",
+      "dataset": 964,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T09:44:11",
+      "kind": "quota_blocked",
+      "quotaKind": "experiments",
+      "count": 1,
+      "detail": "experiments 额度 5 已用 5"
+    },
+    {
+      "at": "2026-11-06T09:44:13",
+      "kind": "charge",
+      "chargeKind": "wallSeconds",
+      "count": 49,
+      "dataset": null
+    }
+  ],
+  "state": "active",
+  "createdAt": "2026-11-06T09:41:48"
+}
