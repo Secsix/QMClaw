@@ -236,6 +236,23 @@ npm run build
 ```
 `node_modules` 已存在；远端**未改动** `package.json`（无新依赖），仅新增 18 个前端文件。构建失败则先看是否 `next.config.js` 的 `serverComponentsExternalPackages` 与 Next 14 的 `experimental` 键冲突（本地未提交改动已把它移进 `experimental`，合入后需复核）。
 
+**实际执行结果（S7 已完成）**：构建确实失败，暴露了计划里预判的那个键名冲突，但真实情况比预判的更棘手 —— **三种写法里只有一种能构建成功**：
+
+| 写法 | Next 14.2.35 上的结果 |
+|---|---|
+| 顶层 `serverExternalPackages`（**上游 `19faee0` / `e3cb8fa` 的写法**） | 构建能过，但报 `Unrecognized key(s) in object: 'serverExternalPackages'`，配置被整体丢弃（这是 Next 15 才有的键名） |
+| `experimental.serverComponentsExternalPackages`（**合并前基线 `08dce50` 的写法**） | **构建直接失败** —— Next 14.2 的 `optimizePackageImports` 默认列表已含 `'recharts'`，其条目会被并入 `transpilePackages`，两者撞车后报 `The packages specified in the 'transpilePackages' conflict with the 'serverComponentsExternalPackages': recharts` |
+| `experimental.optimizePackageImports: ['recharts']` | **构建成功且无任何告警** ✅ |
+
+**处置**：采用第三种写法，并在配置里写明另外两种各自为什么不行（防止下次同步被改回去）。
+同步记入 `docs/BACKLOG.md` J10。
+
+> 注：该问题**不是本次同步引入的** —— 合并前的基线 `08dce50` 已改成第二种写法，同样构建失败。
+> 本轮是首次真正执行 `next build` 才暴露出来。
+
+**验证**：`next build` → exit 0、stderr 空（无告警）；产物 `/` 252 kB / First Load JS 339 kB。
+构建产物 `.next/` 与 `tsconfig.tsbuildinfo` 已被 `.gitignore` 覆盖，未污染工作树。
+
 ### S8　人工验收（由人起服务，我只提供清单）
 
 见 §6 清单。

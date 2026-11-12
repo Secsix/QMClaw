@@ -614,3 +614,33 @@ D1 / D2（有空再说）
 `KNOWN_RUNTIME_EXPORTS` / `KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况。
 本机形态不同（见 J4），这份基线对本地没有参考价值。**待办**：改成可配置/可探测的基线，
 或补一份「本机能力基线」的独立配置。
+
+### J10 ✅ 上游 `next.config.js` 的 `serverExternalPackages` 与本仓库锁定的 Next 14 不兼容
+
+上游（`19faee0` / `e3cb8fa`）的 `Agentic Workflow/qmclaw-web/next.config.js` 写的是：
+
+```js
+serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键名
+```
+
+而本仓库 `package.json` 锁定 `next 14.2.35`。两处不匹配：
+
+1. **Next 14.2.35 不认这个顶层键** —— `next build` 报
+   `Unrecognized key(s) in object: 'serverExternalPackages'`，配置被整体丢弃。
+2. **改写成 Next 14 的等价键 `experimental.serverComponentsExternalPackages` 也会构建失败** ——
+   Next 14.2 的 `optimizePackageImports` 默认列表里已经含 `'recharts'`，而
+   `optimizePackageImports` 的条目会被并入 `transpilePackages`，两者撞车后构建直接报
+   `The packages specified in the 'transpilePackages' conflict with the 'serverComponentsExternalPackages': recharts`。
+
+> 该问题**不是本次同步引入的**：合并前的基线 `08dce50` 已把键名改成
+> `experimental.serverComponentsExternalPackages`，同样构建失败。本轮是首次真正跑
+> `next build` 才暴露出来。
+
+**处置**：改用 `experimental.optimizePackageImports: ['recharts']` —— 这才是 Next 14 下的
+正确写法（既保留对 recharts 的按需导入优化，又不与 `transpilePackages` 冲突），
+并在配置里写明另外两种写法各自为什么不行，避免下次同步再被改回去。
+
+**实测**：`next build` → exit 0、stderr 无任何告警，产物 `/` 252 kB / First Load 339 kB。
+
+> 补充：当前 `qmclaw-web/src` 下**没有任何文件 import recharts**，该依赖来自上游
+> `package.json`。配置项保留是为了将来接入图表时行为确定。
