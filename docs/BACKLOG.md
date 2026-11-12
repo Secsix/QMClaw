@@ -735,3 +735,23 @@ serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键
 **实测**：`run_all_checks.py` → 39 项 / 0 失败 / 1 跳过（`_qwf_gen_goal_check.py` 未入库）；
 `tools/check_examples_canvas.py` → 5 个示例全部 `ok=True stable=True changed=False`；
 `qwf_lint.py` 对 5 个示例 → 0 error。
+
+### K5 ⬜ 传"已 normalize 的 IR"当 `baseIr` 会误报改动（低优先级，本轮未改）
+
+`canvas_to_qwf(doc, base_ir=...)` 用 `ir_diff(base_ir, ir)` 判"用户改了什么"。
+`normalize()`（`dsl/ir.py:222` / `:277`）会给 IR 补 `context: {}` 和每条语句的 `effect: null`，
+而 `canvas_to_ir()` 重建出来的 IR **不带**这两个（空块会被 pop、`effect` 不回填）。
+于是把一份 **normalize 过**的 IR 当 `baseIr` 传进去，即使一个字没改，
+`equivalent` 也会是 `false`、`diff` 列出 `$.context: {} → 缺失` 与 `$.pipeline[i].effect: null → 缺失`。
+
+**生产路径不受影响**：服务端 `qwf_to_canvas` 与 `read_workflow` 返回的都是**原始 parse**
+（未 normalize），前端的 `baseIr` 只有这一个来源，所以实际流程里 `equivalent` 恒为 `true`
+（已实测：导入 → 不改 → 导出，`diff` 为空）。
+
+**待办**：要么在 `canvas_to_qwf` 里把两边都 normalize 后再比，要么让 `canvas_to_ir` 回填
+`effect` 与空 `context`。前者会动到"用户改动"的判定语义（`equivalent` / `changed`），
+本轮按"不改引擎语义"的原则没动 —— 记为后续可讨论项。
+
+> 附：本地留了一份人工验收脚本 `_verify_s8.py`（**未入库** —— 仓库根的 `_*` 脚本被
+> `.gitignore` 排除，见 §J 组），覆盖验收清单第 4/5/6/7/8/12 项，离线可跑：
+> `python _verify_s8.py`（需在仓库根执行）。
