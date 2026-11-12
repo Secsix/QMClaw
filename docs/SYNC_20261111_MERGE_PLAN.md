@@ -257,7 +257,8 @@ npm run build
 
 见 §6 清单。
 
-**本轮额外做掉的 4 个上游缺陷**（详细记录见 `docs/BACKLOG.md` K 组）：
+**本轮额外做掉的 6 个上游缺陷**（详细记录见 `docs/BACKLOG.md` K 组；K5 是同步期间记录的
+"传 normalize 过的 IR 当 `baseIr` 会误报改动"，本轮未改）：
 
 | # | 上游缺陷 | 修复落点 |
 |---|---|---|
@@ -265,6 +266,11 @@ npm run build
 | **K2** | `goal` / `bounds` 在画布往返里被静默丢弃（打开→改→导出，目标契约就没了） | `dsl/canvas_ir.py`（`ir_to_canvas` 带出、`canvas_to_ir` 写回）+ 前端 `QwfInfoPanel.tsx` |
 | **K3** | `02_ramsey_t2` / `03_t1_fixed_zpa` 声明 `max_writes 0` 却含 1 条 `measure`，过不了自己的 `validate()`（引擎额度口径 = 实验语句条数） | 两个示例的 `max_writes` 改 1 + 注释说明口径；**未改引擎语义** |
 | **K4** | `_p1_goal_dsl_check.py` 的回归 glob 是仓库根 `*.qwf`，示例实际在 `qwf_examples/` → 回归段永远零命中（K3 就是被它漏掉的） | 该脚本：glob 修正 + 仓库根兜底 + 新增第 7 段（K1/K2 回归断言）。**未新增检查项**，OFFLINE 仍 39 项 |
+| **K6** | printer 不打印 `decide` 的 `from` → 打印/存档/导出一次，决策节点就看不到上游实验数据（退化成"纯选择"） | `dsl/textdsl/printer.py`（`decide` 字段表加 `from`） |
+| **K7** | `qwf_gen.py` 普通模式不写 `max_datasets` → 它生成的每一份 `.qwf` 都 lint 不过（`E_NO_BUDGET`） | `qwf_gen.py`（budget 块始终写 `max_datasets` + 新增 `--max-datasets`） |
+
+> K6/K7 是在同步收尾后的**qwf 功能全面体检**（92 项断言，脚本 `_verify_qwf.py`，本地未入库）里发现的；
+> K8（`normalize()` 对 goal 工作流不幂等，只影响 `effect: null` 标记）已记录未改。
 
 ### S9　收尾
 

@@ -1620,3 +1620,24 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **未改**：`docs/DEPLOY_LOCAL.md` 等上游文档里的 `D:\anaconda3\envs\lqcs\python.exe`
   描述的是**上游那台机器**的环境（该文件与上游逐字相同），保持原样。
 - **提交**：`docs(convention): 约定 10 解释器路径改为本机实际路径`
+
+---
+
+## 2026-11-12  qwf 功能全面体检 → 又修掉 2 个上游缺陷（K6 / K7）
+- **起因**：用户要求"检查当前项目的 qwf 功能是否正常"。写了一份 92 项断言的体检脚本
+  （`_verify_qwf.py`，本地未入库，仓库根的 `_*` 被 .gitignore 排除），
+  覆盖 6 层：DSL 核心 / 画布往返 / qwf_store CRUD / 服务端 handler / 根目录工具 / 全仓 .qwf 解析。
+- **发现并修掉（上游缺陷）**：
+  1. **K6** `dsl/textdsl/printer.py` 不打印 `decide` 的 `from` → 打印/存档/导出一次，
+     决策节点就看不到上游实验数据（服务端 decision 分支只读 `node.depends`）→ 退化成"纯选择"。
+     修复：`decide` 字段表加 `from`。
+  2. **K7** `qwf_gen.py` 普通模式不写 `max_datasets` → 它生成的每份 .qwf 都 lint 不过
+     （`E_NO_BUDGET`）。修复：budget 块始终写 `max_datasets` + 新增 `--max-datasets`。
+- **记录未改**：**K8** `normalize()` 对 goal 工作流不幂等（只影响 `effect: null` 标记，
+  执行语义无影响）；**K5** 传 normalize 过的 IR 当 `baseIr` 会误报改动（生产路径不受影响）。
+- **顺手修**：`docs/BACKLOG.md` 里 K4 段落写的 `D:/qmclaw/*.qwf` 被
+  `_docs_paths_check.py` 当成"文档里的路径必须存在"而报错（该路径不存在）→ 改成文字描述。
+  （此前报过的"39 项 / 0 失败"里这一项其实是红的，这里更正。）
+- **验证**：`_verify_qwf.py` → 92 项全过；`run_all_checks.py` → 39 项 / 0 失败 / 1 跳过；
+  `qwf_lint.py` 对 5 个示例 → 0 error；`_verify_s8.py`（验收清单 4/5/6/7/8/12 项）→ 全过。
+- **提交**：`fix(qwf): 补上 decide.from 的打印与 qwf_gen 的 max_datasets`

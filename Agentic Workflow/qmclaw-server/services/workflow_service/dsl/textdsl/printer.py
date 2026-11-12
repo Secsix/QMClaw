@@ -288,8 +288,14 @@ def _stmt_lines(stmt: Dict[str, Any], indent: str) -> List[str]:
     if op in ("decide", "ask"):
         if op == "decide":
             value = stmt.get("intent")
+            # `from` 是 decide 的合法字段（const.py:OP_DECIDE）：它声明决策节点
+            # 依赖哪些上游绑定。服务端执行 decision 节点时**只**看
+            # `node.depends`（= `_from_names(stmt)`）来把上游实验结果喂给 LLM
+            # （services/workflow_service/server.py 的 decision 分支）。
+            # 不印出去 → 打印/存档/导出一次，`from` 就没了 → 决策节点退化成
+            # "纯选择"，看不到实测数据。
             extra = ["mode", "systemPrompt", "temperature", "maxTokens",
-                     "choices"]
+                     "choices", "from"]
         else:
             # ask 的主值是 question（目标歧义澄清要问什么）；兼容老的 prompt/messages。
             value = stmt.get("question")

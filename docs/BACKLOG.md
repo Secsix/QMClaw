@@ -707,7 +707,7 @@ serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键
 >
 > 上游之所以一直没发现：它的 CI 只对 `qwf_examples/` 跑 **lint**（`qwf_lint.py`），
 > **不跑 `validate`**；而且上游 `_p1_goal_dsl_check.py` 的回归 glob 写的是
-> `D:/qmclaw/*.qwf`（仓库根），而示例实际在 `D:/qmclaw/qwf_examples/` —— glob 匹配为空，
+> 仓库根目录下的 `*.qwf`，而示例实际在仓库根的 `qwf_examples/` 子目录里 —— glob 匹配为空，
 > 回归段等于没跑。
 
 **修复**：把两个示例的 `max_writes` 从 `0` 改成 `1`（= 实验语句条数），并在文件里加注释
@@ -717,14 +717,14 @@ serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键
 
 ### K4 ✅ 回归断言落位：上游的 `_p1_goal_dsl_check.py` 回归段等于没跑
 
-**现象**：`_p1_goal_dsl_check.py` 第 6 段"既有 .qwf 回归"的 glob 是 `D:/qmclaw/*.qwf`，
-匹配的是**仓库根**的 `.qwf`，而产品示例在 `qwf_examples/`；仓库根又只有一条
+**现象**：`_p1_goal_dsl_check.py` 第 6 段"既有 .qwf 回归"的 glob 匹配的是**仓库根**的
+`.qwf`，而产品示例在 `qwf_examples/` 子目录；仓库根又只有一条
 `/*.qwf` 的 gitignore 规则 —— 于是这一段**永远零命中**，示例从来没被回归过。
 （K3 就是被这段回归漏掉的。）
 
 **修复**（`_p1_goal_dsl_check.py`，本轮唯一的检查脚本改动）：
 1. glob 改成 `qwf_examples/*.qwf` + 仓库根 `*.qwf`（两者都跑）；
-2. 脚本自身位置作为仓库根兜底（原来写死的 `D:/qmclaw/...` 在别的机器上没有）；
+2. 脚本自身位置作为仓库根兜底（原来写死的是别人的机器路径，在别的机器上没有）；
 3. **新增第 7 段**：K1（`qwf_store.example_files()` 能找到 5 个产品示例）与
    K2（每个示例 `ir_to_canvas` → `canvas_to_ir` 语义等价、`goal`/`bounds` 进画布）两件事的
    回归断言。
@@ -755,3 +755,75 @@ serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键
 > 附：本地留了一份人工验收脚本 `_verify_s8.py`（**未入库** —— 仓库根的 `_*` 脚本被
 > `.gitignore` 排除，见 §J 组），覆盖验收清单第 4/5/6/7/8/12 项，离线可跑：
 > `python _verify_s8.py`（需在仓库根执行）。
+
+---
+
+## K 组（续）：qwf 功能全面体检（2026-11-12）发现的两个新上游缺陷
+
+体检范围：DSL 核心（parse / normalize / validate / plan / printer 往返 / 干跑）、画布往返、
+`qwf_store` CRUD、服务端 `.qwf` 路由 handler、根目录工具（`qwf_lint.py` / `qwf_gen.py`）、
+全仓 `.qwf` 文本解析 —— 共 **92 项断言**，脚本 `_verify_qwf.py`（本地，未入库）。
+
+### K6 ✅ printer 丢掉 `decide` 的 `from` 字段（上游缺陷，已修）
+
+**现象**：`dsl/textdsl/printer.py` 打印 `decide` 语句时只输出
+`mode / systemPrompt / temperature / maxTokens / choices`，**不输出 `from`**。
+于是"IR → 文本 → IR"往返一次，`from ["$r1"]` 就没了：
+
+```
+原始 IR：{'op': 'decide', 'as': 'd1', 'mode': 'intent', 'choices': [...], 'from': ['$r1']}
+printer 输出：decide "…" as d1 { mode intent  choices [iqraw, ramsey_t2] }   ← from 没了
+往返后 IR：{… 'from' 键不存在}
+```
+
+**影响不是"少个字段"**：服务端执行 `decision` 节点时，喂给 LLM 的上游实验摘要
+**只**来自 `node.depends`（= `_from_names(stmt)`，即 `from` 声明的绑定）
+—— 见 `services/workflow_service/server.py` 的 `decision` 分支。
+`from` 丢了 → `depends` 为空 → 决策节点退化成"纯选择"（只看得见 `choices`），
+**看不到实测的 contrast 等上游数据**，分支可能选错。
+
+**触发路径**（都是日常操作）：
+- 画布保存存档：`qwf_store.write_workflow()` → `ir_to_qwf()`；
+- 画布导出 `.qwf`：`canvas_to_qwf()` → `result["qwf"] = ir_to_qwf(ir)`；
+- 任何"解析 → 打印 → 再解析"。
+
+（画布**节点图**那一层不丢：`canvas_ir` 用 `dsl.stmt` 原样保留语句，所以画布往返测试是绿的 ——
+这也是上游自己测不出来的原因。）
+
+**修复**：`printer.py` 的 `decide` 字段表加上 `"from"`（`from` 是 `const.py:OP_DECIDE` 的合法字段，
+解析器通用块解析能吃 `from [$r1]`）。修完打印结果为
+`decide "…" as d1 { mode intent  choices [iqraw, ramsey_t2]  from [$r1] }`，往返 `ir_diff` 为空。
+
+### K7 ✅ `qwf_gen.py` 生成的 `.qwf` 一律 lint 不过（上游缺陷，已修）
+
+**现象**：`qwf_gen.py` 只在 **goal 模式**写 `max_datasets`，普通模式的 budget 块只有
+`max_wall` + `max_writes` —— 而 `dsl/lint.py` 的 `E_NO_BUDGET` 要求三件套齐全：
+
+```
+ERROR E_NO_BUDGET: budget 缺少 maxDatasets（IR 键名）
+       提示: qwf 里写 max_wall / max_writes / max_datasets
+```
+
+**影响**：`qwf_gen.py` 是文档里推荐的工作流入口（"生成 .qwf 用 qwf_gen.py"），
+它产出的每一份文件都 lint 失败 → 拿 `qwf_lint.py` 一把关就红。CI 没发现是因为
+上游 CI 只 lint `qwf_examples/`，不跑 `qwf_gen.py` 的产物。
+（`validate()` 不要求 `max_datasets`，所以 `qwf_run.py` 那条路能跑通 —— 口径不一致。）
+
+**修复**：`qwf_gen.py` 的 budget 块**始终**写 `max_datasets`；
+新增 `--max-datasets` 参数（缺省：显式给了就用给的；goal 模式按 `--max-rounds`；其余与
+`max_writes` 相同 —— 一次写最多产一个数据集）。
+
+### K8 ⬜ `normalize()` 对 goal 工作流不幂等（低优先级，本轮未改）
+
+`normalize()` 先给语句补 `effect: null`，**之后**才做 `goal` 的 lowering；
+lowering 出来的 `repeat / if / assert` 语句因此**没有** `effect` 键。
+于是 `normalize(normalize(x))` 与 `normalize(x)` 差一个 `effect: null`
+（`05_goal_loop.qwf` 上可见；普通工作流是幂等的）。
+
+**影响**：**纯标记层面**。`effect` 的消费点都带兜底
+（`executor.py:1265` 的 `st.get("effect") or OP_EFFECT.get(op, "compute")`、
+`validate.py:448` 的 `st.get("effect") or ""`），所以执行语义与额度判定都不受影响。
+但它会**放大 K5**：用 normalize 过的 IR 当 `baseIr` 比对时，`effect: null → 缺失`
+会混进 `diff` 清单里。
+
+**待办**：让 lowering 出来的语句也补 `effect`（或在 `normalize` 末尾统一补一遍）。
