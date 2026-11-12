@@ -644,3 +644,94 @@ serverExternalPackages: ['recharts'],   // 顶层键 —— Next 15 才有的键
 
 > 补充：当前 `qmclaw-web/src` 下**没有任何文件 import recharts**，该依赖来自上游
 > `package.json`。配置项保留是为了将来接入图表时行为确定。
+
+---
+
+## K 组 — 同步 `sync/qmclaw-20261111` 时修掉的上游缺陷（K1–K4）
+
+本组记录**上游 `19faee0` 自带的缺陷**及其在本地的修复。四条都已实测修复并加了回归断言。
+凡本地与上游不一致的文件，都在本组点名，供下次同步时人工比对。
+
+### K1 ✅ 示例目录错位：服务端只认被 gitignore 排除的运行期目录（上游缺陷）
+
+**现象**：上游把 5 个产品示例 `.qwf` 放在**仓库根** `qwf_examples/`（上游自己的 CI 就是 lint
+这个目录，见 `.github/workflows/checks.yml`），而服务端 `qwf_store.py` 只读
+`qmclaw-server/data/workflows/examples/`。而仓库根 `.gitignore` 第 19 行
+（`Agentic Workflow/qmclaw-server/data/`）把整个 `data/` 排除了 —— 于是：
+
+- 服务端 `list_workflows()` / `read_workflow()` 永远看不到任何示例；
+- 前端画布的 "EXAMPLES (.qwf)" 下拉框永远是空的；
+- 上游 `tools/check_examples_canvas.py` 因为找不到示例，只能打印"没有找到任何示例 .qwf"。
+
+**这不是合并引入的**：上游 `19faee0:.gitignore` 里是同一条规则，是上游自己的缺陷。
+
+**修复**（`Agentic Workflow/qmclaw-server/services/workflow_service/qwf_store.py`）：
+新增 `REPO_ROOT_DIR` / `REPO_EXAMPLES_DIR` 两个常量与三个辅助函数
+`example_dirs()` / `example_files()` / `find_example()`，**运行期目录优先、仓库根回落**；
+`list_workflows()` / `read_workflow()` / `delete_workflow()` 全部改走这套解析。
+`server.py` 的 `_handle_qwf_examples` 与 `_handle_qwf_to_canvas` 复用同一套解析。
+`tools/check_examples_canvas.py` 改用 `example_files()`。
+
+> 副作用（有意）：示例在服务端被标成**只读**，`delete_workflow()` 遇到示例会明确拒绝
+> （"示例工作流是只读的，不能删除"），前端"复制为新的存档"是唯一出路。
+
+### K2 ✅ `goal` / `bounds` 在画布往返里被静默丢弃（上游缺陷）
+
+**现象**：`dsl/canvas_ir.py` 的 `ir_to_canvas()` 只把 `meta/env/context/defaults/budget/policy`
+带进画布的 `workflow` 块，`goal`（目标契约）和 `bounds`（写幅度上界）**没带**；
+`canvas_to_ir()` 自然也重建不出来。结果：画布打开一个带 `goal` 的 `.qwf` → 改一下 →
+导出，**目标契约就没了**，`ir_diff` 里表现为 `$.goal: {...} → 缺失`。
+`05_goal_loop.qwf` 正好是这种工作流。
+
+**修复**（`dsl/canvas_ir.py`）：
+- `ir_to_canvas()`：`workflow` 块补上 `"goal"` / `"bounds"`（`copy.deepcopy`）；
+- `canvas_to_ir()`：按 `policy` 的现成写法，在 `policy` 特判之后补回 `goal` / `bounds`
+  （只在是非空 dict 时才写回，保持空块不污染 IR）。
+
+**前端配套**：`QwfInfoPanel.tsx` 的 `WORKFLOW_FIELDS` 补上 `goal` / `bounds` 两项，
+前端因此能看见并编辑它们；`qwfBridge.ts` / `workflowStore.ts` 的注释同步更新
+（`toBackendCanvas` 本来就是原样透传 `workflow`，不需要改逻辑）。
+
+> **这是 `dsl/` 目录下本轮唯一的改动**，下次同步上游时要重点比对这一处。
+
+### K3 ✅ 两个产品示例过不了自己的 `validate()`（上游缺陷）
+
+**现象**：`qwf_examples/02_ramsey_t2.qwf` 与 `03_t1_fixed_zpa.qwf` 声明
+`budget { max_writes 0 }`，但 `dsl/validate.py:count_writes()` 的口径是
+**每条 `measure` 记 1 次写**（与后端 `WRITE_EFFECTS` 表无关）。于是
+`max_writes(0) < 实际 write 语句数(1)` → `E_BUDGET_REQUIRED` 报错，
+这两个示例**根本跑不起来**（服务端 `run_ir` 会直接拒绝）。
+
+> 这两个示例本身是"不写寄存器"的只读实验，作者按"不写寄存器 → 不占写额度"写了 0，
+> 但引擎的额度口径是"按实验语句条数算"。两个口径不一致是上游的问题。
+>
+> 上游之所以一直没发现：它的 CI 只对 `qwf_examples/` 跑 **lint**（`qwf_lint.py`），
+> **不跑 `validate`**；而且上游 `_p1_goal_dsl_check.py` 的回归 glob 写的是
+> `D:/qmclaw/*.qwf`（仓库根），而示例实际在 `D:/qmclaw/qwf_examples/` —— glob 匹配为空，
+> 回归段等于没跑。
+
+**修复**：把两个示例的 `max_writes` 从 `0` 改成 `1`（= 实验语句条数），并在文件里加注释
+说明额度口径与"不写寄存器 → 不需要写清单/票据"是两回事。
+**没有改 `dsl/validate.py` 的口径** —— 那是引擎语义，改了会影响所有工作流的额度判定，
+不该在一次同步里顺手改（记为后续可讨论项）。
+
+### K4 ✅ 回归断言落位：上游的 `_p1_goal_dsl_check.py` 回归段等于没跑
+
+**现象**：`_p1_goal_dsl_check.py` 第 6 段"既有 .qwf 回归"的 glob 是 `D:/qmclaw/*.qwf`，
+匹配的是**仓库根**的 `.qwf`，而产品示例在 `qwf_examples/`；仓库根又只有一条
+`/*.qwf` 的 gitignore 规则 —— 于是这一段**永远零命中**，示例从来没被回归过。
+（K3 就是被这段回归漏掉的。）
+
+**修复**（`_p1_goal_dsl_check.py`，本轮唯一的检查脚本改动）：
+1. glob 改成 `qwf_examples/*.qwf` + 仓库根 `*.qwf`（两者都跑）；
+2. 脚本自身位置作为仓库根兜底（原来写死的 `D:/qmclaw/...` 在别的机器上没有）；
+3. **新增第 7 段**：K1（`qwf_store.example_files()` 能找到 5 个产品示例）与
+   K2（每个示例 `ir_to_canvas` → `canvas_to_ir` 语义等价、`goal`/`bounds` 进画布）两件事的
+   回归断言。
+
+> 该脚本已在 `run_all_checks.py` 的 OFFLINE 列表与 `docs/OPERATIONS.md` §4 表格里
+> （两边本来就登记着），所以**没有新增检查项**，列表仍是 39 项。
+
+**实测**：`run_all_checks.py` → 39 项 / 0 失败 / 1 跳过（`_qwf_gen_goal_check.py` 未入库）；
+`tools/check_examples_canvas.py` → 5 个示例全部 `ok=True stable=True changed=False`；
+`qwf_lint.py` 对 5 个示例 → 0 error。

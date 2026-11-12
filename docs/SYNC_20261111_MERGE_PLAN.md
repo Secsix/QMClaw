@@ -257,6 +257,15 @@ npm run build
 
 见 §6 清单。
 
+**本轮额外做掉的 4 个上游缺陷**（详细记录见 `docs/BACKLOG.md` K 组）：
+
+| # | 上游缺陷 | 修复落点 |
+|---|---|---|
+| **K1** | 服务端只读被 `.gitignore` 排除的 `data/workflows/examples/`，而产品示例在仓库根 `qwf_examples/` → 示例列表永远为空 | `qwf_store.py`（新增 `example_dirs()` / `example_files()` / `find_example()`，运行期目录优先、仓库根回落）+ `server.py` + `tools/check_examples_canvas.py` |
+| **K2** | `goal` / `bounds` 在画布往返里被静默丢弃（打开→改→导出，目标契约就没了） | `dsl/canvas_ir.py`（`ir_to_canvas` 带出、`canvas_to_ir` 写回）+ 前端 `QwfInfoPanel.tsx` |
+| **K3** | `02_ramsey_t2` / `03_t1_fixed_zpa` 声明 `max_writes 0` 却含 1 条 `measure`，过不了自己的 `validate()`（引擎额度口径 = 实验语句条数） | 两个示例的 `max_writes` 改 1 + 注释说明口径；**未改引擎语义** |
+| **K4** | `_p1_goal_dsl_check.py` 的回归 glob 是仓库根 `*.qwf`，示例实际在 `qwf_examples/` → 回归段永远零命中（K3 就是被它漏掉的） | 该脚本：glob 修正 + 仓库根兜底 + 新增第 7 段（K1/K2 回归断言）。**未新增检查项**，OFFLINE 仍 39 项 |
+
 ### S9　收尾
 
 1. `.claude/progress.md` 按 CLAUDE.md 约定 5 记录：改动内容、文件、验证结果、提交 hash。
@@ -321,7 +330,7 @@ npm run build
 | 1 | `GET /api/health` 全绿 | 6 个微服务 healthy，quantum/analysis 状态 `ok` |
 | 2 | **写闸门仍关闭**（红线） | `POST :3003/execute {"code":"print(1)"}` → `status=read_only`，不进入模拟分支 |
 | 3 | `POST :3003/qubit/set_params` | 同样 `read_only` |
-| 4 | `GET /api/workflow/qwf_examples` | 返回 5 个 `.qwf` 示例 |
+| 4 | `GET /api/workflow/qwf_examples`（也可 POST） | 返回 5 个 `.qwf` 示例（上游 proxy 只暴露了 POST，本轮补了 GET；`?includeText=1` 一并带上文本） |
 | 5 | `POST /api/workflow/parse_qwf`（用 `qwf_examples/01_iqraw_contrast.qwf` 文本） | 返回规范化 IR，无 error |
 | 6 | `POST /api/workflow/validate` | `diags` 无 error |
 | 7 | `POST /api/workflow/qwf_to_canvas` | 返回画布节点图，与前端节点类型对齐 |

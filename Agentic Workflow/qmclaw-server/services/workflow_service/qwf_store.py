@@ -29,6 +29,16 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 WORKFLOWS_DIR = ROOT_DIR / "data" / "workflows"
 EXAMPLES_DIR = WORKFLOWS_DIR / "examples"
 
+# 仓库根（qmclaw-server → 上两级）：产品示例 `.qwf` 的**真正来源**。
+#
+# 为什么需要回落：`data/` 整个目录被仓库根 `.gitignore` 排除
+# （`Agentic Workflow/qmclaw-server/data/`），所以放在 `data/workflows/examples/`
+# 里的 `.qwf` 永远进不了版本库；上游真正入库的产品示例在**仓库根**
+# `qwf_examples/`（上游 CI 就是 lint 这个目录，见 .github/workflows/checks.yml）。
+# 运行期目录仍然优先（部署时可以覆盖），找不到时回落到仓库根。
+REPO_ROOT_DIR = ROOT_DIR.parent.parent
+REPO_EXAMPLES_DIR = REPO_ROOT_DIR / "qwf_examples"
+
 # 文件名安全：只留字母数字、下划线、连字符、点
 _SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
@@ -42,6 +52,48 @@ def safe_id(raw: str) -> str:
 def _meta_of(ir: Dict[str, Any]) -> Dict[str, Any]:
     meta = ir.get("meta")
     return meta if isinstance(meta, dict) else {}
+
+
+def example_dirs() -> List[Path]:
+    """示例 `.qwf` 所在目录（运行期目录优先，回落到仓库根 `qwf_examples/`）。
+
+    上游把示例只认 `data/workflows/examples/`，但那个目录被 `.gitignore`
+    整条排除，示例永远进不了版本库——真正入库的产品示例在仓库根
+    `qwf_examples/`（上游 CI lint 的就是它）。这里把两处都收进来，
+    运行时目录优先（部署可覆盖），同名文件以先到的为准。
+    """
+    dirs: List[Path] = []
+    for candidate in (EXAMPLES_DIR, REPO_EXAMPLES_DIR):
+        if candidate.is_dir() and candidate not in dirs:
+            dirs.append(candidate)
+    return dirs
+
+
+def example_files() -> List[Path]:
+    """所有可用的示例 `.qwf` 文件（同名去重，按目录优先级）。"""
+    files: List[Path] = []
+    seen = set()
+    for directory in example_dirs():
+        for path in sorted(directory.glob("*.qwf")):
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            files.append(path)
+    return files
+
+
+def find_example(name: str) -> Optional[Path]:
+    """按文件名（可带或不带 `.qwf`）找示例文件；找不到返回 None。"""
+    stem = Path(str(name or "")).name
+    if not stem:
+        return None
+    candidates = [stem] if stem.endswith(".qwf") else [f"{stem}.qwf"]
+    for directory in example_dirs():
+        for candidate in candidates:
+            path = directory / candidate
+            if path.is_file():
+                return path
+    return None
 
 
 def _file_info(path: Path, source: str) -> Dict[str, Any]:
@@ -83,8 +135,8 @@ def list_workflows(include_examples: bool = True) -> List[Dict[str, Any]]:
     if WORKFLOWS_DIR.exists():
         for path in sorted(WORKFLOWS_DIR.glob("*.qwf")):
             items.append(_file_info(path, "saved"))
-    if include_examples and EXAMPLES_DIR.exists():
-        for path in sorted(EXAMPLES_DIR.glob("*.qwf")):
+    if include_examples:
+        for path in example_files():
             items.append(_file_info(path, "example"))
     return items
 
@@ -98,11 +150,10 @@ def read_workflow(wf_id: str) -> Optional[Dict[str, Any]]:
     """读一个存档/示例：返回 {id,name,text,ir,canvas?}。找不到返回 None。"""
     target = path_for(wf_id)
     if not target.exists():
-        candidate = EXAMPLES_DIR / f"{safe_id(wf_id)}.qwf"
-        if candidate.exists():
-            target = candidate
-        else:
+        candidate = find_example(safe_id(wf_id))
+        if candidate is None:
             return None
+        target = candidate
     text = target.read_text(encoding="utf-8")
     ir = parse_qwf(text)
     meta = _meta_of(ir)
@@ -113,7 +164,7 @@ def read_workflow(wf_id: str) -> Optional[Dict[str, Any]]:
         "text": text,
         "ir": ir,
         "path": str(target),
-        "source": "example" if target.parent == EXAMPLES_DIR else "saved",
+        "source": "example" if target.parent in example_dirs() else "saved",
     }
 
 
@@ -150,9 +201,9 @@ def delete_workflow(wf_id: str) -> Dict[str, Any]:
     """删存档（示例是只读的，不给删）。"""
     target = path_for(wf_id)
     if not target.exists():
+        if find_example(safe_id(wf_id)) is not None:
+            return {"ok": False, "error": "示例工作流是只读的，不能删除"}
         return {"ok": False, "error": f"找不到存档：{wf_id}"}
-    if target.parent == EXAMPLES_DIR:
-        return {"ok": False, "error": "示例工作流是只读的，不能删除"}
     target.unlink()
     return {"ok": True, "id": target.stem}
 
@@ -212,7 +263,8 @@ def migrate_json_archives() -> List[Dict[str, Any]]:
 
 
 __all__ = [
-    "WORKFLOWS_DIR", "EXAMPLES_DIR", "safe_id",
+    "WORKFLOWS_DIR", "EXAMPLES_DIR", "REPO_EXAMPLES_DIR", "safe_id",
+    "example_dirs", "example_files", "find_example",
     "list_workflows", "read_workflow", "write_workflow", "delete_workflow",
     "migrate_json_archives",
 ]

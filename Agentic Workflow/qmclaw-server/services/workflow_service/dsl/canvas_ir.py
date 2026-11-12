@@ -218,6 +218,11 @@ def ir_to_canvas(ir: Dict[str, Any]) -> Dict[str, Any]:
         "policy": copy.deepcopy(ir.get("policy") or {}),
         "defaults": copy.deepcopy(ir.get("defaults") or {}),
         "context": copy.deepcopy(ir.get("context") or {}),
+        # 顶层块（v1.3）：`goal` 是目标契约，`bounds` 是写幅度上界。
+        # 画布上没有对应控件，但导出时必须原样带回去——否则往返会**静默丢掉**
+        # goal 契约（导出文件不再有目标契约）或 bounds 上界（写幅度失去约束）。
+        "goal": copy.deepcopy(ir.get("goal") or {}),
+        "bounds": copy.deepcopy(ir.get("bounds") or {}),
     }
     return {
         "id": ir.get("id"),
@@ -431,6 +436,12 @@ def canvas_to_ir(doc: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     policy = workflow.get("policy")
     if isinstance(policy, dict) and policy:
         ir["policy"] = copy.deepcopy(policy)
+    # 顶层块（v1.3）：`goal` 目标契约 / `bounds` 写幅度上界。
+    # 与 `policy` 同理——画布上没有控件，但必须原样带回，否则往返丢语义。
+    for key in ("goal", "bounds"):
+        block = workflow.get(key)
+        if isinstance(block, dict) and block:
+            ir[key] = copy.deepcopy(block)
     for key in ("meta", "env", "context", "defaults", "budget"):
         if not ir[key]:
             ir.pop(key)

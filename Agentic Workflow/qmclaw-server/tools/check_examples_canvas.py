@@ -21,14 +21,14 @@ from services.workflow_service.dsl.canvas_ir import (  # noqa: E402
     canvas_to_qwf,
     ir_to_canvas,
 )
-
-EXAMPLES = ROOT / "data" / "workflows" / "examples"
+from services.workflow_service.qwf_store import example_files  # noqa: E402
 
 
 def main() -> int:
-    files = sorted(EXAMPLES.glob("*.qwf"))
+    files = example_files()
     if not files:
-        print(f"!! {EXAMPLES} 下没有 .qwf")
+        print("!! 没有找到任何示例 .qwf"
+              "（运行期 data/workflows/examples/ 与仓库根 qwf_examples/ 都没有）")
         return 1
     bad = 0
     for path in files:

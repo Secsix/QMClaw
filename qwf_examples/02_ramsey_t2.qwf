@@ -18,9 +18,12 @@ workflow ex02_ramsey_t2 {
 
   budget {
     max_wall     10m
-    max_writes   0
+    max_writes   1
     max_datasets 2
   }
+  # 注：budget.max_writes 按**实验语句条数**计（引擎口径，dsl/validate.py:count_writes），
+  # 不是按"实际写了几个寄存器"计。本例不写寄存器 → 不需要写清单/票据；
+  # 但额度仍要 ≥ 语句数，否则 validate 直接报 E_BUDGET_REQUIRED。
 
   measure as c1 {
     fn      sq.ramsey_t2

@@ -167,7 +167,7 @@ export interface NormalizedWorkflow {
   qwf: string | null;
   /** 打开时的原始 IR（导出时用作语义等价基准） */
   ir: unknown | null;
-  /** 工作流级字段：meta / env / budget / policy / defaults / context */
+  /** 工作流级字段：meta / env / budget / policy / defaults / context / goal / bounds */
   workflow: Record<string, unknown>;
   /** 画布表达不了的 DSL 语句（repeat / if / call…） */
   unsupported: string[];

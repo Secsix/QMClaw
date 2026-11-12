@@ -1561,3 +1561,45 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   q21_7 反例(序号 3861 的 P1 序列 + 3800 的 snr=0.0866)；q19_9 的 fread 误写修正
 - **提交**：`docs(qubit-health)`
 
+
+---
+
+## 2026-11-12  同步分支 sync/qmclaw-20261111 —— S8：修掉 4 个上游缺陷（DSL 子系统关键增量）
+- **范围**：fix（上游缺陷修复 + 回归断言落位），**不改引擎语义、不改配置红线**
+- **背景**：同步计划见 `docs/SYNC_20261111_MERGE_PLAN.md`；上游 = `qmclaw-ai/sync-qmclaw-20261111`
+  (`19faee0`)，合并提交 `c841983`。S0→S7 已完成，本条是 S8。
+- **改动（11 个文件）**：
+  1. `Agentic Workflow/qmclaw-server/services/workflow_service/qwf_store.py`（**上游缺陷 K1**）：
+     新增 `REPO_ROOT_DIR` / `REPO_EXAMPLES_DIR` 与 `example_dirs()` / `example_files()` /
+     `find_example()`——运行期 `data/workflows/examples/` 优先、仓库根 `qwf_examples/` 回落；
+     `list_workflows()` / `read_workflow()` / `delete_workflow()` 全部改走这套解析；
+     示例在服务端标为**只读**（删除会被明确拒绝）。
+  2. `.../services/workflow_service/server.py`（K1）：`_handle_qwf_examples` / `_handle_qwf_to_canvas`
+     复用 `qwf_store` 的统一解析；`includeText` 同时支持 query 参数。
+  3. `.../services/workflow_service/dsl/canvas_ir.py`（**上游缺陷 K2**，`dsl/` 下本轮唯一改动）：
+     `ir_to_canvas` 的 `workflow` 块补上 `goal` / `bounds`；`canvas_to_ir` 按 `policy`
+     的现成写法把它们写回（只在非空 dict 时写回）。
+  4. `Agentic Workflow/qmclaw-web/src/components/panels/QwfInfoPanel.tsx`（K2）：
+     `WORKFLOW_FIELDS` 补 `goal` / `bounds` 两项。
+  5. `.../qmclaw-web/src/lib/qwfBridge.ts` / `.../src/store/workflowStore.ts` / `.../src/lib/api.ts`：
+     注释与文档串同步（透传逻辑本身就不用改）。
+  6. `Agentic Workflow/qmclaw-server/src/services/serviceProxy.ts`：补 `GET /workflow/qwf_examples`
+     （上游只有 POST），query 参数透传。
+  7. `Agentic Workflow/qmclaw-server/tools/check_examples_canvas.py`：改用 `example_files()`。
+  8. `qwf_examples/02_ramsey_t2.qwf` / `03_t1_fixed_zpa.qwf`（**上游缺陷 K3**）：
+     `budget.max_writes` 0 → 1 + 加注释说明额度口径。
+  9. `_p1_goal_dsl_check.py`（**上游缺陷 K4**）：回归 glob 修正（`qwf_examples/*.qwf` + 仓库根
+     `*.qwf`）、脚本位置作仓库根兜底、新增第 7 段（K1/K2 回归断言）。**未新增检查项**。
+  10. `docs/BACKLOG.md`：新增 **K 组**（K1–K4）。
+  11. `docs/SYNC_20261111_MERGE_PLAN.md`：S8 补"上游缺陷修复"小节 + §6 第 4 项更新。
+- **为什么 K3/K4 是真缺陷**：上游 CI 只对示例跑 **lint** 不跑 **validate**；
+  且上游回归 glob 写的是仓库根 `*.qwf`，示例实际在 `qwf_examples/` → 回归段零命中。
+- **验证**：
+  - `run_all_checks.py`（OFFLINE）→ **39 项 / 0 失败 / 1 跳过**（`_qwf_gen_goal_check.py` 未入库）
+  - `_p1_goal_dsl_check.py` → FAIL 0（含 K1/K2 新增断言：5 个示例往返全等价、`goal` 进画布）
+  - `tools/check_examples_canvas.py` → 5 个示例全 `ok=True stable=True changed=False`
+  - `qwf_lint.py` 对 5 个示例 → 0 error
+  - `next build` → exit 0、stderr 空、`/` 252 kB / First Load 339 kB
+- **未做**：不改 `dsl/validate.py` 的额度口径（引擎语义，留作后续讨论）；不改写闸门默认值；
+  不起停任何服务（约定 3）。
+- **提交**：`fix(dsl): 修掉同步分支带进来的 4 个上游缺陷`

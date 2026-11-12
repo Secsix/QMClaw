@@ -196,7 +196,7 @@ interface HistoryState {
 
 /**
  * `.qwf` 相关状态：从 `.qwf` 文件（或服务端示例）载入后保留。
- * - `workflow`：meta / env / budget / policy / defaults（工作流级字段）
+ * - `workflow`：meta / env / budget / policy / defaults / goal / bounds（工作流级字段）
  * - `baseIr`：打开时的原始 IR，导出时用作"语义等价"的基准
  * - `unsupported`：画布表达不了的 DSL 语句（repeat / if / call…）
  */
