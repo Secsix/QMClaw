@@ -20,6 +20,8 @@ SKIP_DIRS = {
     ".git", "node_modules", ".next", "_checks", "__pycache__",
     ".venv", "venv", "dist", "build", ".mypy_cache", ".pytest_cache",
     "_task_data", "vendor",
+    # 本地临时目录（非源码、不入库；.gitignore 已忽略 /tmp/ 与 /logs/）
+    "tmp", "logs",
 }
 
 PASS = 0

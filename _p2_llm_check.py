@@ -74,17 +74,29 @@ def main() -> int:
     from services.workflow_service.dsl.llm import load_llm_config, chat, extract_json
 
     cfg_dec = load_llm_config("llm_decision")
-    check("llm_decision provider", cfg_dec.get("provider") == "openai", str(cfg_dec.get("provider")))
-    check("llm_decision 有 api_key", bool(cfg_dec.get("api_key")))
-    check("llm_decision 有 model", bool(cfg_dec.get("model")))
-
     cfg_mm = load_llm_config("llm_decision_minimax")
-    check("llm_decision_minimax provider", cfg_mm.get("provider") == "anthropic",
-          str(cfg_mm.get("provider")))
-    check("llm_decision_minimax key 来自 .env", bool(cfg_mm.get("api_key")),
-          "MINIMAX_API_KEY 未载入")
-    check("llm_decision_minimax model 非空", bool(cfg_mm.get("model")),
-          str(cfg_mm.get("model")))
+    qcfg_path = SERVER / "config" / "qubitclient.json"
+    if not qcfg_path.exists():
+        # config/qubitclient.json is excluded by upstream .gitignore (it holds
+        # lab-internal addresses and API keys, which must not leave the lab),
+        # so a fresh clone has no such file and the 6 config-dependent
+        # assertions cannot hold here. Record SKIP instead of FAIL.
+        skip("llm_decision provider", "config/qubitclient.json not in repo")
+        skip("llm_decision 有 api_key", "same")
+        skip("llm_decision 有 model", "same")
+        skip("llm_decision_minimax provider", "same")
+        skip("llm_decision_minimax key 来自 .env", "same")
+        skip("llm_decision_minimax model 非空", "same")
+    else:
+        check("llm_decision provider", cfg_dec.get("provider") == "openai", str(cfg_dec.get("provider")))
+        check("llm_decision 有 api_key", bool(cfg_dec.get("api_key")))
+        check("llm_decision 有 model", bool(cfg_dec.get("model")))
+        check("llm_decision_minimax provider", cfg_mm.get("provider") == "anthropic",
+              str(cfg_mm.get("provider")))
+        check("llm_decision_minimax key 来自 .env", bool(cfg_mm.get("api_key")),
+              "MINIMAX_API_KEY not loaded")
+        check("llm_decision_minimax model 非空", bool(cfg_mm.get("model")),
+              str(cfg_mm.get("model")))
 
     print("== 3) 真打 LLM（外部依赖：无 key / 供应商不可用 → SKIP，不判失败）==")
     msgs = [{"role": "user", "content": "只回答一个词：pong"}]

@@ -120,6 +120,26 @@ def run_one(name: str, outdir: str) -> dict:
     started = time.time()
     exit_code = 0
     error = ""
+    if not os.path.exists(path):
+        # 上游 .gitignore 排除的脚本（例如 _qwf_gen_goal_check.py）没有入库。
+        # 记 SKIP 而不是 FAIL / 崩溃：整套自检不该被一个缺失文件带崩，
+        # 理由写进 summary.json 与日志，便于按需补齐。
+        reason = "脚本未入库（上游 .gitignore 排除，见 docs/BACKLOG.md）"
+        text = f"[SKIP] {name} 未执行：{reason}\n"
+        log_name = name.replace(".py", "") + ".log"
+        with open(os.path.join(outdir, log_name), "w", encoding="utf-8") as f:
+            f.write(text)
+        return {
+            "name": name,
+            "exit_code": 0,
+            "status": "skip",
+            "passed": None,
+            "failed": None,
+            "seconds": 0.0,
+            "log_file": "checks/" + log_name,
+            "error": "",
+            "skip_reason": reason,
+        }
     try:
         with redirect_stdout(buf), redirect_stderr(err):
             try:
@@ -144,11 +164,13 @@ def run_one(name: str, outdir: str) -> dict:
     return {
         "name": name,
         "exit_code": exit_code,
+        "status": "ok" if exit_code == 0 else "fail",
         "passed": int(m_pass.group(1)) if m_pass else None,
         "failed": int(m_fail.group(1)) if m_fail else None,
         "seconds": round(time.time() - started, 2),
         "log_file": "checks/" + log_name,
         "error": error[-800:] if error else "",
+        "skip_reason": "",
     }
 
 
@@ -212,6 +234,7 @@ def write_manifest(outdir: str, results: list, items: list, ts: str, note: str =
         "checks": results,
         "checks_total": len(results),
         "checks_failed": sum(1 for r in results if r["exit_code"] != 0),
+        "checks_skipped": sum(1 for r in results if r.get("status") == "skip"),
         "artifacts": items,
         "artifacts_total": len(items),
         "external": external_index(),
@@ -267,11 +290,15 @@ def main() -> int:
 
     print("\n==== 汇总 ====")
     for r in results:
-        status = "OK " if r["exit_code"] == 0 else "ERR"
-        print(f"{status} {r['name']:<34} exit={r['exit_code']:<3} pass={r['passed']} fail={r['failed']}")
+        status = {"ok": "OK ", "fail": "ERR", "skip": "SKIP"}.get(r.get("status", "ok"), "ERR")
+        extra = f"  ({r['skip_reason']})" if r.get("skip_reason") else ""
+        print(f"{status} {r['name']:<34} exit={r['exit_code']:<3} pass={r['passed']} fail={r['failed']}{extra}")
     print("归档产物:", ", ".join(f"{k}={v}" for k, v in sorted(cats.items())) or "(无)")
     print(f"\n落盘目录: {outdir}")
     print(f"总索引:   {mpath}")
+    n_skip = sum(1 for r in results if r.get("status") == "skip")
+    if n_skip:
+        print(f"跳过:     {n_skip} 项（缺失上游环境产物，详见各自日志与 docs/BACKLOG.md）")
     return 0 if all(r["exit_code"] == 0 for r in results) else 1
 
 
