@@ -1,5 +1,45 @@
 # QMClaw 开发进度
 
+## 2026-11-06: 自动化单比特标定优化方案整理
+
+### 完成内容
+- 审阅 `C:\Users\lqcs\Desktop\曙光测试日志\单比特自动化测试优化` 中的 PDF、XMind 和图片资料。
+- 提炼出：S21 图片输入 → 局部 S21 腔频候选 → ZPA 范围识别 → ZPA 网格 spectroscopy/IQraw/PiAmp 判活 → 早停 → Ramsey/S21_dis/Pi/T1 等定向优化。
+- 结合现有 `tools/qubit_health_report`、`tools/s21_photo_reader`、`backends/lqcs/experiments.py` 设计在线/离线分层脚本架构、质量门禁、状态机和写闸门。
+- 新增文档：`docs/SINGLE_QUBIT_AUTO_CALIBRATION_DESIGN.md`
+
+### 验证
+- XMind `content.json` 成功提取出完整主题树。
+- 已读取现有 IQraw/Rabi/Ramsey/S21 指标和单比特流程实现，确认可复用接口。
+- PDF 为单页导出图；当前模型不支持图像输入，因此 PDF/图片中的细节以 XMind 文本和仓库现有可读实现交叉核对，未声称完成视觉核验。
+
+## 2026-11-06: 自动化单比特标定方案验证
+
+### 验证结果
+- `tools/qubit_health_report/test_health_report.py`：使用 `C:\Users\lqcs\Programs\Python\Python311\python.exe`，9/9 PASS。
+- `tools/s21_photo_reader/tests/test_assign.py`：UTF-8 控制台下 PASS，6 个场景通过，9/9 mock 写入成功。
+- `tools/s21_photo_reader/tests/test_tool.py`：未通过，项目 `.pylibs/onnxruntime` 在当前 Python 3.11 环境加载 C API 时 DLL 缺失；当前 DSH Python 3.12 又未安装 onnxruntime。该失败属于 OCR 运行时依赖问题，未修改依赖或真机环境。
+- 关键 Python 模块 `py_compile` 通过。
+- 文档中的 `sq.*` 调用与 `backends/lqcs/experiments.py` 现有配置交叉检查通过；`s21_zpa/s21_zpa2d` 实际签名仍需目标测控环境验证。
+
+## 2026-11-07: 自动化单比特标定策略代码实现
+
+### 完成内容
+- 新增 `tools/single_qubit_auto_calibration/` 独立模块。
+- 实现数据模型、配置加载、状态机、安全闸门和参数范围校验。
+- 实现 IQraw、Rabi/PiAmp、Spectroscopy、S21、Ramsey 指标与质量门禁。
+- 实现策略决策：腔频重试、ZPA 扩展/细化、读出优化、f10/PiAmp 优化、PIDF/Ramsey、T1/ZPA 扫描、最终验收。
+- 实现 MockAdapter、SqAdapter、LabRADAdapter；真实执行/写入默认关闭。
+- 实现离线 Mock 工作流、候选工作点、状态转换、JSON/Markdown 报告和 `assignment_plan.py`。
+- 新增 CLI `plan` 模式以及单元/集成测试。
+
+### 验证
+- 新模块 unittest：3/3 PASS。
+- CLI plan 模式通过。
+- 新模块全量 `py_compile` 通过。
+- Mock 流程生成并检查 `run.json`、`report.md`、`assignment_plan.json`、`assignment_plan.py` 后已清理临时产物。
+- 未连接 LabRAD、未启动服务、未执行真机实验、未写硬件参数。
+
 ## 2026-09-23: Hermes 扩展功能 (Memory + Skills + Cron)
 
 ### 目标
@@ -1507,4 +1547,17 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **验证**：自检 **9/9 PASS**；全量 808 文件实跑 2.8 s；活比特判定在
   "IQraw 用 SNR" 与 "用归一化分离度" 两种口径下结论一致
 - **提交**：`feat(qubit-health)`
+
+---
+## 2026-11-04  补充：单比特体检需求文档
+- **范围**：docs（只加文档，不动代码）
+- **需求**：把上面的体检需求写成 markdown 文档，标注清楚具体需求点并给出具体例子
+- **改动（2 个文件）**：
+  1. `docs/QUBIT_HEALTH_REPORT_REQ.md`（新）：10 节——背景/目标/数据约定/需求点索引(R1–R8)/
+     详细需求点(含公式与量化口径)/**6 个具体例子**/判活结果表/边界情况与限制/验收清单/交付物
+  2. `.claude/progress.md`：本条记录
+- **例子均取真实数据**（非编造）：q13_15 的 IQraw 数值(sep=2063718、σ0=339310、σ1=774922、
+  snr=3.450、fidelity=0.9985)、PiPulse 的 16 点 P1 序列、寄存器快照；
+  q21_7 反例(序号 3861 的 P1 序列 + 3800 的 snr=0.0866)；q19_9 的 fread 误写修正
+- **提交**：`docs(qubit-health)`
 

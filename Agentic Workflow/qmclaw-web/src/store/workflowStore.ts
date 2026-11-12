@@ -128,6 +128,7 @@ export interface ExecutionState {
     };
     // Decision node direct fields (alternative to conversation)
     symptom?: string;
+    reasoning?: string;
     recommendations?: Array<{
       fn: string;
       qubit?: string;
@@ -135,6 +136,14 @@ export interface ExecutionState {
       reason?: string;
     }>;
     matchedRules?: string[];
+    // Experiment and image-analysis result fields
+    t1_us?: number;
+    decay_visible?: boolean;
+    description?: string;
+    qubit?: string;
+    dataset_id?: string;
+    experiment_type?: string;
+    dataset_name?: string;
   }>;
   lastExecutionResults: Record<string, Record<string, unknown>>;
 }
