@@ -31,12 +31,21 @@ sys.path.insert(0, SERVER)
 
 PASS = 0
 FAIL = 0
+SKIP = 0
 FAILED: list[str] = []
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
+
+
+def skip(name: str, why: str = "") -> None:
+    """Document/env missing -> SKIP instead of FAIL (upstream keeps these
+    design docs out of version control)."""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} {why}")
 
 
 def check(name: str, cond: bool, detail: str = "") -> None:
@@ -249,12 +258,16 @@ runner = open(RUNNER, encoding="utf-8").read() if os.path.exists(RUNNER) else ""
 check("run_all_checks.py OFFLINE 含 _phase14_check.py", "_phase14_check.py" in runner)
 
 ROADMAP = os.path.join(ROOT, "docs", "ARCHITECTURE_ROADMAP.md")
-roadmap = open(ROADMAP, encoding="utf-8").read() if os.path.exists(ROADMAP) else ""
-check("ROADMAP 记录了阶段 14（§3 #4）",
-      "阶段 14" in roadmap or "W_UPDATE_DEFAULT_ON" in roadmap)
+if os.path.exists(ROADMAP):
+    roadmap = open(ROADMAP, encoding="utf-8").read()
+    check("ROADMAP 记录了阶段 14（§3 #4）",
+          "阶段 14" in roadmap or "W_UPDATE_DEFAULT_ON" in roadmap)
+else:
+    skip("ROADMAP 记录了阶段 14（§3 #4）",
+         "docs/ARCHITECTURE_ROADMAP.md not in repo (upstream .gitignore excludes /docs/**/*.md)")
 
 print("\n" + "=" * 72)
-print(f"PASS={PASS} FAIL={FAIL}")
+print(f"PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
 if FAILED:
     print("失败项：")
     for name in FAILED:

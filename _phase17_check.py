@@ -34,7 +34,16 @@ for _stream in (sys.stdout, sys.stderr):
 
 PASS = 0
 FAIL = 0
+SKIP = 0
 FAILED: list[str] = []
+
+
+def skip(name: str, why: str = "") -> None:
+    """Document/env missing -> SKIP instead of FAIL (upstream keeps these
+    design docs out of version control)."""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} {why}")
 
 
 def check(name: str, cond: bool, detail: str = "") -> None:
@@ -200,9 +209,14 @@ check("OPERATIONS 有 §3.20", "### 3.20" in ops)
 check("OPERATIONS 提到 start_group.py", "start_group.py" in ops)
 check("OPERATIONS §4 表含 _phase17_check.py", "_phase17_check.py" in ops)
 roadmap = read(ROOT / "docs" / "ARCHITECTURE_ROADMAP.md")
-check("路线图 §3 #6 有阶段 17 注记", "阶段 17" in roadmap and "service_groups" in roadmap)
+if roadmap:
+    check("路线图 §3 #6 有阶段 17 注记",
+          "阶段 17" in roadmap and "service_groups" in roadmap)
+else:
+    skip("路线图 §3 #6 有阶段 17 注记",
+         "docs/ARCHITECTURE_ROADMAP.md not in repo (upstream .gitignore excludes /docs/**/*.md)")
 
-print(f"\n_phase17_check: PASS={PASS} FAIL={FAIL}")
+print(f"\n_phase17_check: PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
 if FAILED:
     print("失败项：")
     for item in FAILED:

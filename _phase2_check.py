@@ -174,20 +174,39 @@ if root:
     tuners = os.path.join(root, "measure", "tuners")
     shadowed = discover_shadowed(tuners)
     mods = [s["module"] for s in shadowed]
-    check("capabilities/发现 sq_nodes 被遮蔽", "lqms.measure.tuners.sq_nodes" in mods, str(mods))
     sq_entry = next((s for s in shadowed if s["module"].endswith("sq_nodes")), None)
+
+    # 断言"探测逻辑与本机安装现状一致"，而不是硬编码某台实验室机器的现状：
+    # 上游机器上 sq_nodes.cp311*.pyd 遮蔽了更新的 sq_nodes.py（verdict=degraded）；
+    # 本机把该 .pyd 改名为 .bak，sq_nodes 未被遮蔽（运行时直接用 .py，功能齐全）。
+    # 两种形态都必须自洽。
+    sq_pyd = [f for f in os.listdir(tuners)
+              if f.startswith("sq_nodes.") and f.endswith(".pyd")]
+    check("capabilities/sq_nodes 遮蔽判定与磁盘一致",
+          (sq_entry is not None) == bool(sq_pyd),
+          f"pyd={sq_pyd} shadowed={mods}")
     if sq_entry:
         check("capabilities/源码比 pyd 新", sq_entry.get("source_is_newer") is True, str(sq_entry))
     defs = scan_defs(os.path.join(tuners, "sq_nodes.py"))
     check("capabilities/源码含 spectroscopy_iq", "spectroscopy_iq" in defs, str(defs[:8]))
     rep = capability_report(root)
     check("capabilities/report 结构", bool(rep.get("capabilities")), str(list(rep.keys())))
-    check("capabilities/verdict degraded", rep.get("verdict") == "degraded", str(rep.get("verdict")))
+    all_missing = sorted({fn for info in (rep.get("capabilities") or {}).values()
+                          for fn in info.get("missing_in_runtime", [])})
+    expected_verdict = "degraded" if all_missing else "ok"
+    check(f"capabilities/verdict {expected_verdict}", rep.get("verdict") == expected_verdict,
+          f"实际={rep.get('verdict')} 缺失={all_missing}")
     miss = (rep.get("capabilities", {}).get("lqms.measure.tuners.sq_nodes", {}) or {}).get("missing_in_runtime", [])
-    for fn in ("spectroscopy_iq", "time_rabi", "iqcenter"):
-        check(f"capabilities/missing 含 {fn}", fn in miss, str(miss))
+    if sq_entry:
+        # 确实被遮蔽 → 源码里新增的实验函数必须被判为运行时缺失
+        for fn in ("spectroscopy_iq", "time_rabi", "iqcenter"):
+            check(f"capabilities/missing 含 {fn}", fn in miss, str(miss))
+    else:
+        # 未被遮蔽 → 运行时直接用 .py，不该报缺失
+        check("capabilities/未遮蔽时不报缺失", not miss, str(miss))
     un = unavailable_experiments(rep)
-    check("capabilities/unavailable 列表", "spectroscopy_iq" in un, str(un[:8]))
+    check("capabilities/unavailable 列表与 missing 一致", un == all_missing,
+          f"unavailable={un[:8]} missing={all_missing[:8]}")
 else:
     warn("capabilities/未找到 lqms", "sys.path 中没有 lqms")
 
@@ -246,8 +265,12 @@ check("port/probe 强制 do_plot=False", "do_plot=False" in pr.get("code", ""))
 check("port/probe 强制 update=False", "update=False" in pr.get("code", ""), str(pr.get("code")))
 check("port/probe 非法 method 报错", port.probe_transition("q7ld3", method="xxx").get("error_code") == "validation_error")
 iq = port.probe_transition("q7ld3", method="iqcenter")
-check("port/probe iqcenter 能力缺失→not_found", iq.get("error_code") == "not_found", str(iq)[:160])
-check("port/probe 能力缺失带提示", "重新编译" in json.dumps(iq, ensure_ascii=False), str(iq)[:200])
+# 能力缺失时才返回 not_found；本机 sq_nodes 未被 .pyd 遮蔽 → iqcenter 可用，走正常探测路径
+if "iqcenter" in port._unavailable():
+    check("port/probe iqcenter 能力缺失→not_found", iq.get("error_code") == "not_found", str(iq)[:160])
+    check("port/probe 能力缺失带提示", "重新编译" in json.dumps(iq, ensure_ascii=False), str(iq)[:200])
+else:
+    check("port/probe iqcenter 可用→生成代码", "sq.iqcenter(q7ld3" in str(iq.get("code", "")), str(iq)[:160])
 check("port/probe 空名报错", port.probe_transition("").get("error_code") == "validation_error")
 
 check("port/program 空 IR 报错", port.program(None).get("error_code") == "validation_error")

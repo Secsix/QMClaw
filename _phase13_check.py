@@ -37,6 +37,7 @@ sys.path.insert(0, SERVER)
 
 PASS = 0
 FAIL = 0
+SKIP = 0
 FAILED: list[str] = []
 
 try:
@@ -54,6 +55,18 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         FAIL += 1
         FAILED.append(name)
         print(f"  [FAIL] {name} {detail}")
+
+
+def skip(name: str, why: str = "") -> None:
+    """文档/环境缺失不判失败，只记 SKIP。
+
+    `docs/ARCHITECTURE_ROADMAP.md` 等设计文档在上游被 `.gitignore` 排除
+    （见上游 .gitignore 的 `/docs/**/*.md` 规则），新克隆的仓库里没有，
+    这类断言无法在本机成立 → 记 SKIP 而不是 FAIL。
+    """
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} {why}")
 
 
 from services.common import profile as P  # noqa: E402
@@ -238,12 +251,16 @@ with open(doc_ops, "r", encoding="utf-8") as fh:
     ops = fh.read()
 check("OPERATIONS 写了 $profile 用法", "$profile.f10" in ops and "profile_env" in ops)
 doc_road = os.path.join(ROOT, "docs", "ARCHITECTURE_ROADMAP.md")
-with open(doc_road, "r", encoding="utf-8") as fh:
-    road = fh.read()
-check("ROADMAP §2.7 标了阶段 13 落地", "阶段 13" in road and "$profile" in road)
+if os.path.exists(doc_road):
+    with open(doc_road, "r", encoding="utf-8") as fh:
+        road = fh.read()
+    check("ROADMAP §2.7 标了阶段 13 落地", "阶段 13" in road and "$profile" in road)
+else:
+    skip("ROADMAP §2.7 标了阶段 13 落地",
+         "docs/ARCHITECTURE_ROADMAP.md not in repo (upstream .gitignore excludes /docs/**/*.md)")
 
 print("=" * 72)
-print(f"PASS={PASS} FAIL={FAIL}")
+print(f"PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
 if FAILED:
     print("失败项：")
     for name in FAILED:

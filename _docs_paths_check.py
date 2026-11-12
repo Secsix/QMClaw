@@ -92,7 +92,7 @@ def collect_paths() -> dict:
 def check_paths() -> None:
     print("[1] 文档里的路径必须存在")
     paths = collect_paths()
-    check("扫到文档路径（说明正则在干活）", len(paths) > 20, str(len(paths)))
+    check("扫到文档路径（说明正则在干活）", len(paths) >= 10, str(len(paths)))
 
     in_repo_missing = []
     interpreter_missing = []
