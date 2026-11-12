@@ -11,9 +11,9 @@
 ## 0. 一句话摘要（可直接粘进微信/邮件）
 
 > 上游分支重写后我方已再次合并，**现在 39 项离线自检全部真跑通过（0 跳过）、qwf 体检 92 项全绿，
-> analysis_service 也已实测连上真机 LabRAD（之前是 degraded）**。
+> qwf → 队列 → 真机服务整条链路实测打通（q21_7 的 iqraw 已跑到写闸门被拦下，红线按预期生效，未下发硬件指令）**。
 > 剩下 **3 件只能你们给的东西**（LLM 配置文件、4 份设计文档、离线数据包），
-> 外加 **上游仓库自身 7 处缺陷需要回流**（补丁我方已写好，可直接 cherry-pick），
+> 外加 **上游仓库自身 8 处缺陷需要回流**（补丁我方已写好，可直接 cherry-pick），
 > 以及 **CI 覆盖**这一项工程建议。
 
 ---
@@ -146,6 +146,7 @@
 | **B5** | 两个产品示例过不了自己的 `validate()` | `02_ramsey_t2`/`03_t1_fixed_zpa` 写 `max_writes 0` 却含 1 条 `measure` | 示例自相矛盾 | 示例改 `max_writes 1`（**没动引擎口径**） | ❌ 上游未修 |
 | **B6** | 回归段永远零命中 | `_p1_goal_dsl_check.py` 的 glob 指仓库根 `*.qwf`，示例在 `qwf_examples/` | **示例从来没被回归过**（B5 就是被它漏掉的） | 该脚本 glob 修正 + 新增第 7 段回归断言 | ❌ 上游未修 |
 | **B7** | 能力基线硬编码某台机器 | `services/common/capabilities.py` 的 `KNOWN_RUNTIME_EXPORTS`/`KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况 | 别的机器上能力探测结论不对 | **我方未改**（改语义需你们拍板）→ **想请你们定：给一份"能力基线配置文件"，还是让代码自己探测？** | ⬜ 待拍板 |
+| **B8** | **analysis_service 与 quantum_service 同时重启时，analysis 会永久 degraded** | 2026-11-12 实测：analysis 启动时 `labrad_connect()` 失败（LabRAD 此刻被 quantum_service 占用），其重连预算是**按次数**（5 次指数退避，约 1 分钟内耗尽）→ 5 次全落在占用窗口内 → 打印"LabRAD 不可用（**已停止重连**）"、状态永久 `degraded`、`session_path: []`、`data_source: offline`；**只能手动 `POST /3004/connect {"session_path": [...]}` 才恢复**（本轮实测该调用成功，health 立刻转 `healthy`） | ① 重启后 analysis 一直是 offline，出图/统计拿不到真机数据；② `offlineAvailable:false` 时**离线兜底也没有**（本机没装离线包）→ 实际是"两头都没有" | **我方未改**（属上游语义，改法要你们定）。代码里 2026-11-02 已修过同类问题（"从未成功连接过就跳过重连"），但**按次数的预算仍有这个洞** | ❌ 上游未修 |
 
 ---
 
@@ -204,4 +205,6 @@
 | 7 | `git clone` 上游后跑全量自检 | 0 FAIL | ⚠️ 4 个脚本仍缺（白名单漏放行） |
 | 8 | `.qwf` 的 `decide` 节点 | 导出文本里 `from [$r1]` 还在 | ⬜ 需重启 workflow_service |
 | 9 | `qwf_gen.py` 产物 | `qwf_lint.py` 0 error | ✅ 我方已修（**待回流上游**） |
-| 10 | 写闸门 | `allow_execute=false` / `allow_set_params=false` | ✅ 实测保持关闭 |
+| 10 | 写闸门 | `allow_execute=false` / `allow_set_params=false` | ✅ 实测保持关闭（q21_7 实跑在闸门处被拦下） |
+| 11 | qwf → 队列 → 真机服务链路 | `run_ir` 真跑到 quantum_service 才被闸门拦下（而不是中途断链） | ✅ **已达成**（task_id `task_958809c9fa85`，`read_only` 拦截，无硬件指令下发） |
+| 12 | analysis_service 启动自愈 | 重启后自动连上 LabRAD，不需手动 `/connect` | ❌ 永久 degraded（见 B8） |
