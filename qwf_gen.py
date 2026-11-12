@@ -119,8 +119,17 @@ def build(args) -> str:
     lines.append("  budget {")
     lines.append(f"    max_wall   {args.max_wall}")
     lines.append(f"    max_writes {args.max_writes}")
-    if args.goal_objective:
-        lines.append(f"    max_datasets {max(1, int(args.max_rounds or 1))}")
+    # max_datasets 是 budget 三件套之一（lint 的 E_NO_BUDGET 要求
+    # max_wall / max_writes / max_datasets 同时声明），少写一个整份文件
+    # 就 lint 不过。缺省：显式给了就用给的；goal 模式按轮数；其余与
+    # max_writes 相同（一次写最多产一个数据集）。
+    if args.max_datasets:
+        _ds = args.max_datasets
+    elif args.goal_objective:
+        _ds = max(1, int(args.max_rounds or 1))
+    else:
+        _ds = args.max_writes
+    lines.append(f"    max_datasets {_ds}")
     lines.append("  }")
     lines.append("")
 
@@ -245,6 +254,8 @@ def main() -> int:
     ap.add_argument("--timeout", default="120")
     ap.add_argument("--max-wall", default="10m")
     ap.add_argument("--max-writes", default="4")
+    ap.add_argument("--max-datasets", default="",
+                    help="budget.max_datasets（缺省与 max_writes 相同；goal 模式下按 --max-rounds）")
     ap.add_argument("--session", default="20251103_LD_SQ")
     ap.add_argument("--name", default="")
     ap.add_argument("--title", default="")
