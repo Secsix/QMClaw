@@ -116,7 +116,6 @@ tools/s21_photo_reader/_tmp_test/
 /_p1_diff_out.txt
 # lint 反例夹具：故意写坏的文件，不能进版本库（会被 lint 回归扫到）
 /_lint_fixtures/
-/_qwf_gen_goal_check.py
 /_chk_*.py
 /_ds_*.py
 /_hl.py
@@ -225,6 +224,8 @@ tools/s21_photo_reader/_tmp_test/
 !/_replay_regression.py
 !/_tq_test_server.py
 !/_wf_test_server.py
+# 上游 2026-11-12 起把 goal 模式自检入库（run_all_checks.py 的 OFFLINE 清单引用它）
+!/_qwf_gen_goal_check.py
 
 # 根目录一次性产物的数据文件
 /_*.json
