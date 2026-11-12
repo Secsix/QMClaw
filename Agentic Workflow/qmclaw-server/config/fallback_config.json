@@ -9,8 +9,8 @@
       "default_mode": "auto"
     },
     "actuation": {
-      "allow_execute": true,
-      "allow_set_params": true,
+      "allow_execute": false,
+      "allow_set_params": false,
       "require_task": false,
       "writer_mode": "shadow",
       "replay_auto_record": "off",
@@ -36,9 +36,9 @@
       "allow_set_params": false
     },
     "retry": {
-      "max_attempts": 30,
-      "base_delay": 3,
-      "max_delay": 15
+      "max_attempts": 5,
+      "base_delay": 2,
+      "max_delay": 30
     }
   }
 }
