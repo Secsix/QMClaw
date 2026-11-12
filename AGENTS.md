@@ -38,7 +38,7 @@ quantum_service 和 analysis_service 支持离线模式，可在 LabRAD 不可�
 7. 当需求涉及较多修改时，先制定计划，由用户确认后才能执行。
 8. 计划模式下，或者用户明确让制定计划的时候，需要多向用户提问，详细了解需求。
 9. 当前系统有后端打印日志的过滤器，只有满足特定声明逻辑的日志才能被打印到后端的终端窗口里。所以当你要增加后端日志的时候，需要检查一下后端日志过滤器(Agentic Workflow\qmclaw-server\src\index.ts)。
-10. python用这个C:\Users\HUAWEI\.conda\envs\qmclaw\python.exe
+10. python用这个C:\Users\lqcs\Programs\Python\Python311\python.exe
 
 # Compaction 压缩规则（自动压缩时生效）
 ## 摘要必须保留内容

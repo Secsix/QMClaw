@@ -1603,3 +1603,20 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **未做**：不改 `dsl/validate.py` 的额度口径（引擎语义，留作后续讨论）；不改写闸门默认值；
   不起停任何服务（约定 3）。
 - **提交**：`fix(dsl): 修掉同步分支带进来的 4 个上游缺陷`
+
+---
+
+## 2026-11-12  约定 10 解释器路径更正（用户确认）
+- **范围**：docs（约定文件，只改路径一行）
+- **原因**：`CLAUDE.md` 写的 `D:\semester4\deploy\qmclaw\qmclaw\python.exe` 与
+  `AGENTS.md` 写的 `C:\Users\HUAWEI\.conda\envs\qmclaw\python.exe` 在本机
+  **都不存在**（已实测 4 个候选路径，只有 1 个存在）；本轮同步全程用的是
+  `C:\Users\lqcs\Programs\Python\Python311\python.exe`（Python 3.11.9，290 个包）。
+- **改动（2 个文件）**：
+  1. `CLAUDE.md` 约定 10 → `C:\Users\lqcs\Programs\Python\Python311\python.exe`
+     （补注：原两个路径本机都不存在，别再按它们写命令）
+  2. `AGENTS.md` 约定 10 → 同上
+- **依据**：AGENTS.md 约定 5 —— 约定只保留经用户确认的内容（用户已确认"改成实际路径"）。
+- **未改**：`docs/DEPLOY_LOCAL.md` 等上游文档里的 `D:\anaconda3\envs\lqcs\python.exe`
+  描述的是**上游那台机器**的环境（该文件与上游逐字相同），保持原样。
+- **提交**：`docs(convention): 约定 10 解释器路径改为本机实际路径`
