@@ -1692,3 +1692,27 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **文档**：`docs/UPSTREAM_GAP_LIST.md` 按新上游逐条更新；`docs/BACKLOG.md` 新增 L 组；
   `docs/SYNC_20261111_MERGE_PLAN.md` 新增 S8′ 段。
 - **提交**：`docs: 更新补足清单 + 记录第二轮上游合并与会话路径实测`
+
+---
+
+## 2026-11-12 22:45  用户重启服务后复验 qwf + q21_7 iqraw 链路实跑尝试
+- **活接口复验**（`_verify_live.py`）：**PASS 21 / FAIL 2**。
+  - ✅ **K6 修复已在活服务生效**：导出文本里 `decide ... from []` 出现（重启前是丢的）。
+  - ❌ 剩 2 个 degraded：`:3004 analysis`（见下）与 `:3010 qubitclient`（缺 `qubitclient.json`，外部依赖）。
+- **q21_7 存在性**：`GET :3003/qubit/params?name=q21_7` → 参数可读
+  （f10=4.6092GHz / fread=6.4846 / fc=4.955 / f21=4.3892；PiGate.amp=0.8124、PiHalf.amp=0.4062、
+  **PiGate.length=PiHalf.length=30.0ns** —— 满足上游新版的脉冲长度约束）。
+- **qwf 链路实跑**（`_q21_7.qwf`，基于 `01_iqraw_contrast.qwf` 改 qubit=q21_7、session=20260822_device1）：
+  - `parse_qwf` → IR ✅；`validate` → **0 error** ✅；`run_ir(dryRun)` → ok/irHash ✅
+  - `run_ir(真跑)` → workflow_service → **task_queue（lease 模式，task_id=task_958809c9fa85）**
+    → quantum_service `POST /execute` → **被写闸门拦下**：
+    `status=blocked, reasonCode=read_only, "当前为只读联调，禁止向真机下发实验"`
+  - ⇒ **DSL→队列→真机服务整条链路已打通**，红线按预期拦住，**未下发任何硬件指令**；
+    `:3003` 未被标记 stuck、`:3009` 队列无残留。
+  - 要真跑：需**人**把 `fallback_config.json` 的 `quantum_service.actuation.allow_execute` 置 true
+    （或设 `QMCLAW_ALLOW_EXECUTE=1`）并重启 quantum_service（约定：开闸与重启由人执行）。
+- **新发现（上游缺陷，待回流）**：**analysis_service 与 quantum_service 同时重启时**
+  analysis 启动连 LabRAD 失败（LabRAD 被 quantum 占用），其重连预算是**按次数**（5 次指数退避，
+  约 1 分钟内耗尽）→ 5 次全落在占用窗口内即**永久 degraded**（"已停止重连"），
+  只能手动 `POST :3004/connect {"session_path": [...]}` 才恢复（本轮实测：该调用成功，health 转 healthy）。
+  代码里 2026-11-02 已修过同类问题（"从未成功连接过就跳过重连"），但**按次数的预算仍有这个洞**。
