@@ -1641,3 +1641,26 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **验证**：`_verify_qwf.py` → 92 项全过；`run_all_checks.py` → 39 项 / 0 失败 / 1 跳过；
   `qwf_lint.py` 对 5 个示例 → 0 error；`_verify_s8.py`（验收清单 4/5/6/7/8/12 项）→ 全过。
 - **提交**：`fix(qwf): 补上 decide.from 的打印与 qwf_gen 的 max_datasets`
+
+---
+
+## 2026-11-12  活接口体检 + 出「给来源方的补足清单」
+- **背景**：用户要求"实际缺什么，给个清单，方便与项目来源方沟通如何补足"。
+  用户已在 20:24-20:25 启动了全部服务（:3002-:3011 + :8081），于是补做了**活接口**体检。
+- **新增本地脚本**（仓库根 `_*`，被 .gitignore 排除，未入库）：`_verify_live.py`（活接口体检）。
+- **活接口结果：20/23 通过**。qwf 全链路通：`GET /api/workflow/qwf_examples`（5 个，带文本）、
+  `parse_qwf` / `validate`（0 error）/ `qwf_to_canvas` / `canvas_to_qwf`（diff 空、stable）/
+  `run_ir`（dryRun，不下发硬件）/ `GET /api/workflows`（5）/ `GET /api/tasks/lane` / `stmt_to_qwf`。
+- **3 处 FAIL，均已定位**：
+  1. `:3010 qubitclient_service` → 503 degraded，`"No LLM configuration found in qubitclient.json"`
+     → `decide`/`ask` 节点的 LLM 在本机不可用（config 被 .gitignore 排除，含内网地址与 Key）。
+  2. `:3004 analysis_service` → 503 degraded，`LabRAD 不可用（已停止重连）`、`offlineAvailable:false`、
+     `session_path:[]`；而 `:3003 quantum_service` 正常且 `labrad_connected:true`、会话是
+     `test/20260822_device1`，与配置里的 `test/20260324` 不一致；本机也没有 `data/offline_data/`。
+  3. 活服务导出的 .qwf 里 `decide.from` 仍丢 → **服务 20:25 启动，早于 printer 补丁提交（20:33）**，
+     需重启 workflow_service 才生效（约定 3，由人执行）。
+- **文档**：
+  - 新增 `docs/UPSTREAM_GAP_LIST.md` —— 给来源方的补足清单（A 只能你们给的 5 项 /
+    B 上游缺陷 7 项需回流 / C 工程卫生 4 项 / D 引擎语义 2 项待拍板 / E 我方已完成与待决 / F 验收表）。
+  - 修正验收清单第 1 项路径：`GET /api/health` 是 **404**，正确路径是 `GET /health`（另有 `/api/services/health`）。
+- **提交**：`docs: 新增给来源方的补足清单 + 修正验收清单路径`

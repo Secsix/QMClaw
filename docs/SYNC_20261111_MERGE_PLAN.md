@@ -333,7 +333,7 @@ npm run build
 
 | # | 项 | 期望 |
 |---|---|---|
-| 1 | `GET /api/health` 全绿 | 6 个微服务 healthy，quantum/analysis 状态 `ok` |
+| 1 | `GET /health`（**不是** `/api/health` —— 后者 404；另有 `GET /api/services/health`） | 6 个微服务 healthy，quantum/analysis 状态 `ok` |
 | 2 | **写闸门仍关闭**（红线） | `POST :3003/execute {"code":"print(1)"}` → `status=read_only`，不进入模拟分支 |
 | 3 | `POST :3003/qubit/set_params` | 同样 `read_only` |
 | 4 | `GET /api/workflow/qwf_examples`（也可 POST） | 返回 5 个 `.qwf` 示例（上游 proxy 只暴露了 POST，本轮补了 GET；`?includeText=1` 一并带上文本） |
@@ -341,7 +341,7 @@ npm run build
 | 6 | `POST /api/workflow/validate` | `diags` 无 error |
 | 7 | `POST /api/workflow/qwf_to_canvas` | 返回画布节点图，与前端节点类型对齐 |
 | 8 | `POST /api/workflow/canvas_to_qwf`（回传上一步） | 语义等价判定通过（`ir_equivalent`） |
-| 9 | `POST /api/workflow/run_ir` + `dryRun: true` | 只出计划，**不下发硬件** |
+| 9 | `POST /api/workflow/run_ir` + `dryRun: true` | 只出计划，**不下发硬件**（实测返回 `ok/workflowId/status/dryRun/irHash`） |
 | 10 | `GET /api/tasks/lane` | 返回通道快照（谁占用/排队/租约剩余） |
 | 11 | `GET /api/quantum/jobs/{id}` 轮询 | producer 语义可拿到终态 result |
 | 12 | `GET /api/workflows` | 列出 `.qwf` 存档（`data/workflows/*.qwf`） |
