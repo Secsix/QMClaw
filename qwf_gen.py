@@ -123,10 +123,13 @@ def build(args) -> str:
     # max_wall / max_writes / max_datasets 同时声明），少写一个整份文件
     # 就 lint 不过。缺省：显式给了就用给的；goal 模式按轮数；其余与
     # max_writes 相同（一次写最多产一个数据集）。
-    if args.max_datasets:
-        _ds = args.max_datasets
-    elif args.goal_objective:
-        _ds = max(1, int(args.max_rounds or 1))
+    # 用 getattr 取值：调用方（如 _qwf_gen_goal_check.py）会自建 Namespace，
+    # 里面不一定有 max_datasets 这个键 —— 直接 args.max_datasets 会 AttributeError。
+    _ds_arg = getattr(args, "max_datasets", "")
+    if _ds_arg:
+        _ds = _ds_arg
+    elif getattr(args, "goal_objective", ""):
+        _ds = max(1, int(getattr(args, "max_rounds", 1) or 1))
     else:
         _ds = args.max_writes
     lines.append(f"    max_datasets {_ds}")

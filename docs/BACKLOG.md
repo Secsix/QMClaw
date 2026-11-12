@@ -565,7 +565,7 @@ D1 / D2（有空再说）
 | J5 | `_derived_key_check.py` 需要 task_queue 测试实例（:3019） | 服务启停由人控制（约定 3），没起时整脚本记 SKIP（附原因），不再计 FAIL | ✅ 已处置 |
 | J6 | **上游 CI 只跑 4 项** | `.github/workflows/checks.yml` 实际只跑 `_syntax_check.py` / `_docs_paths_check.py` / `_phase19_check.py` / `qwf_lint.py`；上游 39 项 `OFFLINE` 全量自检并未进 CI。本地已全量跑通（38 OK / 0 ERR / 1 SKIP）。若要让 CI 覆盖更多，需确认 GitHub Actions runner 能否满足依赖 | ⬜ 待决策 |
 
-### J7 ⬜ 上游自检与上游 `.gitignore` 互相矛盾（**上游仓库自身的问题**）
+### J7 ✅（2026-11-12 上游重写后）上游自检与上游 `.gitignore` 互相矛盾 —— **修好 1/5**
 
 上游 `.gitignore` 用 `/_*.py` 忽略根目录所有下划线脚本，只放行一份白名单：
 
@@ -600,6 +600,13 @@ D1 / D2（有空再说）
 
 > 即：**出库只做「无引用」的那部分**，有文档/清单引用的仍然入库 —— 否则是在用「出库」
 > 制造新的文档漂移。
+
+**2026-11-12 上游重写分支后的处置**：上游新 tip `4fad224` 把 `_qwf_gen_goal_check.py` 放行入库了
+（`.gitignore` 白名单补了 `!/_qwf_gen_goal_check.py`），但另外 4 个脚本**仍靠 `git add -f` 强加、白名单里没有**。
+于是本轮把这 4 个也**纳入本仓库白名单**并全部入库（`git check-ignore` 验证 5 个都不再被忽略）：
+本仓库从"新 clone 缺文件"变成"新 clone 自洽"。**上游侧仍需补放行**（见 `docs/UPSTREAM_GAP_LIST.md` A5）。
+另外 `_qwf_gen_goal_check.py` **首次真跑**通过（24 OK / 0 FAIL）—— 它覆盖 goal lowering、manifest、
+plan 轮数与往返，是很有价值的一条回归网。
 
 ### J8 ⬜ 运行时产物出库
 
@@ -827,3 +834,57 @@ lowering 出来的 `repeat / if / assert` 语句因此**没有** `effect` 键。
 会混进 `diff` 清单里。
 
 **待办**：让 lowering 出来的语句也补 `effect`（或在 `normalize` 末尾统一补一遍）。
+
+---
+
+## L 组 — 上游分支重写后的第二轮同步（登记日期：2026-11-12 22:30）
+
+> 背景：上游把 `sync/qmclaw-20261111` **重写**了 —— 旧 tip `19faee0` → 新 tip `4fad224`
+> （同一提交信息 "feat(core): 同步 2026-11 单比特标定自动化与微服务改进"、同一父提交 `e3cb8fa`）。
+> 也就是说上一轮合入的那份提交被**改写重发**了，本地与上游的 merge-base 退回到 `e3cb8fa`，
+> 于是"上一轮合过的文件"这轮全部变成 add/add 冲突。
+
+### L1 ✅ 第二轮合并（合并提交 `af8795d`）
+
+**上游这次真正带来的变化**（`git diff 19faee0 4fad224` = 16 个文件）：
+
+| 变化 | 内容 | 对应补足清单 |
+|---|---|---|
+| `.gitignore` 白名单 | 放行 `!/_qwf_gen_goal_check.py`；放行 `!/docs/ARCHITECTURE_ROADMAP.md`、`!/docs/PLAN_PRODUCER_DEFAULT.md` | A2（2/6）、A5（1/5） |
+| 新增 `_qwf_gen_goal_check.py`（141 行） | goal 模式自检 —— **首次真跑通过：24 OK / 0 FAIL** | A5 |
+| 新增 `_p1_diff.py`、`_gen_spec_qwfs.py` | 之前被本仓库出库的两个脚本，上游仍跟踪着 | A5 |
+| 新增 `docs/ARCHITECTURE_ROADMAP.md`（602 行）、`docs/PLAN_PRODUCER_DEFAULT.md`（66 行） | 2 份设计文档到位 | A2 |
+| 新增 `自动化单比特标定/f10_sweep.py`；改 `qwf_auto_calib.py` | 真机坑修正：`discriminator.center0/center1` 必须写**数值数组**（写字符串会让厂商 `iq2prob` 报 `TypeError: can't multiply sequence by non-int of type 'complex'`，spectroscopy/piamp 全 failed 而 iqraw 不受影响，**极易误判成"硬件坏了"**）；`PiGate.length` 必须等于 `PiHalf.length` 且都在 20–40 ns（超长脉冲 π 面积不足，激发不起来） | — |
+| 10 个 `services/task_queue/data/tasks/t-*.json` | **出库**（与本地 J8 处置一致，两边现已一致） | C2 ✅ |
+| `config/session.json` + `config/system.json` | 会话路径改成 `test/20251103_LD_SQ` | A4 |
+| `.github/workflows/checks.yml` | **未变**（CI 仍只跑 4 项） | C1 ❌ |
+
+**本地保留**：K1–K8 全部修复、J 组自检适配、`.gitignore` 的本地口径（不照搬上游的"文档只留 3 篇"收窄规则）。
+**冲突处置**：除 `.gitignore`（手工并集）与 `自动化单比特标定/qwf_auto_calib.py`（取上游新版，
+本地未改过它）外，**一律取本地版**（本地版 = 上游版 + 本地修复）。
+
+### L2 ✅ A4（会话路径）—— 我方实测解决
+
+用 `POST :3004/connect {"session_path": [...]}`（只读，不写寄存器）逐个试：
+
+| 候选 | 结果 |
+|---|---|
+| `["","LQHL","test","20251103_LD_SQ"]`（上游 11-12 配置） | ❌ `Registry path not found` |
+| `["","LQHL","test","20260324"]`（旧文档口径） | ❌ `Registry path not found` |
+| `["","LQHL","test","20260822_device1"]`（quantum_service 报的设备当前会话） | ✅ `Connected to DataLab` |
+
+已把 `config/session.json` / `config/system.json` 改成本机实测可用的 `["test","20260822_device1"]`，
+并验证 **analysis_service 由 `degraded` 变 `healthy`**（`datalab_connected: true`、`data_source: labrad`）。
+**遗留**：会话路径按机器/按实验可变这件事本身没解决（见 `docs/UPSTREAM_GAP_LIST.md` A4 的追问）。
+
+### L3 ⚠️ B2 的补丁要兼容上游新脚本
+
+上游新脚本 `_qwf_gen_goal_check.py` 会**自建 `argparse.Namespace`** 调 `qwf_gen.build()`，
+里面没有 `max_datasets` 键 —— 我方第一版补丁直接写 `args.max_datasets` → `AttributeError` → 该自检 exit 99。
+已改为 `getattr(args, "max_datasets", "")`（`goal_objective` / `max_rounds` 同样用 `getattr` 兜底）。
+**若上游 cherry-pick B2 的补丁，请注意这一点。**
+
+### L4 ✅ 自检结果（合并后）
+
+`run_all_checks.py` → **39 项 / 0 失败 / 0 跳过**（`_qwf_gen_goal_check.py` 首次真跑通过）；
+`_verify_qwf.py` → **92 项全绿**；`_docs_paths_check.py` → 6/6。

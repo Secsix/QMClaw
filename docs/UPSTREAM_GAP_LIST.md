@@ -1,29 +1,31 @@
 # 给项目来源方（上游仓库 / 实验室）的补足清单
 
-> **生成时间**：2026-11-12
-> **对应上游**：`QMC-AI/QMClaw` 分支 `sync/qmclaw-20261111`（`19faee0`）
-> **我方状态**：该分支已整链合入本地并推送（合并 `6857ff3`，补丁 `cbf6aad`），离线自检 39 项全绿、qwf 体检 92 项全绿。
-> **本文可直接转发**。每项都写清：现状（带证据）→ 影响 → 建议动作 → 怎么算补好了。
+> **版本**：2026-11-12 22:30（第二轮更新）
+> **对应上游**：`QMC-AI/QMClaw` 分支 `sync/qmclaw-20261111`
+> **上游把分支重写了**：旧 tip `19faee0` → 新 tip `4fad224`（同一提交信息、同一父提交 `e3cb8fa`）。
+> 我方已按新 tip 重新合并（合并提交 `af8795d`），本地保留上一轮的 K1–K8 修复。
+> **本文可直接转发**。每项写清：现状（带证据）→ 影响 → 建议动作 → 怎么算补好了。
 
 ---
 
 ## 0. 一句话摘要（可直接粘进微信/邮件）
 
-> 上游 `sync/qmclaw-20261111` 我方已全部合入并跑通（39 项离线自检 + 92 项 qwf 体检全绿）。
-> 还差 **5 份只能你们给的东西**（LLM 配置文件、6 份设计文档里的 6 份、离线数据包、真机会话路径、上游 `.gitignore` 白名单），
-> 另外**上游仓库自身有 9 处缺陷**我在本地已修并推了补丁，**需要回流到上游**，否则下次同步会带回来。
-> 详细的证据、影响和验收方式见 `docs/UPSTREAM_GAP_LIST.md`。
+> 上游分支重写后我方已再次合并，**现在 39 项离线自检全部真跑通过（0 跳过）、qwf 体检 92 项全绿，
+> analysis_service 也已实测连上真机 LabRAD（之前是 degraded）**。
+> 剩下 **3 件只能你们给的东西**（LLM 配置文件、4 份设计文档、离线数据包），
+> 外加 **上游仓库自身 7 处缺陷需要回流**（补丁我方已写好，可直接 cherry-pick），
+> 以及 **CI 覆盖**这一项工程建议。
 
 ---
 
 ## A. 只能由你们提供的东西（我方补不了）
 
-### A1 🔴 `config/qubitclient.json` —— LLM/决策服务现在起不来
+### A1 🔴 `config/qubitclient.json` —— LLM/决策服务起不来
 
 | | |
 |---|---|
 | **现状（实测）** | `qubitclient_service`（:3010）`/health` → **HTTP 503**，`status: degraded`，`error: "No LLM configuration found in qubitclient.json"`，`initialized: false` |
-| **为什么不能自己造** | 该文件含**实验室内网地址与 API Key**，上游 `.gitignore` 已明确排除，**不得外传**（我们不会去索取密钥本身） |
+| **为什么不能自己造** | 该文件含**实验室内网地址与 API Key**。上游不但排除了它，2026-11-12 还加了一条"兜底忽略**任意层级**的 `qubitclient.json`"（`c7ec2b9`）—— 即**明确不会入库** |
 | **影响** | ① `.qwf` 里的 **`decide` / `ask` 节点**（走 LLM 决策）在这台机器上**完全不可用**；② `_p2_llm_check.py` 的 6 条配置断言只能判 SKIP；③ `/api/services/health` 里 LLM 相关能力标 `unavailable` |
 
 **建议动作（二选一）**：
@@ -38,25 +40,30 @@
 
 ---
 
-### A2 🟠 6 份设计文档 —— 上游 `.gitignore` 把它们排除了，但代码在引用
+### A2 🟠 还差 4 份设计文档（上游 11-12 补了 2 份）
 
-上游 `.gitignore` 的 `/docs/**/*.md` 规则把下列文档排除在版本控制外，**新 clone 的人拿不到**，
-可代码注释和自检脚本都在引用它们：
+上游 2026-11-12 在 `.gitignore` 里放行了 2 篇并入库：
 
-| 文档 | 内容 | 被谁引用 |
+| ✅ 已到位 | 内容 |
+|---|---|
+| `docs/ARCHITECTURE_ROADMAP.md`（602 行） | 阶段路线图 |
+| `docs/PLAN_PRODUCER_DEFAULT.md`（66 行） | `/execute` producer 化方案 |
+
+**仍然缺的 4 份**（上游 `.gitignore` 的 `/docs/**/*.md` 规则仍把它们排除在版本控制外，
+但代码注释 / 自检脚本在引用）：
+
+| ❌ 待补 | 内容 | 被谁引用 |
 |---|---|---|
 | `docs/DSL_DESIGN.md` | **DSL 子系统总体设计**（本次同步的关键增量） | 代码注释 |
 | `docs/DSL_EXPERIMENTS.md` | DSL 实验说明 | 代码注释 |
 | `docs/BACKEND_ADAPTERS.md` | 后端适配器约定 | `dsl/backends/` |
-| `docs/ARCHITECTURE_ROADMAP.md` | 阶段路线图 | `_phase13/14/17/18_check.py` |
-| `docs/PLAN_PRODUCER_DEFAULT.md` | `/execute` producer 化方案 | `_phase16_check.py` |
 | `docs/TUNEUP_FLOW.md` | 调优流程 | 脚本 |
 
-**建议动作**：把这 6 份文档入库（**改 `.gitignore` 白名单，不要改文件名**）。
+**建议动作**：把这 4 份入库（**改 `.gitignore` 白名单，不要改文件名**；照 11-12 那两篇的做法即可）。
 若属于未发表/内部材料不便公开，至少给**一份对接口径说明**（IR 字段表、budget 语义、后端调用约定），
 否则第三方按 `.qwf` 写工作流只能靠猜。
 
-**验收**：`git clone` 后这 6 个文件存在；`_phase13/14/16/17/18_check.py` 不再报"文档缺失"。
+**验收**：`git clone` 后这 4 个文件存在；`_phase13/14/16/17/18_check.py` 不再报"文档缺失"。
 
 ---
 
@@ -64,7 +71,7 @@
 
 | | |
 |---|---|
-| **现状（实测）** | 本机 `qmclaw-server/data/offline_data/` **目录不存在**；`analysis_service`(:3004) `/health` → **503 degraded**，`fallback_state: degraded_permanent`，**`offlineAvailable: false`**，`fallback_message: "LabRAD 不可用（已停止重连）"` |
+| **现状（实测）** | 本机 `qmclaw-server/data/offline_data/` **目录不存在**；analysis_service 连上真机后 `/health` 仍显示 **`offlineAvailable: false`** |
 | **参照** | `docs/RUNTIME_DEPS.md:23` 记的是上游机器：`D:\semester4\deploy\offline_data\` = **3 个日期目录 / 5,011 个 HDF5** |
 | **影响** | 离线模式（LabRAD 不可用时用历史数据）、离线 DataVault 出图、本地无法复现历史曲线 |
 
@@ -72,75 +79,84 @@
 `python -m services.common.offline_data_provider --generate-index` 生成索引
 （目录里没有 `qubits.json`/`datasets.json`/`experiments.json`，不建索引每次启动都要扫 5,011 个文件）。
 
-**验收**：`analysis_service /health` → `offlineAvailable: true`；`POST :3004/mode {"mode":"offline"}` 后可取到历史数据。
+**验收**：analysis_service `/health` → `offlineAvailable: true`；`POST :3004/mode {"mode":"offline"}` 后可取到历史数据。
 
 ---
 
-### A4 🟠 真机会话路径对不上 —— `analysis_service` 连不上 LabRAD，`quantum_service` 却正常
+### A4 ✅ 会话路径 —— 我方已实测解决（**请确认这个命名是否该改**）
 
-| | |
+**这一项我方已经自己测出来了**，但暴露了一个设计问题，想请你们确认：
+
+| 候选路径 | 结果（实测 `POST :3004/connect`） |
 |---|---|
-| **现状（实测）** | `quantum_service`(:3003)：`healthy`，**`labrad_connected: true`**，`session_path: ["","LQHL","test","20260822_device1"]`<br>`analysis_service`(:3004)：**degraded**，`session_path: []`，`datalab_connected: false`，`"LabRAD 不可用（已停止重连）。最后错误：未知错误"` |
-| **配置现状** | `config/session.json` 写的是 `user=LQHL, path=["test","20260324"]`；`config/system.json` 的 `lqcs.session.default_path` 也是 `["test","20260324"]` |
-| **矛盾点** | 设备上**实际存在**的会话是 `test/20260822_device1`（quantum_service 报的），而我们配置指向 `test/20260324`。分析服务按配置去连那个会话失败 → 退化成 `degraded_permanent` |
+| `["", "LQHL", "test", "20251103_LD_SQ"]`（**上游 11-12 版配置**） | ❌ `Registry path not found` |
+| `["", "LQHL", "test", "20260324"]`（旧文档口径） | ❌ `Registry path not found` |
+| `["", "LQHL", "test", "20260822_device1"]`（**quantum_service 报的设备当前会话**） | ✅ **Connected to DataLab** |
 
-**建议动作**：**确认这台机器该用哪个 session 路径**（是 `test/20260324` 还是 `test/20260822_device1`？还是需要按实验切换？）。
-确认后我方改 `config/session.json` + `config/system.json`（各 1 行），或由你们直接改。
-若会话路径是**每次实验都变**的，建议上游把 session 做成**运行时参数**（`analysis_service` 已有
-`POST /connect {"session_path": [...]}` 入口可用），别再依赖静态配置。
+我方已把 `config/session.json` 与 `config/system.json` 改成本机实测可用的
+`["test", "20260822_device1"]`，并验证 analysis_service 由 `degraded` 变为 **`healthy`**
+（`datalab_connected: true`、`data_source: labrad`）。
 
-**验收**：`analysis_service /health` → `status: healthy`、`datalab_connected: true`、`session_path` 非空。
+**但想请你们回答**：
+
+1. `20260822_device1` 是**这台机器当前**的会话（`20260822` 是日期，`device1` 是设备号）——
+   换一台机器、换一个实验日期，这个名字就会变，对吗？
+2. 如果是，**会话路径应该做成运行时参数**（`analysis_service` 已经有 `POST /connect {"session_path": [...]}`，
+   我方就是用它连上的），而不是依赖静态配置。上游的 `services/common/session.py` 已经支持这个模式
+   （`load_session_config` / `parse_session_path`），只是 `config/*.json` 里的默认值是写死的。
+
+**建议动作**：确认"会话路径按机器/按实验可变"这一事实，并把默认配置里的写死路径当作**示例值**而不是事实来源；
+更稳妥的是在 `analysis_service` / `quantum_service` 启动时**探测**当前可用会话并回填。
+
+**验收**：`GET :3004/health` → `status: healthy`、`session_path` 非空、`data_source: labrad`。
 
 ---
 
-### A5 🟡 上游 `.gitignore` 白名单与自检清单互相矛盾（上游仓库自身问题）
+### A5 🟡 上游 `.gitignore` 白名单与自检清单互相矛盾 —— **修好 1/5**
 
-上游 `.gitignore` 用 `/_*.py` 忽略根目录所有下划线脚本，只放行一份白名单，
-**但仓库里实际跟踪着白名单之外的脚本**（当初用 `git add -f` 强加的）：
-
-| 脚本 | 现状 | 被谁引用 |
+| 脚本 | 上游 11-12 状态 | 说明 |
 |---|---|---|
-| `/_qwf_gen_goal_check.py` | 被 `.gitignore` 排除，**但** `run_all_checks.py` 的 OFFLINE 清单与 `docs/OPERATIONS.md` §4 都列着 → 新 clone 后整项 SKIP | runner + 文档 |
-| `/_p1_diff.py` | 白名单外，新 clone 不存在 | runner |
-| `/_gen_spec_qwfs.py` | 白名单外，新 clone 不存在 | runner |
-| `/_gen_device_profile.py` | 白名单外，新 clone 不存在 | `docs/OPERATIONS.md` §3.4 |
-| `/_p3_e2e.py` | 白名单外，新 clone 不存在 | runner ONLINE + OPERATIONS §4 |
+| `/_qwf_gen_goal_check.py` | ✅ **已修**（白名单补 `!/_qwf_gen_goal_check.py` 并入库 141 行） | 我方本轮**首次真跑**它：**24 OK / 0 FAIL** —— 这是 goal lowering / manifest / plan 轮数的回归网 |
+| `/_p1_diff.py` | ❌ 未修（仍在白名单外，靠 `git add -f` 强加） | 新 clone 上游仓库**不存在**，却被 `run_all_checks.py` / 文档引用 |
+| `/_gen_spec_qwfs.py` | ❌ 未修 | 同上 |
+| `/_gen_device_profile.py` | ❌ 未修 | `docs/OPERATIONS.md` §3.4 以路径引用它 → 文档漂移自检会红 |
+| `/_p3_e2e.py` | ❌ 未修 | `run_all_checks.py` 的 ONLINE 清单 + `docs/OPERATIONS.md` §4 都引用 |
 
-**建议动作**：把上面 5 个脚本**加进上游 `.gitignore` 的白名单并正常入库**（不要 `git add -f`），
-或从 runner/文档引用里去掉。**二选一即可，但现状（新 clone 缺文件 vs 清单要求存在）必须收敛。**
+**建议动作**：把这 4 个也加进上游 `.gitignore` 白名单并正常入库（不要 `git add -f`）。
 
-> 我方本轮的处置：只把"无任何文档/清单引用"的 2 个出库（`_p1_diff.py`、`_gen_spec_qwfs.py`），
-> 有引用的 3 个保留入库 —— 出库反而会造成新的文档漂移。
+> 我方本轮的处置：**5 个全部纳入本仓库白名单**（`git check-ignore` 已验证 5 个都不再被忽略），
+> 保证 clone 下来"清单引用的文件真实存在"。
 
-**验收**：`git clone` 上游后 `run_all_checks.py` 的 OFFLINE 39 项**没有一项**因为"文件不存在"而 SKIP。
+**验收**：`git clone` 上游后 `run_all_checks.py` 的 OFFLINE 39 项**没有一项**因"文件不存在"而 SKIP。
 
 ---
 
 ## B. 上游仓库自身的缺陷（我方已修并推了补丁，**需要回流上游**）
 
 > 我方补丁都在 `main`（`https://github.com/Secsix/QMClaw.git`），可直接 cherry-pick。
-> **不回流的后果：下次同步会把这些 bug 原样带回来。**
+> **不回流的后果：下次同步会把这些 bug 原样带回来**（本次重写已经印证了这一点）。
+> **截至上游新 tip `4fad224`，这 7 项一处都没修。**
 
-| # | 缺陷 | 现象 | 影响 | 我方修法 |
-|---|---|---|---|---|
-| **B1** | printer 丢 `decide` 的 `from` | `dsl/textdsl/printer.py` 不打印 `from` | **决策节点看不到上游实验数据** —— 服务端 decision 分支只读 `node.depends`，`from` 一丢就退化成"纯选择"；画布存档/导出/任何"解析→打印→再解析"都会丢 | `printer.py` 的 decide 字段表加 `"from"`（8 行） |
-| **B2** | `qwf_gen.py` 产物 lint 不过 | 普通模式只写 `max_wall`+`max_writes` | `qwf_gen.py` 是文档推荐的工作流入口，**它生成的每份 .qwf 都过不了 `qwf_lint.py`**（`E_NO_BUDGET`）。CI 没发现是因为只 lint `qwf_examples/` | budget 块始终写 `max_datasets` + 新增 `--max-datasets`（~8 行） |
-| **B3** | 示例目录错位 | 服务端只读被 gitignore 的 `data/workflows/examples/`，产品示例在仓库根 `qwf_examples/` | **示例列表永远为空** | `qwf_store.py` 加 `example_dirs()/example_files()/find_example()` |
-| **B4** | `goal`/`bounds` 画布往返丢失 | `ir_to_canvas` 不带这两个字段 | 打开→改→导出，**目标契约就没了** | `dsl/canvas_ir.py` 补带出/写回 + 前端 `QwfInfoPanel.tsx` |
-| **B5** | 两个产品示例过不了自己的 `validate()` | `02_ramsey_t2`/`03_t1_fixed_zpa` 写 `max_writes 0` 却含 1 条 `measure` | 示例自相矛盾 | 示例改 `max_writes 1`（**没动引擎口径**） |
-| **B6** | 回归段永远零命中 | `_p1_goal_dsl_check.py` 的 glob 指仓库根 `*.qwf`，示例在 `qwf_examples/` | **示例从来没被回归过**（B5 就是被它漏掉的） | 该脚本 glob 修正 + 新增第 7 段回归断言 |
-| **B7** | 能力基线硬编码某台机器 | `services/common/capabilities.py` 的 `KNOWN_RUNTIME_EXPORTS`/`KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况 | 别的机器上能力探测结论不对 | **我方未改**（改成可配置/可探测需要动语义）→ **想请你们定：是给一份"能力基线配置文件"，还是让代码自己探测？** |
+| # | 缺陷 | 现象 | 影响 | 我方修法 | 状态 |
+|---|---|---|---|---|---|
+| **B1** | printer 丢 `decide` 的 `from` | `dsl/textdsl/printer.py` 不打印 `from` | **决策节点看不到上游实验数据** —— 服务端 decision 分支只读 `node.depends`，`from` 一丢就退化成"纯选择"；画布存档/导出/任何"解析→打印→再解析"都会丢 | `printer.py` 的 decide 字段表加 `"from"`（+8 行，含注释说明为什么必须印） | ❌ 上游未修 |
+| **B2** | `qwf_gen.py` 产物 lint 不过 | 普通模式只写 `max_wall`+`max_writes` | `qwf_gen.py` 是文档推荐的工作流入口，**它生成的每份 .qwf 都过不了 `qwf_lint.py`**（`E_NO_BUDGET`） | budget 块始终写 `max_datasets` + 新增 `--max-datasets`（+8 行）<br>⚠️ **注意**：上游新脚本 `_qwf_gen_goal_check.py` 会自建 `Namespace` 调用 `qwf_gen.build()`，所以取值必须用 `getattr(args, "max_datasets", "")`，不能直接 `args.max_datasets`（否则该脚本 AttributeError —— 我方第一版就踩了，已修） | ❌ 上游未修 |
+| **B3** | 示例目录错位 | 服务端只读被 gitignore 的 `data/workflows/examples/`，产品示例在仓库根 `qwf_examples/` | **示例列表永远为空** | `qwf_store.py` 加 `example_dirs()/example_files()/find_example()` | ❌ 上游未修 |
+| **B4** | `goal`/`bounds` 画布往返丢失 | `ir_to_canvas` 不带这两个字段 | 打开→改→导出，**目标契约就没了** | `dsl/canvas_ir.py` 补带出/写回 + 前端 `QwfInfoPanel.tsx` | ❌ 上游未修 |
+| **B5** | 两个产品示例过不了自己的 `validate()` | `02_ramsey_t2`/`03_t1_fixed_zpa` 写 `max_writes 0` 却含 1 条 `measure` | 示例自相矛盾 | 示例改 `max_writes 1`（**没动引擎口径**） | ❌ 上游未修 |
+| **B6** | 回归段永远零命中 | `_p1_goal_dsl_check.py` 的 glob 指仓库根 `*.qwf`，示例在 `qwf_examples/` | **示例从来没被回归过**（B5 就是被它漏掉的） | 该脚本 glob 修正 + 新增第 7 段回归断言 | ❌ 上游未修 |
+| **B7** | 能力基线硬编码某台机器 | `services/common/capabilities.py` 的 `KNOWN_RUNTIME_EXPORTS`/`KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况 | 别的机器上能力探测结论不对 | **我方未改**（改语义需你们拍板）→ **想请你们定：给一份"能力基线配置文件"，还是让代码自己探测？** | ⬜ 待拍板 |
 
 ---
 
 ## C. 上游工程卫生问题（不阻塞，但每次同步都要手工处理）
 
-| # | 问题 | 建议 |
-|---|---|---|
-| **C1** | **上游 CI 只跑 4 项**：`.github/workflows/checks.yml` 实际只跑 `_syntax_check.py` / `_docs_paths_check.py` / `_phase19_check.py` / `qwf_lint.py`；39 项 OFFLINE 全量自检**没进 CI** | 把 OFFLINE 清单接进 CI（能否满足依赖请确认 runner 环境）。B5 就是 CI 没覆盖才漏出来的 |
-| **C2** | 上游跟踪了运行时产物：`services/task_queue/data/tasks/*.json` 有 10 个 `t-*.json` 被跟踪，而 `.gitignore:179` 已声明那是落盘目录 | 出库（`git rm --cached`），保留 `.gitignore` |
-| **C3** | `docs/deploy_diff_tools/e3_tuneup18_edsl.py` 引用的产物路径在本机不存在 | 给正确路径，或把脚本出库 |
-| **C4** | 上游 `.gitignore` 的"文档只留 3 篇 / `skills/` 整体忽略 / 忽略 `CLAUDE.md`·`AGENTS.md`"是**对方公开仓库的策略**，与本仓库的 17 篇 docs + 9 个 skills + 3 个约定文件冲突 | 本地已按"不照搬、放行本地路径"处理；若你们希望统一口径，请给一句话说明 |
+| # | 问题 | 状态 | 建议 |
+|---|---|---|---|
+| **C1** | **上游 CI 只跑 4 项**：`.github/workflows/checks.yml` 实际只跑 `_syntax_check.py` / `_docs_paths_check.py` / `_phase19_check.py` / `qwf_lint.py`；39 项 OFFLINE 全量自检**没进 CI** | ❌ 11-12 未变 | 把 OFFLINE 清单接进 CI（能否满足依赖请确认 runner 环境）。B5 就是 CI 没覆盖才漏出来的 |
+| **C2** | 上游跟踪了运行时产物：`services/task_queue/data/tasks/*.json` 有 10 个 `t-*.json` 被跟踪 | ✅ **11-12 已修**（全部出库） | 无需再动（我方上一轮也已出库，两边一致） |
+| **C3** | `docs/deploy_diff_tools/e3_tuneup18_edsl.py` 引用的产物路径在本机不存在 | ❌ 未变 | 给正确路径，或把脚本出库 |
+| **C4** | 上游 `.gitignore` 的"只公开 README/install + 运维/适配文档"是**对方公开仓库的策略**，与本仓库的 17+ 篇 docs + 9 个 skills + 3 个约定文件冲突 | ❌ 未变（11-12 只是多放行了 2 篇） | 本地已按"不照搬、放行本地路径"处理；若要统一口径请给一句话说明 |
 
 ---
 
@@ -153,24 +169,25 @@
 
 ---
 
-## E. 我方这边已完成 / 待你决定（不需要来源方动手）
+## E. 我方这边已完成 / 待你决定
 
 **已完成并推送**
 
-- 上游 `sync/qmclaw-20261111` 全量合入（合并 `6857ff3`），B1/B2 两个补丁（`cbf6aad`）。
-- 离线自检 `run_all_checks.py` → **39 项 / 0 失败 / 1 跳过**（跳过的 1 项是上游 `.gitignore` 排除的 `_qwf_gen_goal_check.py`，见 A5）。
-- qwf 功能体检 → **92 项断言全绿**（DSL 核心 / 画布往返 / 存档 CRUD / 服务 handler / 根目录工具 / 全仓 .qwf 解析）。
-- 活接口体检（对着今天 20:25 启动的真实服务）→ **20/23 通过**，qwf 相关接口全通。
+- 上游新 tip `4fad224` 已再合（合并提交 `af8795d`），上一轮的 K1–K8 修复全部保留。
+- 离线自检 `run_all_checks.py` → **39 项 / 0 失败 / 0 跳过**（`_qwf_gen_goal_check.py` **首次真跑**通过：24 OK / 0 FAIL）。
+- qwf 功能体检 → **92 项断言全绿**。
+- 活接口体检 → qwf 全链路通（`qwf_examples` / `parse_qwf` / `validate` / `qwf_to_canvas` / `canvas_to_qwf` / `run_ir` dryRun / `workflows` / `tasks/lane` / `stmt_to_qwf`）。
+- **analysis_service 已从 degraded 变为 healthy**（实测会话路径 `["","LQHL","test","20260822_device1"]`）。
 
-**需要你做 / 决定的两件事**
+**需要你做 / 决定**
 
-1. 🔁 **重启 `workflow_service`（:3008）**：它是 20:25 启动的，跑的是 B1 补丁**之前**的代码
-   （补丁 20:33 才提交）。实测活服务导出的 `.qwf` 里 `decide.from` **仍然丢**；重启后再验一次就应该是"在"。
-   （约定 3：服务启停由你操作。）
-2. 📥 **要不要把体检脚本正式入库**：`_verify_qwf.py`（92 项，离线）与 `_verify_live.py`（活接口）
-   目前是仓库根的 `_*.py`，被 `.gitignore` 排除，**只存在本地**。要入库的话我需要改 3 处：
-   `.gitignore` 白名单、`run_all_checks.py` 的 OFFLINE 清单、`docs/OPERATIONS.md` §4 表格
-   （`_docs_paths_check.py` 双向校验这三者必须一致）。
+1. 🔁 **重启 `workflow_service`（:3008）**：它 20:25 启动，跑的是 printer 补丁（B1）**之前**的代码。
+   实测活服务导出的 `.qwf` 里 `decide.from` **仍然丢**；重启后应变成"在"（约定 3：服务启停由你操作）。
+2. 🔁 **重启 `analysis_service`（:3004）**（可选）：我方已用 `POST /connect` 让它连上真机了，
+   但**配置里写的是本机路径**，重启后它能自动连上（配置已改）。
+3. 📥 **要不要把体检脚本正式入库**：`_verify_qwf.py`（92 项离线）与 `_verify_live.py`（活接口）
+   目前是仓库根的 `_*.py`，被 `.gitignore` 排除，**只存在本地**。要入库需改 3 处并保持一致：
+   `.gitignore` 白名单、`run_all_checks.py` 的 OFFLINE 清单、`docs/OPERATIONS.md` §4 表格。
 
 ---
 
@@ -178,13 +195,13 @@
 
 | # | 项 | 期望 | 当前 |
 |---|---|---|---|
-| 1 | `GET :3010/health` | `healthy` / `initialized: true` | ❌ 503 degraded |
-| 2 | `GET :3004/health` | `healthy` / `datalab_connected: true` / `session_path` 非空 | ❌ 503 degraded |
-| 3 | `analysis_service /health` → `offlineAvailable` | `true` | ❌ false |
-| 4 | 6 份设计文档 | 新 clone 后可见 | ❌ 缺 6 份 |
-| 5 | `run_all_checks.py` OFFLINE 39 项 | 无"文件不存在"导致的 SKIP | ❌ 1 项 |
+| 1 | `GET :3010/health` | `healthy` / `initialized: true` | ❌ 503 degraded（缺 `qubitclient.json`） |
+| 2 | `GET :3004/health` | `healthy` / `datalab_connected: true` | ✅ **已达成** |
+| 3 | analysis_service `offlineAvailable` | `true` | ❌ false（缺离线数据包） |
+| 4 | 6 份设计文档 | 新 clone 后可见 | ⚠️ 2/6（缺 `DSL_DESIGN` / `DSL_EXPERIMENTS` / `BACKEND_ADAPTERS` / `TUNEUP_FLOW`） |
+| 5 | `run_all_checks.py` OFFLINE 39 项 | 无"文件不存在"导致的 SKIP | ✅ **已达成**（0 跳过） |
 | 6 | 上游 CI | 覆盖 OFFLINE 全量 | ❌ 只 4 项 |
-| 7 | `git clone` 上游后跑全量自检 | 0 FAIL | ⬜ 待修完再测 |
+| 7 | `git clone` 上游后跑全量自检 | 0 FAIL | ⚠️ 4 个脚本仍缺（白名单漏放行） |
 | 8 | `.qwf` 的 `decide` 节点 | 导出文本里 `from [$r1]` 还在 | ⬜ 需重启 workflow_service |
-| 9 | `qwf_gen.py` 产物 | `qwf_lint.py` 0 error | ✅ 我方已修（待回流上游） |
+| 9 | `qwf_gen.py` 产物 | `qwf_lint.py` 0 error | ✅ 我方已修（**待回流上游**） |
 | 10 | 写闸门 | `allow_execute=false` / `allow_set_params=false` | ✅ 实测保持关闭 |

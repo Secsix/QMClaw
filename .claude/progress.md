@@ -1664,3 +1664,31 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
     B 上游缺陷 7 项需回流 / C 工程卫生 4 项 / D 引擎语义 2 项待拍板 / E 我方已完成与待决 / F 验收表）。
   - 修正验收清单第 1 项路径：`GET /api/health` 是 **404**，正确路径是 `GET /health`（另有 `/api/services/health`）。
 - **提交**：`docs: 新增给来源方的补足清单 + 修正验收清单路径`
+
+---
+
+## 2026-11-12 22:30  上游重写分支 → 第二轮合并（4fad224）+ A4 会话路径实测解决
+- **起因**：用户告知上游有更新版（同一分支 `sync/qmclaw-20261111`）。
+- **上游把分支重写了**：旧 tip `19faee0` → 新 tip `4fad224`（同一提交信息、同一父提交 `e3cb8fa`），
+  merge-base 退回 `e3cb8fa` ⇒ 上一轮合过的文件这轮全是 add/add 冲突。
+- **合并提交 `af8795d`**（备份标签 `backup/pre-sync-20261112-upstream-rewrite` = `ecf30d8`）。
+  冲突处置：`.gitignore` 手工并集；`自动化单比特标定/qwf_auto_calib.py` 取上游新版（本地未改过）；
+  其余**一律取本地版**（本地版 = 上游版 + K1–K8 / J 组修复）。
+- **上游这次带来的变化**：`.gitignore` 放行 `_qwf_gen_goal_check.py` 与 2 份设计文档；
+  新增 `_qwf_gen_goal_check.py`（141 行，**首次真跑 24 OK / 0 FAIL**）、`_p1_diff.py`、`_gen_spec_qwfs.py`、
+  `docs/ARCHITECTURE_ROADMAP.md`、`docs/PLAN_PRODUCER_DEFAULT.md`、`自动化单比特标定/f10_sweep.py`；
+  `qwf_auto_calib.py` 修真机坑（discriminator.center 必须数值数组 / PiGate.length 必须等于 PiHalf.length 且 20-40ns）；
+  10 个 task json 出库（与本地 J8 一致）；会话路径改 `20251103_LD_SQ`；**CI 未变**。
+- **B2 补丁修正**：上游新脚本自建 `argparse.Namespace` 调 `qwf_gen.build()`，直接取 `args.max_datasets`
+  会 AttributeError（自检 exit 99）→ 改用 `getattr(..., "")` 兜底。
+- **A4 会话路径实测解决**（用 `POST :3004/connect`，只读）：
+  `20251103_LD_SQ` ❌ not found、`20260324` ❌ not found、
+  `["","LQHL","test","20260822_device1"]` ✅ Connected to DataLab
+  → 已改 `config/session.json` / `config/system.json`；**analysis_service 由 degraded 变 healthy**
+  （`datalab_connected: true`、`data_source: labrad`）。
+- **本仓库 .gitignore**：把上游仍靠 `git add -f` 强加的 4 个脚本也纳入白名单（新 clone 自洽）。
+- **验证**：`run_all_checks.py` → 39 项 / 0 失败 / **0 跳过**；`_verify_qwf.py` → 92 全绿；
+  `_docs_paths_check.py` → 6/6。
+- **文档**：`docs/UPSTREAM_GAP_LIST.md` 按新上游逐条更新；`docs/BACKLOG.md` 新增 L 组；
+  `docs/SYNC_20261111_MERGE_PLAN.md` 新增 S8′ 段。
+- **提交**：`docs: 更新补足清单 + 记录第二轮上游合并与会话路径实测`

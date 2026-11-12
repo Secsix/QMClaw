@@ -272,6 +272,22 @@ npm run build
 > K6/K7 是在同步收尾后的**qwf 功能全面体检**（92 项断言，脚本 `_verify_qwf.py`，本地未入库）里发现的；
 > K8（`normalize()` 对 goal 工作流不幂等，只影响 `effect: null` 标记）已记录未改。
 
+### S8′　第二轮：上游重写分支后的再合并（2026-11-12 22:30）
+
+上游把 `sync/qmclaw-20261111` **重写**了：`19faee0` → `4fad224`（同提交信息、同父提交 `e3cb8fa`），
+merge-base 退回 `e3cb8fa` ⇒ 上一轮合过的文件这轮全是 add/add 冲突。
+
+| 项 | 内容 |
+|---|---|
+| 合并提交 | `af8795d`（父 1 = `ecf30d8` 本地，父 2 = `4fad224` 上游） |
+| 备份标签 | `backup/pre-sync-20261112-upstream-rewrite`（`ecf30d8`） |
+| 冲突处置 | `.gitignore` 手工并集（上游白名单 + 本地"文档只留 3 篇"规则的替代口径）；`自动化单比特标定/qwf_auto_calib.py` 取上游新版（本地未改过）；**其余一律取本地版**（本地版 = 上游版 + K1–K8/J 组修复） |
+| 上游带来的实质变化 | `_qwf_gen_goal_check.py` 入库（首次真跑 24 OK）、2 份设计文档入库、10 个 task json 出库、`qwf_auto_calib.py` 修真机坑、会话路径改为 `20251103_LD_SQ` |
+| 附带修复 | B2 补丁改用 `getattr(args, "max_datasets", "")`（上游新脚本自建 Namespace，直接取属性会 AttributeError）；本仓库 `.gitignore` 把上游仍靠 `git add -f` 的 4 个脚本也纳入白名单 |
+| A4 会话路径 | 实测确定本机可用会话为 `["","LQHL","test","20260822_device1"]`，已改配置并验证 analysis_service 转为 `healthy` |
+| 验证 | `run_all_checks.py` 39/0/0（**0 跳过**）；`_verify_qwf.py` 92/92；`_docs_paths_check.py` 6/6 |
+| 补足清单 | `docs/UPSTREAM_GAP_LIST.md`（已按新上游版本逐条更新：A2 剩 4 份、A5 剩 4 个脚本、C2 已修、A4 我方已解决） |
+
 ### S9　收尾
 
 1. `.claude/progress.md` 按 CLAUDE.md 约定 5 记录：改动内容、文件、验证结果、提交 hash。

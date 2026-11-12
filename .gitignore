@@ -226,6 +226,12 @@ tools/s21_photo_reader/_tmp_test/
 !/_wf_test_server.py
 # 上游 2026-11-12 起把 goal 模式自检入库（run_all_checks.py 的 OFFLINE 清单引用它）
 !/_qwf_gen_goal_check.py
+# 上游用 git add -f 强加、白名单里漏掉的 4 个脚本（上游 4fad224 仍未放行 → 新 clone 缺文件）。
+# 本仓库把它们都纳入白名单，保证 clone 下来自检清单与文档引用的文件真实存在。
+!/_p1_diff.py
+!/_gen_spec_qwfs.py
+!/_gen_device_profile.py
+!/_p3_e2e.py
 
 # 根目录一次性产物的数据文件
 /_*.json
