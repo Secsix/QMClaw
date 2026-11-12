@@ -488,9 +488,17 @@ export function createServiceProxy() {
   });
 
   // ── `.qwf` ⇄ 画布 ─────────────────────────────────────────────────────────
-  // qwf_examples   列出 data/workflows/examples 下的 .qwf 示例
+  // qwf_examples   列出服务端示例 .qwf（运行期 data/workflows/examples/，
+  //                回落到仓库根 qwf_examples/——产品范例真正入库的地方）
   // qwf_to_canvas  .qwf 文本 → 画布节点图（IR 是中表示）
   // canvas_to_qwf  画布节点图 → .qwf 文本（带语义等价判定）
+
+  proxy.get('/workflow/qwf_examples', async (req, res) => {
+    const query = new URLSearchParams(req.query as Record<string, string>).toString();
+    const path = `/workflows/qwf_examples${query ? `?${query}` : ''}`;
+    const result = await proxyToService('workflow', path, 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
 
   proxy.post('/workflow/qwf_examples', async (req, res) => {
     const result = await proxyToService('workflow', '/workflows/qwf_examples', 'POST', req.body || {});

@@ -1775,7 +1775,7 @@ class WorkflowService(BaseService):
         elif path == "/workflows/lint":
             return self._handle_lint(data)
         elif path == "/workflows/qwf_examples":
-            return self._handle_qwf_examples(data)
+            return self._handle_qwf_examples(data, query)
         elif path == "/workflows/qwf_to_canvas":
             return self._handle_qwf_to_canvas(data)
         elif path == "/workflows/canvas_to_qwf":
@@ -1945,56 +1945,68 @@ class WorkflowService(BaseService):
 
     # ── `.qwf` ⇄ 画布（见 docs/DSL_DESIGN.md §7.2）───────────────────────────
     def _qwf_examples_dir(self) -> Path:
+        """示例目录（运行期目录；回落目录见 `qwf_store.example_dirs()`）。"""
         return ROOT_DIR / "data" / "workflows" / "examples"
 
-    def _handle_qwf_examples(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """`POST /workflows/qwf_examples`：列出 `data/workflows` 下的 `.qwf`。
+    def _handle_qwf_examples(self, data: Dict[str, Any],
+                              query: Optional[Dict[str, List[str]]] = None) -> Dict[str, Any]:
+        """`GET|POST /workflows/qwf_examples`：列出示例 `.qwf`。
 
         画布的"示例工作流"下拉用这个接口——示例是**文本 DSL**，
         前端拿文本后调 `/workflows/qwf_to_canvas` 转成画布节点。
+
+        示例目录有两处：运行期 `data/workflows/examples/` 与仓库根
+        `qwf_examples/`（产品范例真正入库的地方，见 `qwf_store.example_dirs()`）。
+
+        `includeText` 可以放 body（POST）或 query（GET，如 `?includeText=1`）。
         """
+        from . import qwf_store
         from .dsl import parse_qwf
 
         include_text = bool(data.get("includeText"))
-        directory = self._qwf_examples_dir()
+        if not include_text and query:
+            raw = query.get("includeText") or []
+            flag = raw[-1] if isinstance(raw, list) and raw else raw
+            include_text = str(flag).lower() in ("1", "true", "yes", "on")
         items: List[Dict[str, Any]] = []
-        if directory.exists():
-            for path in sorted(directory.glob("*.qwf")):
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except Exception as exc:
-                    items.append({"name": path.stem, "path": path.name,
-                                  "error": str(exc)})
-                    continue
-                entry: Dict[str, Any] = {
-                    "name": path.stem,
-                    "path": path.name,
-                    "source": "example",
-                }
-                try:
-                    ir = parse_qwf(text)
-                    meta = ir.get("meta") or {}
-                    entry.update({
-                        "id": ir.get("id"),
-                        "title": meta.get("name") or path.stem,
-                        "description": meta.get("description") or "",
-                        "tags": meta.get("tags") or [],
-                        "nodeCount": len(ir.get("pipeline") or []),
-                        "ops": sorted({s.get("op") for s in ir.get("pipeline") or []
-                                       if isinstance(s, dict)}),
-                    })
-                except Exception as exc:
-                    entry["error"] = str(exc)
-                if include_text:
-                    entry["text"] = text
-                items.append(entry)
+        for path in qwf_store.example_files():
+            try:
+                text = path.read_text(encoding="utf-8")
+            except Exception as exc:
+                items.append({"name": path.stem, "path": path.name,
+                              "error": str(exc)})
+                continue
+            entry: Dict[str, Any] = {
+                "name": path.stem,
+                "path": path.name,
+                "source": "example",
+            }
+            try:
+                ir = parse_qwf(text)
+                meta = ir.get("meta") or {}
+                entry.update({
+                    "id": ir.get("id"),
+                    "title": meta.get("name") or path.stem,
+                    "description": meta.get("description") or "",
+                    "tags": meta.get("tags") or [],
+                    "nodeCount": len(ir.get("pipeline") or []),
+                    "ops": sorted({s.get("op") for s in ir.get("pipeline") or []
+                                   if isinstance(s, dict)}),
+                })
+            except Exception as exc:
+                entry["error"] = str(exc)
+            if include_text:
+                entry["text"] = text
+            items.append(entry)
         return {"ok": True, "examples": items, "count": len(items)}
 
     def _handle_qwf_to_canvas(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """`POST /workflows/qwf_to_canvas {text|path}`：`.qwf` → 画布节点图。
 
-        `path` 相对 `data/workflows/examples`；给了 `text` 就用文本。
+        `path` 相对示例目录（运行期 `data/workflows/examples/` 或仓库根
+        `qwf_examples/`）；给了 `text` 就用文本。
         """
+        from . import qwf_store
         from .dsl import parse_qwf
         from .dsl.canvas_ir import ir_to_canvas
 
@@ -2002,8 +2014,8 @@ class WorkflowService(BaseService):
         source = "text"
         if not text and data.get("path"):
             name = str(data["path"])
-            candidate = self._qwf_examples_dir() / Path(name).name
-            if not candidate.exists():
+            candidate = qwf_store.find_example(name)
+            if candidate is None:
                 candidate = ROOT_DIR / "data" / "workflows" / Path(name).name
             if not candidate.exists():
                 return {"ok": False, "error": f"找不到 .qwf 文件：{name}"}

@@ -8,12 +8,18 @@ import glob
 import os
 import sys
 
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOT = r"D:/qmclaw/Agentic Workflow/qmclaw-server/services/workflow_service"
+if not os.path.isdir(ROOT):
+    # 仓库不在上游写死的 D:/qmclaw 下时，用脚本自身位置兜底
+    ROOT = os.path.join(REPO_ROOT, "Agentic Workflow", "qmclaw-server",
+                        "services", "workflow_service")
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
 
 from dsl import normalize, validate  # noqa: E402
 from dsl import parse_qwf  # noqa: E402
+from dsl.canvas_ir import canvas_to_qwf, ir_to_canvas  # noqa: E402
 from dsl.textdsl.printer import ir_to_qwf  # noqa: E402
 
 FAIL = []
@@ -126,7 +132,10 @@ except Exception as e:  # noqa: BLE001
     check("validate", False, repr(e))
 
 # ── 6. 既有 .qwf 回归 ───────────────────────────────────────────
-for f in sorted(glob.glob(r"D:/qmclaw/*.qwf")):
+# 产品范例在仓库根 `qwf_examples/`（上游 CI lint 的也是这个目录），
+# 运行期目录 `data/workflows/examples/` 被 .gitignore 排除、通常是空的。
+for f in sorted(glob.glob(os.path.join(REPO_ROOT, "qwf_examples", "*.qwf"))) + \
+        sorted(glob.glob(os.path.join(REPO_ROOT, "*.qwf"))):
     try:
         r = parse_qwf(open(f, encoding="utf-8").read())
         out, diags = validate(r)
@@ -135,6 +144,46 @@ for f in sorted(glob.glob(r"D:/qmclaw/*.qwf")):
               str([(d.get("code"), d.get("message")) for d in errs]))
     except Exception as e:  # noqa: BLE001
         check(f"回归 {os.path.basename(f)}", False, repr(e))
+
+# ── 7. 画布往返：顶层块（goal / bounds）必须原样带回 ────────────
+# 回归两个上游缺陷：
+#   A) 示例目录：服务端只认 data/workflows/examples/（被 .gitignore 排除，
+#      永远为空），产品范例其实在仓库根 qwf_examples/；
+#   B) goal 块：ir_to_canvas 不带 goal → canvas_to_ir 重建不出 goal，
+#      画布往返一次就把目标契约丢了（diff 里是 `$.goal: {...} → 缺失`）。
+EXAMPLES_DIR = os.path.join(REPO_ROOT, "qwf_examples")
+try:
+    sys.path.insert(0, os.path.join(REPO_ROOT, "Agentic Workflow", "qmclaw-server"))
+    from services.workflow_service import qwf_store  # noqa: E402
+
+    found = qwf_store.example_files()
+    check("qwf_store 能找到产品示例（仓库根 qwf_examples/）",
+          len(found) >= 1, f"{[p.name for p in found]}")
+    check("qwf_store 示例目录含运行期目录或仓库根回落",
+          any(d.name == "qwf_examples" for d in qwf_store.example_dirs()),
+          str([str(d) for d in qwf_store.example_dirs()]))
+except Exception as e:  # noqa: BLE001
+    check("qwf_store 示例解析", False, repr(e))
+
+for f in sorted(glob.glob(os.path.join(EXAMPLES_DIR, "*.qwf"))):
+    name = os.path.basename(f)
+    try:
+        raw = parse_qwf(open(f, encoding="utf-8").read())
+        canvas = ir_to_canvas(raw)
+        wf = canvas.get("workflow") or {}
+        if raw.get("goal"):
+            check(f"{name}: goal 进画布 workflow 块", bool(wf.get("goal")),
+                  repr(wf.get("goal")))
+        if raw.get("bounds"):
+            check(f"{name}: bounds 进画布 workflow 块", bool(wf.get("bounds")),
+                  repr(wf.get("bounds")))
+        res = canvas_to_qwf(canvas, base_ir=raw)
+        check(f"{name}: 画布往返语义等价", bool(res.get("equivalent")),
+              str(res.get("diff") or [])[:400])
+        check(f"{name}: 画布往返稳定", bool(res.get("stable")),
+              str(res.get("unstableDiff") or [])[:400])
+    except Exception as e:  # noqa: BLE001
+        check(f"{name}: 画布往返", False, repr(e))
 
 print("\n=== 汇总 ===")
 print(f"FAIL {len(FAIL)}" + (f": {FAIL}" if FAIL else "（全部通过）"))

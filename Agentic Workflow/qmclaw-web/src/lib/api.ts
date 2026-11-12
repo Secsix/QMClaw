@@ -820,7 +820,7 @@ print(f"readout_fidelity=0.95 t1=2500.0 gate_fidelity=0.992")
 
   // ── `.qwf` 文本工作流 DSL（见 docs/DSL_DESIGN.md）─────────────────────────
 
-  /** 列出服务端的 `.qwf` 示例（data/workflows/examples/*.qwf）。 */
+  /** 列出服务端的 `.qwf` 示例（运行期 data/workflows/examples/*.qwf，回落到仓库根 qwf_examples/*.qwf）。 */
   listQwfExamples: async (includeText = false) => {
     const res = await fetch(`${API_BASE}/api/workflow/qwf_examples`, {
       method: "POST",

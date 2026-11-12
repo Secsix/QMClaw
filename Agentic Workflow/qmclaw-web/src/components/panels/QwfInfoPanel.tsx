@@ -4,7 +4,7 @@
  * 画布打开一个 `.qwf`（导入 / 服务端示例 / 存档）之后，`.qwf` 里不只是
  * 一串语句，还有工作流级的字段：
  *
- *   meta / env / context / defaults / budget / policy
+ *   meta / env / context / defaults / budget / policy / goal / bounds
  *
  * 这些字段在画布上没有对应控件，但导出时必须原样带回去（否则往返不等价）。
  * 这个面板把它们全部摊开显示，让用户能确认"这个 `.qwf` 的完整信息"，
@@ -31,6 +31,8 @@ const WORKFLOW_FIELDS: Array<{ key: string; label: string; hint: string }> = [
   { key: 'defaults', label: 'defaults', hint: '语句默认值' },
   { key: 'budget', label: 'budget', hint: '预算（maxWrites / maxRuntime…）' },
   { key: 'policy', label: 'policy', hint: '策略（门禁失败后的行为等）' },
+  { key: 'goal', label: 'goal', hint: '目标契约（objective / success / max_rounds…）' },
+  { key: 'bounds', label: 'bounds', hint: '写幅度上界（PiGate.amp 等）' },
 ];
 
 const Section: React.FC<{ title: string; hint?: string; children: React.ReactNode }> = ({
