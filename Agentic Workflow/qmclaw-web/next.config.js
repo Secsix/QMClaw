@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['recharts'],
+  experimental: {
+    serverComponentsExternalPackages: ['recharts'],
+  },
 };
 
 module.exports = nextConfig;
