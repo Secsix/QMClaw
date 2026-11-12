@@ -1,0 +1,110 @@
+{
+  "id": "t-20261106-202820",
+  "objective": "qwf_run iqraw_goal_q4ld3",
+  "stopCondition": {},
+  "budgets": {
+    "experiments": 5,
+    "datasets": 50,
+    "writes": 0,
+    "wallSeconds": 300
+  },
+  "qubits": [
+    "q4ld3"
+  ],
+  "manifests": [
+    {
+      "writes": [
+        {
+          "key": "discriminator.center0",
+          "qubit": "q4ld3",
+          "count": 3,
+          "maxDelta": null,
+          "delegable": true
+        },
+        {
+          "key": "discriminator.center1",
+          "qubit": "q4ld3",
+          "count": 3,
+          "maxDelta": null,
+          "delegable": true
+        },
+        {
+          "key": "discriminator.method",
+          "qubit": "q4ld3",
+          "count": 3,
+          "maxDelta": null,
+          "delegable": true
+        },
+        {
+          "key": "discriminator.radius0",
+          "qubit": "q4ld3",
+          "count": 3,
+          "maxDelta": null,
+          "delegable": true
+        }
+      ],
+      "hash": "sha256:fd52dcac803550fe214d91d5f0de5695a76aa4c5d82059dc148088e04cdcccc2",
+      "taskId": "t-20261106-202820"
+    }
+  ],
+  "tickets": [],
+  "usage": {
+    "experiments": 1,
+    "datasets": [
+      969
+    ],
+    "writes": 0,
+    "wallSeconds": 29.77
+  },
+  "events": [
+    {
+      "at": "2026-11-06T20:28:20",
+      "kind": "manifest",
+      "hash": "sha256:fd52dcac803550fe214d91d5f0de5695a76aa4c5d82059dc148088e04cdcccc2",
+      "writes": 4
+    },
+    {
+      "at": "2026-11-06T20:28:26",
+      "kind": "charge",
+      "chargeKind": "experiments",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T20:28:28",
+      "kind": "charge",
+      "chargeKind": "datasets",
+      "count": 1,
+      "dataset": null,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T20:28:30",
+      "kind": "authorize",
+      "keys": [
+        "discriminator.center0",
+        "discriminator.center1",
+        "discriminator.radius0",
+        "discriminator.method"
+      ],
+      "ok": true,
+      "by": "not_enforced"
+    },
+    {
+      "at": "2026-11-06T20:28:44",
+      "kind": "dataset",
+      "dataset": 969,
+      "node": "c1"
+    },
+    {
+      "at": "2026-11-06T20:28:52",
+      "kind": "charge",
+      "chargeKind": "wallSeconds",
+      "count": 29,
+      "dataset": null
+    }
+  ],
+  "state": "active",
+  "createdAt": "2026-11-06T20:28:20"
+}
