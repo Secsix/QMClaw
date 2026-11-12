@@ -115,8 +115,21 @@ def read_registry(bit):
 
 
 def write_params(bit, params):
-    """写寄存器（受 :3003 allow_set_params 闸门约束）。"""
-    return post(Q_BASE, "/qubit/set_params", {"name": bit, "params": params}, timeout=60)
+    """写寄存器（受 :3003 allow_set_params 闸门约束）。
+
+    坑（2026-11-12）：`discriminator.center0/center1` 必须写成**数值数组**，不能写读回来的字符串。
+    写字符串进去之后，厂商 ReadoutProcessor.iq2prob 会在 `_process_signals` 里把字符串当序列
+    乘复数，报 `TypeError: can't multiply sequence by non-int of type 'complex'`，
+    结果是 spectroscopy / piamp 全部 failed（iqraw 不受影响，所以很容易误判成"硬件坏了"）。
+    """
+    fixed = {}
+    for k, v in params.items():
+        if k.startswith("discriminator.center") and isinstance(v, str):
+            nums = re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", v)
+            if len(nums) >= 2:
+                v = [float(nums[0]), float(nums[1])]
+        fixed[k] = v
+    return post(Q_BASE, "/qubit/set_params", {"name": bit, "params": fixed}, timeout=60)
 
 
 def _centers(reg):
@@ -139,10 +152,19 @@ def preflight_params(bit, reg, datavault, log, allow_length_mismatch=False):
     issues, warns = [], []
     pg = float(reg.get("PiGate.length") or 0)
     ph = float(reg.get("PiHalf.length") or 0)
-    length_ok = abs(pg - ph) < 1e-6 and 20 <= pg <= 40
+    # 两条硬规则（2026-11-12 用户确认）：
+    #   ① PiGate.length 必须等于 PiHalf.length —— piamp/pidf 实际用的是 PiHalf
+    #      （q8ld3 的坑：PiGate 改成 30 而 PiHalf 仍是 210，结果怎么都激发不起来）；
+    #   ② 两者都必须在 20–40 ns —— 本机所有比特的经验值都是 30 ns；
+    #      300 ns 这类超长脉冲属于配置事故（q11ld3 就是 300 ns，π 面积严重不足）。
+    # 任一不满足都中止，除非显式给 --allow-length-mismatch。
+    length_ok = abs(pg - ph) < 1e-6
     if not length_ok:
-        issues.append(f"PiGate.length={pg:g} 与 PiHalf.length={ph:g} 不一致或不在 20–40ns"
+        issues.append(f"PiGate.length={pg:g} 与 PiHalf.length={ph:g} 不一致"
                       "（piamp/pidf 用的是 PiHalf）")
+    elif not 20 <= pg <= 40:
+        issues.append(f"PiGate/PiHalf.length={pg:g}ns 不在 20–40ns 经验区间"
+                      "（本机常规值 30 ns；超长脉冲 π 面积严重不足，会激发不起来）")
     for name in ("PiGate.alpha", "PiHalf.alpha"):
         a = reg.get(name)
         try:
@@ -730,6 +752,8 @@ def wide_scan_candidates(res, min_contrast_db=WIDE_SCAN_MIN_CONTRAST_DB,
     if not out and amp_hit and abs(amp_hit[1]) >= min_contrast_db:
         out.append(_mk(amp_hit[0], "f1"))
     if out:
+        # 多列一致的候选优先，单列幅度峰（votes=0）垫底：每个候选要花 3 分钟验证
+        out.sort(key=lambda o: (o.get("votes") or 0, o.get("sigma") or 0.0), reverse=True)
         out[0]["n_points"] = int(len(x))
     return out or None
 
@@ -1151,7 +1175,7 @@ def run_zpa2d(args, session, log, dry=False):
     return path, plan, None
 
 
-def _restore_f10(args, row):
+def _restore_f10(args, row, log=print):
     """探测点不成立时把 f10/f21 复原成进该点之前的值（窄窗 update=True 已改过寄存器）。"""
     before = row.get("f10_before")
     after = row.get("f10_after_spec")
@@ -1347,7 +1371,7 @@ def probe_at_bias(args, session, bias, log, pi_scan_amp, disc_ok=None):
                           cand, pi_scan_amp, disc_ok, row)
         if row.get("passed"):
             return row
-        _restore_f10(args, row)
+        _restore_f10(args, row, log)
     return row
 
 
@@ -1400,7 +1424,9 @@ def main():
     ap.add_argument("--pi-amp", type=float, default=None,
                     help="PiPulse 扫描上限（默认 1.6×PiHalf.amp；过驱动会让判别器饱和成 P1≡1）")
     ap.add_argument("--allow-length-mismatch", action="store_true",
-                    help="允许 PiGate.length != PiHalf.length（默认直接中止）")
+                    help="允许 PiGate.length / PiHalf.length 不一致或不在 20–40 ns（默认直接中止）")
+    ap.add_argument("--pi-length", type=float, default=None,
+                    help="执行前把 PiGate.length 与 PiHalf.length 同时设为该值（本机常规 30 ns）")
     ap.add_argument("--force-bias", type=float, default=None,
                     help="跳过 probe，直接用这个 bias_z 跑标定链（人工接受某点后用）")
     ap.add_argument("--execute", action="store_true", help="真跑（会写寄存器 + 驱动真机）")
@@ -1454,14 +1480,33 @@ def main():
     orig_bias = reg.get("bias_z")
     snapshot = {k: reg.get(k) for k in
                 ("f10", "f21", "bias_z", "PiGate.amp", "PiGate.alpha",
-                 "PiGate.length", "PiGate.zpa", "discriminator.method")}
+                 "PiGate.length", "PiGate.zpa", "PiHalf.length", "PiHalf.amp",
+                 "PiHalf.alpha", "discriminator.method")}
     log(f"    当前 f10={reg.get('f10')} bias_z={orig_bias} PiGate.amp={reg.get('PiGate.amp')}"
         f" PiGate.length={reg.get('PiGate.length')} PiHalf.length={reg.get('PiHalf.length')}")
+
+    # 驱动脉宽修正（2026-11-12 用户要求）：300 ns 这类超长脉冲会让 π 面积严重不足，
+    # 本机常规值是 30 ns；--pi-length 30 会在自检前把两个 length 一起改掉。
+    if args.pi_length is not None and args.execute:
+        want = {"PiGate.length": args.pi_length, "PiHalf.length": args.pi_length}
+        cur = {k: reg.get(k) for k in want}
+        if any(abs(float(cur[k] or 0) - args.pi_length) > 1e-9 for k in want):
+            log(f"    [fix] 驱动脉宽 {cur} → {want}")
+            write_params(args.bit, want)
+            reg, err = read_registry(args.bit)
+            if err:
+                log(f"✗ 回读 registry 失败：{err}")
+                return 2
+            snapshot.update({k: reg.get(k) for k in want})
+            got = {k: reg.get(k) for k in want}
+            log(f"    回读：{got}"
+                + ("" if all(abs(float(v) - args.pi_length) < 1e-9 for v in got.values())
+                   else "  ✗ 回读不一致"))
     pre = preflight_params(args.bit, reg, args.datavault, log,
                            allow_length_mismatch=args.allow_length_mismatch)
     if not pre["ok"]:
         log("✗ 驱动参数自检不过：" + "；".join(pre["issues"])
-            + "（如确知要跳过，加 --allow-length-mismatch）")
+            + "（修：--pi-length 30 自动改；确知要跳过再加 --allow-length-mismatch）")
         return 2
     # piamp 扫的是绝对幅度：1.6×PiHalf.amp，下限 1.0（保证盖住 π，q9ld3 实测 π≈0.73），
     # 上限 2.0。一上来扫到 2.0 会把 IQ 云推出判别区，P1 饱和成 1.0，看起来像"没有激发"。
@@ -1580,7 +1625,7 @@ def main():
             probe_rows.append(row)
             if row.get("error"):
                 log(f"    ! {row['error']}")
-                _restore_f10(args, row)
+                _restore_f10(args, row, log)
                 continue
             if not row.get("passed"):
                 log(f"    原因：{'; '.join(row.get('reasons') or ['未通过'])}")
