@@ -174,7 +174,16 @@ Select-String -Path 'Agentic Workflow\qmclaw-server\config\session.json' -Patter
 1. `git rm --cached` 远端提交的 10 个 `services/task_queue/data/tasks/t-*.json`（远端自己的 `.gitignore` 已声明该目录是运行时产物）。
 2. 迁移/出库明显一次性的根目录脚本（保留 CI 与 runner 依赖的）：
    - **保留**：`_syntax_check.py`、`_docs_paths_check.py`、`_phase19_check.py`、`_phase2*.py`…（CI 的 `checks.yml` 与 `run_all_checks.py` 的 `OFFLINE` 清单引用）、`qwf_lint.py`、`qwf_gen.py`、`qwf_run.py`、`run_all_checks.py`、`reg_snapshot.py`
-   - **出库**（`git rm --cached`，文件留本地）：`_p1_diff.py`、`_gen_device_profile.py`、`_gen_spec_qwfs.py`、`_p3_e2e.py` 等一次性产物脚本
+   - **出库**（`git rm --cached`，文件留本地）：`_p1_diff.py`、`_gen_spec_qwfs.py` 等一次性产物脚本
+   - **实际执行结果与原计划有出入，以证据为准**（2026-11-12 复核）：
+     原计划列了 4 个出库对象，逐一核查后**只出库 2 个**，另外 2 个**保留入库**——
+     出库的前提是「无引用」，而这两个有引用：
+     - `_gen_device_profile.py` —— `docs/OPERATIONS.md` §3.4 以路径 `D:\qmclaw\_gen_device_profile.py` 引用它；
+       `_docs_paths_check.py` 要求新克隆后该路径真实存在 → 出库会让 CI 的文档漂移自检失败
+     - `_p3_e2e.py` —— 同时列在 `docs/OPERATIONS.md` §4 表格与 `run_all_checks.py` 的 `ONLINE` 清单；
+       `_docs_paths_check.py` 双向校验二者一致 → 出库会造成清单漂移
+     > 背景：上游 `.gitignore` 用 `/_*.py` 只放行一份白名单，这 4 个脚本**都不在白名单里**
+     > （即上游本意是不入库，却用 `git add -f` 强加进了仓库）——详见 `docs/BACKLOG.md` J7。
 3. 保留 `自动化单比特标定/`（17 文件，可移植真机标定包，含 `qwf_auto_calib.py` 11 节点链）**全部入库**。
 
 **提交信息**：`chore(sync): 运行时产物出库，保留 CI 与 DSL 自检依赖的检查脚本`

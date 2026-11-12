@@ -543,3 +543,74 @@ D1 / D2（有空再说）
 | I5 | **并发 `/execute` 导致服务挂死**（新发现，P1） | 19:56 两个并发离线实验**服务端都跑完并出图**（有时间戳为证），但 HTTP 响应双双未回客户端；此后 quantum `:3003` 与 hermes `:3012` 全部无响应（TCP 可连、HTTP 无响应），重启微服务后才恢复。与 B1（单线程 `HTTPServer`）**不同源**，疑 stdout 管道阻塞或线程/句柄耗尽。建议（约定 6：同类问题已出现两次以上）：给 `/execute` 加**请求级日志 + 耗时/超时监控**，并写可复现脚本 | ⬜ |
 | I6 | `settings.yaml` 被改名 → subagent 模型选择禁用 | `C:\Users\39045\.dsh\settings.yaml` 不存在，只剩 `settings.yaml.imported`（内容含 `subagent-model-selection.enabled: true`）→ `subagent` 传 `provider/model` 报 `child model selection is disabled for this tool instance`。本次靠「Lead=deepseek-flash → 子代继承」达成便宜打手。恢复：把 `.imported` 复制回 `settings.yaml`（**用户级配置，待人工确认**） | ⬜ |
 | I7 | ~~`start_all_services.py` 打印 API Key **值**~~ | **已修（2026-10-14）**：改为只打印 `(set)/(not set)`，密钥值不再进终端/日志 | ✅ |
+
+---
+
+## J. 2026-11-11 分支同步：缺失的设计文档与环境相关自检（登记日期：2026-11-12）
+
+> 背景：2026-11-12 把上游 `sync/qmclaw-20261111`（`19faee0`）整链合入本地（合并提交 `c841983`）。
+> 合并后跑离线自检时发现 **9 个脚本 FAIL**，逐个核对后确认：**没有一个是合并回归**，
+> 全部是「上游自身把产物排除在版本控制外，却又在自检里引用」造成的。
+> 处置口径：**缺产物 → 记 SKIP 并写明原因**（沿用上游 `_phase19_check.py` 已有的 `skip()` 惯例），
+> 不削弱任何在本机能成立的断言；在上游那台机器上这些断言仍然照常执行。
+
+### J 组待办表
+
+| 编号 | 项 | 说明 | 状态 |
+|---|---|---|---|
+| J1 | **上游 6 份设计文档未入库** | 上游 `.gitignore` 的 `/docs/**/*.md` 规则把下列文档排除在版本控制外，但代码/脚本已引用它们：<br>• `docs/DSL_DESIGN.md` — DSL 子系统总体设计<br>• `docs/DSL_EXPERIMENTS.md` — DSL 实验说明<br>• `docs/BACKEND_ADAPTERS.md` — 后端适配器约定<br>• `docs/ARCHITECTURE_ROADMAP.md` — 阶段路线图（被 `_phase13/14/17/18_check.py` 引用）<br>• `docs/PLAN_PRODUCER_DEFAULT.md` — `/execute` producer 化方案（被 `_phase16_check.py` 引用）<br>• `docs/TUNEUP_FLOW.md` — 调优流程<br>**已按用户决策（缺文档可接受）先合代码**，此处登记为待补 | ⬜ 待补文档 |
+| J2 | `config/qubitclient.json` 不入库 | 上游 `.gitignore` 排除（含实验室内网地址与 API Key，**不得外传**）。影响 `_p2_llm_check.py` 的 6 条配置断言 → 已改判 SKIP | ⬜ 接受现状 |
+| J3 | `/_qwf_gen_goal_check.py` 不入库 | 上游 `.gitignore` 明确排除，但 `run_all_checks.py` 的 `OFFLINE` 清单与 `docs/OPERATIONS.md` §4 都列了它 → runner 现在对「文件不存在」记 SKIP（附原因），不再计 FAIL | ✅ 已处置 |
+| J4 | 本机 lqms 形态与上游实验室机器不同 | 本机 `sq_nodes` 的 `.pyd` 被改名为 `.bak`，**没有遮蔽**更新的 `sq_nodes.py`，因此能力探测结论自然是 `ok` 而非上游的 `degraded`（上游断言硬编码了实验室机器状态）。已把 `_phase2_check.py` 的能力/探针断言改为**按本机实际形态自适应**（两种形态都自洽），在上游机器上原断言仍照常执行 | ✅ 已处置 |
+| J5 | `_derived_key_check.py` 需要 task_queue 测试实例（:3019） | 服务启停由人控制（约定 3），没起时整脚本记 SKIP（附原因），不再计 FAIL | ✅ 已处置 |
+| J6 | **上游 CI 只跑 4 项** | `.github/workflows/checks.yml` 实际只跑 `_syntax_check.py` / `_docs_paths_check.py` / `_phase19_check.py` / `qwf_lint.py`；上游 39 项 `OFFLINE` 全量自检并未进 CI。本地已全量跑通（38 OK / 0 ERR / 1 SKIP）。若要让 CI 覆盖更多，需确认 GitHub Actions runner 能否满足依赖 | ⬜ 待决策 |
+
+### J7 ⬜ 上游自检与上游 `.gitignore` 互相矛盾（**上游仓库自身的问题**）
+
+上游 `.gitignore` 用 `/_*.py` 忽略根目录所有下划线脚本，只放行一份白名单：
+
+```
+/_*.py
+!/_phase[0-9]*_check.py
+!/_p[0-9]*_check.py
+!/_syntax_check.py
+!/_docs_paths_check.py
+!/_apply_dataset_ep_check.py
+!/_autorevert*_check.py
+!/_d2_registry_offline_check.py
+!/_derived_key_check.py
+!/_governance_check.py
+!/_registry_ep_check.py
+!/_replay_regression.py
+!/_tq_test_server.py
+!/_wf_test_server.py
+```
+
+**但上游仓库里实际跟踪着白名单之外的脚本**（被 `git add -f` 强加）：`_p1_diff.py`、
+`_gen_device_profile.py`、`_gen_spec_qwfs.py`、`_p3_e2e.py`。这 4 个脚本在全新 clone 的
+上游仓库里**根本不存在**，却又被 `run_all_checks.py` / `docs/OPERATIONS.md` 引用。
+本轮同步的处置：
+
+| 脚本 | 处置 | 理由 |
+|---|---|---|
+| `_p1_diff.py` | **出库**（`git rm --cached`，文件留本地） | 一次性打印脚本；不在白名单；无文档路径引用 |
+| `_gen_spec_qwfs.py` | **出库**（同上） | 一次性生成器；不在白名单；无文档路径引用 |
+| `_gen_device_profile.py` | **保留入库** | `docs/OPERATIONS.md` §3.4 以路径 `D:\qmclaw\_gen_device_profile.py` 引用它；`_docs_paths_check.py` 要求**新克隆后**该路径真实存在，出库会让 CI 的文档漂移自检失败 |
+| `_p3_e2e.py` | **保留入库** | 同时列在 `docs/OPERATIONS.md` §4 表格与 `run_all_checks.py` 的 `ONLINE` 清单；`_docs_paths_check.py` 双向校验二者一致，出库会造成清单漂移 |
+
+> 即：**出库只做「无引用」的那部分**，有文档/清单引用的仍然入库 —— 否则是在用「出库」
+> 制造新的文档漂移。
+
+### J8 ⬜ 运行时产物出库
+
+- `services/task_queue/data/tasks/*.json`：上游自己的 `.gitignore` 第 179 行已声明该目录是
+  运行时落盘目录（"账本实际落盘目录"），但仓库里却跟踪着 10 个 `t-*.json`。
+  本轮按 `.gitignore` 的原意**全部出库**（`git rm --cached`，本地文件保留）。
+- `自动化单比特标定/`（17 个文件）**全部入库**：它是可移植的真机标定包（含 `qwf_auto_calib.py`
+  的 11 节点链），不是运行时产物。
+
+### J9 ⬜ 上游 `services/common/capabilities.py` 的能力基线硬编码了实验室机器
+
+`KNOWN_RUNTIME_EXPORTS` / `KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况。
+本机形态不同（见 J4），这份基线对本地没有参考价值。**待办**：改成可配置/可探测的基线，
+或补一份「本机能力基线」的独立配置。
