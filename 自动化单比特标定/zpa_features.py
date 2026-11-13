@@ -6,10 +6,12 @@ import numpy as np
 from scipy.ndimage import zoom
 from scipy.signal import find_peaks
 
+from dv_open import open_datavault
+
 VERSION='zpa-shape-v2'
 
 def extract(path):
- with h5py.File(path,'r') as h:
+ with open_datavault(path) as h:
   ds=h['DataVault']; a=ds[()]
   frequency_unit=str(ds.attrs.get('Independent0.unit','')) or 'native_unconfirmed'
   labels=[str(ds.attrs.get('Independent%d.label'%i,'')) for i in range(2)]

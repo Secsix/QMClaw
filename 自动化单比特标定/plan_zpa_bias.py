@@ -6,6 +6,7 @@ from pathlib import Path
 import h5py,numpy as np
 from scipy.signal import find_peaks
 from classify_zpa_datavault import analyze,load_model
+from dv_open import open_datavault
 
 def scalar_parameter(attrs,key):
  """Decode only primitive LabRAD scalar types, no arbitrary deserialization."""
@@ -32,7 +33,7 @@ def plan_legacy(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
  """Old rule: per-layer global argmin + local find_peaks prominence.
  Kept for A/B comparison against the branch-tracking detector in zpa_interval."""
  classification=analyze(path,model)
- with h5py.File(path,'r',locking=False) as h:
+ with open_datavault(path) as h:
   ds=h['DataVault'];a=ds[()];at=dict(ds.attrs)
  # 比特名：DataVault 文件名形如 "00731 - q23_7%c S21zpa2d.hdf5"，
  # 但真机上也有 "q7ld3" / "q21_7" 这类写法 —— 原来的 r'q\d+_\d+' 遇到 q7ld3
@@ -96,7 +97,7 @@ def plan(path,model,min_prominence_db=None,min_points=None,bias_map=None,tol_mhz
  """
  from zpa_interval import analyze_intervals,DEFAULT_TOL_MHZ
  classification=analyze(path,model)
- with h5py.File(path,'r',locking=False) as h:
+ with open_datavault(path) as h:
   ds=h['DataVault'];at=dict(ds.attrs)
  m=re.search(r'(?<![A-Za-z0-9])q[0-9A-Za-z_]+',Path(path).name);bit=m.group() if m else Path(path).stem
  res=analyze_intervals(path,min_depth_db=min_prominence_db,min_points=min_points,

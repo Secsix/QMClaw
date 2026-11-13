@@ -8,6 +8,8 @@ from pathlib import Path
 import h5py,numpy as np
 from scipy.optimize import curve_fit
 
+from dv_open import open_datavault
+
 
 def bit_from_name(name):
  m=re.search(r' - (q[^ ]+)%c ',name);return m.group(1) if m else None
@@ -23,7 +25,7 @@ def wait_for_result(root,bit,kind,since,timeout=120,poll=0.25):
   if candidates:
    p=max(candidates,key=lambda x:x.stat().st_mtime)
    try:
-    with h5py.File(p,'r') as h:a=h['DataVault'][()];attrs=dict(h['DataVault'].attrs)
+    with open_datavault(p,attempts=2,wait=1.0) as h:a=h['DataVault'][()];attrs=dict(h['DataVault'].attrs)
     if len(a):return {'path':str(p),'kind':kind,'data':a,'attrs':attrs,'observed_at':time.time()}
    except (OSError,KeyError):pass
   time.sleep(poll)
