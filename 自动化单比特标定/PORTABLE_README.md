@@ -206,13 +206,49 @@ bias 遍历阶段的 `spectroscopy/iqraw/piamp` 默认 **只采不写**（`setti
 实验异常、超时或中断会尝试关闭驱动并恢复快照；清理失败会停止后续批次。
 不要强制杀 Python 进程替代适配器的安全停机。
 
+## ZPA 区间怎么判（zpa_interval.py）
+
+S21ZPA 图 = 逐层（每个 zpa 一层）扫一条 S21-vs-频率 曲线。**旧规则**是"每层取全局
+argmin + 局部 find_peaks prominence ≥ 1 dB"，在真机数据上有三个硬伤：
+
+1. **宽 dip 被误杀**：prominence 是跟相邻点比的，0.2 MHz 栅格下宽 dip 的局部
+   prominence 天然≈0。真机 q7_21 图上 -1.4 层 dip 深 5 dB，旧规则只给 0.94 dB。
+2. **同层多 dip 会跳**：一层里同时有读出腔和比特跃迁时，逐层 argmin 在两条分支间
+   跳，区间被切成碎片（q21_5 的 500 点图上能看到 3 条分支在 ~4/46/89 MHz 处交替）。
+3. **谐振扫出窗口就报废**：dip 落到窗口边界就判 `frequency_window_edge`，明明是
+   谐振走出了读出窗口，判据却当成"数据不可用"。
+
+当前规则（`zpa_interval.analyze_intervals`）：
+
+- 每层找**所有**局部极小，深度以该层 **p90（离谐振的透射基线）** 为基准，
+  默认 `min_depth_db=1.0`（`settings.min_prominence_db` 复用同一参数）；
+- **跨层连分支**：相邻两层的 dip 频率差 ≤ `interval_tol_mhz`（默认 1.5 MHz）就接上，
+  只接**内部** dip（边界上的最小值是谐振尾巴，不参与，避免串出假分支）；
+- 一条分支连续覆盖 ≥ `min_interval_points`（3）层 = 一个可用 ZPA 区间；
+- 候选工作点 = 深度 + 居中性最好的那一层（**不是**已认证的 sweet point）。
+
+在当前 session 的历史图上离线对比（`python validate_zpa_intervals.py`）：
+可读 25 张，**旧规则 19 张有区间 → 新规则 23 张有区间**，旧规则判出的区间全部保留。
+q7_21（`00088`）旧规则判"无可靠区间"，新规则给出 **[-2.6, -1.0]（5 层，谐振从窗口
+左缘扫到 1.34 MHz）** + [2.2, 3.0]。
+
+采集侧的参数含义（厂商 `sq.s21_zpa2d`）：
+
+- `zpa` 轴：`$arange` → `np.arange(lo, hi, step)`，**单位 V**；本包默认 -3 → 3.1、
+  步长 0.2（31 层）。
+- 频率轴：`np.arange(fread - freq_span/2, fread + freq_span/2, 0.0002)`，
+  **单位 GHz**（`convertUnits(freq='GHz')`）。`0.0002 GHz = 0.2 MHz = 200 kHz`，
+  不是 Hz；步长是写死的，与 `freq_span` 无关。`freq_span=0.002` → ±1 MHz →
+  11 个频点。厂商默认 zpa 步长是 0.4（16 层），本包按现场习惯用 0.2。
+
 ## 测试
 
 在没有真机（甚至没有服务）的电脑上：
 
 ```powershell
-python -m py_compile zpa_calibration_pipeline.py zpa_qwf_runner.py zpa_lab_adapter_template.py
+python -m py_compile zpa_calibration_pipeline.py zpa_qwf_runner.py zpa_lab_adapter_template.py zpa_interval.py
 python test_zpa_qwf_offline.py     # .qwf 生成/DSL 校验/legacy 参数纪律/离线规划
+python test_zpa_interval_offline.py # ZPA 区间判定：合成图 + 真机历史图
 ```
 
 （`test_zpa_pipeline.py` / `test_datavault_live.py` 在新版包 `D:\QMClaw\s21zpa\` 里，本包不带。）
@@ -220,3 +256,7 @@ python test_zpa_qwf_offline.py     # .qwf 生成/DSL 校验/legacy 参数纪律/
 `test_zpa_qwf_offline.py` 会用仓库里的 DSL（`Agentic Workflow/qmclaw-server/services/workflow_service/dsl`）
 离线解析并校验生成的 `.qwf`；找不到 DSL 时自动跳过该段，其余检查照跑。
 测试全部使用模拟数据，不会连接真机。
+
+`test_zpa_interval_offline.py` 用合成 S21ZPA 图覆盖四类失效模式（移动谐振、宽 dip、
+同层双 dip、纯噪声、谐振在窗口外），并在 DataVault 在场时顺带检查 q7_21 的历史图。
+`validate_zpa_intervals.py` 拿整目录历史图对比新旧两套规则（只读，不写硬件）。

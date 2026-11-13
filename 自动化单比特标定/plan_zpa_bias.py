@@ -28,9 +28,11 @@ def runs(mask):
   if v and start is None:start=i
   if not v and start is not None:yield start,i;start=None
 
-def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
+def plan_legacy(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
+ """Old rule: per-layer global argmin + local find_peaks prominence.
+ Kept for A/B comparison against the branch-tracking detector in zpa_interval."""
  classification=analyze(path,model)
- with h5py.File(path,'r') as h:
+ with h5py.File(path,'r',locking=False) as h:
   ds=h['DataVault'];a=ds[()];at=dict(ds.attrs)
  # 比特名：DataVault 文件名形如 "00731 - q23_7%c S21zpa2d.hdf5"，
  # 但真机上也有 "q7ld3" / "q21_7" 这类写法 —— 原来的 r'q\d+_\d+' 遇到 q7ld3
@@ -64,6 +66,10 @@ def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
     scores.append(points[j]['prominence_db']/(1+points[j]['prominence_db'])+edge-2*scaled[j-s])
    best=int(interior[int(np.argmax(scores))]);p=points[best]
    intervals.append(dict(sampled_zpa_interval=[float(z[s]),float(z[e-1])],point_count=e-s,candidate_zpa=p['zpa'],readout_resonance_frequency_native=p['resonance_frequency_native'],selection='interior_low_slope_with_dip_contrast_not_certified_sweetpoint',boundary_resolution=float(np.median(np.diff(zs))),median_prominence_db=float(np.median([q['prominence_db'] for q in points[s:e]]))))
+ return _assemble(classification,at,path,bit,intervals,points,bias_map)
+
+def _assemble(classification,at,path,bit,intervals,points,bias_map=None):
+ """Shared tail: metadata, status and the optional zpa->bias_z mapping."""
  normal=classification.get('normal_prediction',False)
  r=dict(id=classification['id'],file=path.name,bit=bit,file_normal_prediction=normal,file_normal_score=classification['normal_score'],file_review_required=classification.get('review_required',False),stored_bias_z=scalar_parameter(at,'Param.'+bit+'.bias_z'),stored_bias=scalar_parameter(at,'Param.bias'),isDbias=scalar_parameter(at,'Param.isDbias'),fixed_readout_fc=scalar_parameter(at,'Param.fixed_readout_fc'),stored_f10_native=scalar_parameter(at,'Param.'+bit+'.f10'),stored_fread_native=scalar_parameter(at,'Param.'+bit+'.fread'),frequency_unit=str(at.get('Independent0.unit','')) or 'unconfirmed_native',zpa_unit=str(at.get('Independent1.unit','')) or 'unconfirmed_native',intervals=intervals,points=points,bias_z_proposal=None,execution_enabled=False,status='needs_frequency_rescan' if not intervals else 'mapping_confirmation_required',warnings=['HDF5 metadata does not prove scanned zpa equals absolute bias_z.','Supported sampled intervals are not calibrated continuous safe bias ranges.','Candidate is not a confirmed qubit sweet point; validate locally before spectroscopy.'])
  if not normal:r['status']='file_not_normal_candidate';r['warnings'].append('Do not execute based on a non-normal file.')
@@ -76,6 +82,33 @@ def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
    if limits[0]<=b<=limits[1]:r['bias_z_proposal']=b;r['status']='offline_proposal_requires_preflight'
    else:r['status']='bias_z_outside_configured_limits'
  return r
+
+def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None,tol_mhz=None):
+ """Current rule: dip depth against the off-resonance level + branch tracking.
+
+ `min_prominence_db` is reinterpreted as the minimum dip **depth** in dB.  The old
+ rule measured a local find_peaks prominence, which is ~0 dB for a broad dip on a
+ 0.2 MHz grid, so real 5-8 dB resonances were rejected.
+ """
+ from zpa_interval import analyze_intervals,DEFAULT_TOL_MHZ
+ classification=analyze(path,model)
+ with h5py.File(path,'r',locking=False) as h:
+  ds=h['DataVault'];at=dict(ds.attrs)
+ m=re.search(r'(?<![A-Za-z0-9])q[0-9A-Za-z_]+',Path(path).name);bit=m.group() if m else Path(path).stem
+ res=analyze_intervals(path,min_depth_db=float(min_prominence_db),min_points=int(min_points),
+                       tol_mhz=float(tol_mhz or DEFAULT_TOL_MHZ))
+ intervals=[]
+ for iv in res['intervals']:
+  q=dict(iv)
+  q['readout_resonance_frequency_native']=q.pop('resonance_frequency_native')
+  q['selection']='branch_depth_centrality_not_certified_sweetpoint'
+  intervals.append(q)
+ points=[]
+ for p in res['points']:
+  q=dict(p)
+  q['prominence_db']=q.get('depth_db',0.)
+  points.append(q)
+ return _assemble(classification,at,path,bit,intervals,points,bias_map)
 
 def main():
  ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('directory',nargs='?',default='.');ap.add_argument('--out',default='zpa_bias_plan');ap.add_argument('--mapping',type=Path);ap.add_argument('--min-prominence-db',type=float,default=1.);ap.add_argument('--min-points',type=int,default=3);a=ap.parse_args()

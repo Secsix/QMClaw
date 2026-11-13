@@ -39,6 +39,7 @@ class Settings:
     piamp_amp: float = 2.
     min_prominence_db: float = 1.
     min_interval_points: int = 3
+    interval_tol_mhz: float = 1.5      # 分支跟踪：相邻两层谐振最大位移
     # ── 执行路线 ──
     execution_route: str = 'qwf'          # 'qwf'（默认）| 'direct'（旧版进程内直调）
     workflow_base: str = 'http://127.0.0.1:3008'
@@ -48,7 +49,7 @@ class Settings:
     search_update: bool = False           # bias 遍历阶段只采不写（避免 f10 漂移）
     zpa_lo: float = -3.
     zpa_hi: float = 3.1
-    zpa_step: float = .4
+    zpa_step: float = .2
     zpa_freq_span: float = .002
     pidf_df: float = .08
     t1_delay_stop: float = 84000.
@@ -68,6 +69,7 @@ class Settings:
         if not 0<=self.visibility_threshold<=1:raise ValueError('Visibility threshold must be in [0,1]')
         if len(np.arange(self.spec_start,self.spec_stop,self.spec_step))>100000:raise ValueError('Too many spectroscopy points')
         if self.zpa_step<=0 or self.zpa_hi<=self.zpa_lo:raise ValueError('Invalid zpa range')
+        if self.interval_tol_mhz<=0:raise ValueError('Invalid interval tolerance')
         if self.t1_delay_step<=0 or self.t1_delay_stop<=0:raise ValueError('Invalid t1 delay range')
         if self.ramsey_t2_delay_step<=0 or self.ramsey_t2_delay_stop<=0:raise ValueError('Invalid ramsey_t2 delay range')
         if self.xeb_m<=0 or self.xeb_k<=0 or self.xeb_stats<=0:raise ValueError('Invalid xeb parameters')
@@ -105,7 +107,8 @@ def bias_grid(intervals,step=.2):
 
 def inspect_file(path,settings=None,model=None):
     settings=settings or Settings();settings.validate()
-    r=plan(Path(path),model or load_model(),settings.min_prominence_db,settings.min_interval_points)
+    r=plan(Path(path),model or load_model(),settings.min_prominence_db,settings.min_interval_points,
+        tol_mhz=settings.interval_tol_mhz)
     allowed=r['file_normal_prediction'] and not r['file_review_required']
     intervals=[i['sampled_zpa_interval'] for i in r['intervals']] if allowed else []
     r['scan_bias_values']=bias_grid(intervals,settings.bias_step)
@@ -253,7 +256,7 @@ def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False
             steps=[step('s1','sq.spectroscopy',
                         {'freq':{'$arange':[settings.spec_start,settings.spec_stop,settings.spec_step]},
                          'spec_amp':settings.spec_amp,'update':settings.search_update},
-                        timeout=900,note=f'{bit} bias_z={bias} spectroscopy'),
+                        timeout=2400,note=f'{bit} bias_z={bias} spectroscopy'),
                    step('q1','sq.iqraw',{'update':settings.search_update},
                         timeout=300,note=f'{bit} bias_z={bias} IQraw'),
                    step('p1','sq.piamp',{'amp':settings.piamp_amp,'update':settings.search_update},
@@ -261,7 +264,7 @@ def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False
             event('bias_probe','started',bias_z=bias)
             probe=ctx.runner.batch(steps,name=f'{bit}_probe_b{bias}'.replace('-','m').replace('.','p'),
                                    description=f'{bit} bias_z={bias} 探测（spectroscopy + iqraw + piamp）',
-                                   max_wall='40m')
+                                   max_wall='90m')
             event('bias_probe','completed',bias_z=bias,datasets=[p.get('dataset_id') for p in probe])
             spec,iq,pi=probe
             attempt['datasets']={'spectroscopy':spec.get('dataset_id'),'iqraw':iq.get('dataset_id'),'piamp':pi.get('dataset_id')}
