@@ -35,7 +35,7 @@
   ],
   "adapter_config": {
     "route": "qwf",
-    "session": "20260822_device1",
+    "session": "20261113_20qubits",
     "datavault_root": "D:\\DataVault\\LQHL.dir\\test.dir",
     "bias_limits": [-3.0, 3.0],
     "frequency_unit": "GHz",
