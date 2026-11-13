@@ -167,6 +167,7 @@
 |---|---|---|---|
 | **D1** | `canvas_to_qwf(doc, base_ir=...)` 用 `ir_diff` 判"用户改了什么"，但 `normalize()` 会补 `context:{}` 和 `effect:null`，`canvas_to_ir` 重建的 IR 不带 → **没改任何东西也会报"有改动"** | 生产路径不受影响（服务给的 `baseIr` 都是未 normalize 的原始 parse），已记录未改 | 建议在 `canvas_to_qwf` 里**两边都 normalize 后再比**（语义更一致） |
 | **D2** | `normalize()` 对 **goal 工作流不幂等**（lowering 出来的 `repeat/if/assert` 没有 `effect` 键，`normalize` 两次结果不同） | `effect` 的消费点都带兜底，**执行语义与额度判定不受影响**，只是标记层面 | 建议 lowering 出来的语句也补 `effect`（或在 `normalize` 末尾统一补一遍） |
+| **D3** | **`read` 节点的 `threshold` 不达标时，workflow 仍报 `completed` / `outcome=achieved`** | 2026-11-13 实测（q21_7 iqraw 真跑）：`read ... threshold 0.4` 拿到 `contrast=0.0123`、`passed=false`，但 workflow `status=completed`、`outcome.status=achieved` —— 阈值只是"标记"不"阻断" | **想请你们拍板**：① 阈值不达标是否应让 outcome 变成 `failed`/`not_achieved`？② 还是保持现状（阈值仅作展示，硬门禁用 `assert` 节点）？我方倾向**保持现状 + 文档写清**，因为 `read` 是观测节点，把观测阈值直接升级成工作流失败语义会牵连很多已有工作流 |
 
 ---
 
