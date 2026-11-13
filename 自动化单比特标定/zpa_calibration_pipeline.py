@@ -191,6 +191,36 @@ def acquire_s21zpa(ctx,settings,outdir,log=print):
     return result['path'],result
 
 
+def probe_steps(settings,bit,bias):
+    """bias 遍历的探测三件套（spectroscopy + iqraw + piamp），旧版 legacy 口径。"""
+    return [step('s1','sq.spectroscopy',
+                 {'freq':{'$arange':[settings.spec_start,settings.spec_stop,settings.spec_step]},
+                  'spec_amp':settings.spec_amp,'update':settings.search_update},
+                 timeout=2400,note=f'{bit} bias_z={bias} spectroscopy'),
+            step('q1','sq.iqraw',{'update':settings.search_update},
+                 timeout=300,note=f'{bit} bias_z={bias} IQraw'),
+            step('p1','sq.piamp',{'amp':settings.piamp_amp,'update':settings.search_update},
+                 timeout=600,note=f'{bit} bias_z={bias} PiPulse')]
+
+
+def chain_steps(settings,bit,bias):
+    """标定链：严格按旧版序列（pidf(df=0.08) → pidf → ramsey_df → s21_dis →
+    iqraw → set_pi(X) → set_pi(X/2) → t1 → ramsey_t2 → xeb → iqraw）。"""
+    return [
+        step('d1','sq.pidf',{'df':settings.pidf_df},600,f'pidf df={settings.pidf_df} 定 f10'),
+        step('d2','sq.pidf',{},600,'pidf 默认'),
+        step('r1','sq.ramsey_df',{},900,'ramsey_df 精调 f10'),
+        step('m1','sq.s21_dis',{},400,'s21_dis 读出区分度'),
+        step('q1','sq.iqraw',{},300,'IQraw（pi 之前）'),
+        step('x1','sq.set_pi',{'gate':'X'},300,'set_pi gate=X'),
+        step('x2','sq.set_pi',{'gate':'X/2'},300,'set_pi gate=X/2'),
+        step('t1','sq.t1',{'zpa':bias,'delay':{'$arange':[0,settings.t1_delay_stop,settings.t1_delay_step]}},1800,f'T1（zpa={bias}）'),
+        step('e1','sq.ramsey_t2',{'delay':{'$arange':[0,settings.ramsey_t2_delay_stop,settings.ramsey_t2_delay_step]}},1800,'ramsey_t2（T2*）'),
+        step('xb','sq.xeb',{'m':settings.xeb_m,'k':settings.xeb_k,'stats':settings.xeb_stats},3600,'xeb 随机基准'),
+        step('q2','sq.iqraw',{},300,'IQraw（标定后）'),
+    ]
+
+
 def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False):
     """Hardware-capable API. Call only with authorized, validated live adapter.
     On success, keep the selected bias and calibration. On failure, shut down
@@ -255,14 +285,7 @@ def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False
             event('set_bias','completed',bias_z=bias,readback=readback)
             attempt['bias_readback']=readback
             # 三个实验合成一次下发（.qwf 路线）或一次顺序调用（direct 路线）
-            steps=[step('s1','sq.spectroscopy',
-                        {'freq':{'$arange':[settings.spec_start,settings.spec_stop,settings.spec_step]},
-                         'spec_amp':settings.spec_amp,'update':settings.search_update},
-                        timeout=2400,note=f'{bit} bias_z={bias} spectroscopy'),
-                   step('q1','sq.iqraw',{'update':settings.search_update},
-                        timeout=300,note=f'{bit} bias_z={bias} IQraw'),
-                   step('p1','sq.piamp',{'amp':settings.piamp_amp,'update':settings.search_update},
-                        timeout=600,note=f'{bit} bias_z={bias} PiPulse')]
+            steps=probe_steps(settings,bit,bias)
             event('bias_probe','started',bias_z=bias)
             probe=ctx.runner.batch(steps,name=f'{bit}_probe_b{bias}'.replace('-','m').replace('.','p'),
                                    description=f'{bit} bias_z={bias} 探测（spectroscopy + iqraw + piamp）',
@@ -295,19 +318,7 @@ def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False
         returns={}
         # 标定链：严格按旧版序列（pidf(df=0.08) → pidf → ramsey_df → s21_dis →
         # iqraw → set_pi(X) → set_pi(X/2) → t1 → ramsey_t2 → xeb → iqraw）
-        chain=[
-            step('d1','sq.pidf',{'df':settings.pidf_df},600,f'pidf df={settings.pidf_df} 定 f10'),
-            step('d2','sq.pidf',{},600,'pidf 默认'),
-            step('r1','sq.ramsey_df',{},900,'ramsey_df 精调 f10'),
-            step('m1','sq.s21_dis',{},400,'s21_dis 读出区分度'),
-            step('q1','sq.iqraw',{},300,'IQraw（pi 之前）'),
-            step('x1','sq.set_pi',{'gate':'X'},300,'set_pi gate=X'),
-            step('x2','sq.set_pi',{'gate':'X/2'},300,'set_pi gate=X/2'),
-            step('t1','sq.t1',{'zpa':b,'delay':{'$arange':[0,settings.t1_delay_stop,settings.t1_delay_step]}},1800,f'T1（zpa={b}）'),
-            step('e1','sq.ramsey_t2',{'delay':{'$arange':[0,settings.ramsey_t2_delay_stop,settings.ramsey_t2_delay_step]}},1800,'ramsey_t2（T2*）'),
-            step('xb','sq.xeb',{'m':settings.xeb_m,'k':settings.xeb_k,'stats':settings.xeb_stats},3600,'xeb 随机基准'),
-            step('q2','sq.iqraw',{},300,'IQraw（标定后）'),
-        ]
+        chain=chain_steps(settings,bit,b)
         event('calibration_chain','started',bias_z=b)
         chain_results=ctx.runner.batch(chain,name=f'{bit}_chain',
                                        description=f'{bit} 标定链：bias_z={b}',

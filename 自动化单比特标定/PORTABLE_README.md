@@ -206,6 +206,22 @@ bias 遍历阶段的 `spectroscopy/iqraw/piamp` 默认 **只采不写**（`setti
 实验异常、超时或中断会尝试关闭驱动并恢复快照；清理失败会停止后续批次。
 不要强制杀 Python 进程替代适配器的安全停机。
 
+### 开跑前先预览流程（不碰真机）
+
+`test_zpa_flow_preview.py` 把**真正会下发的调用序列**打印出来（离线判定 + 阶段 0/1/2
+的每个 legacy 调用、参数、点估计、闸门与服务状态），确认无误再 `--execute`：
+
+```powershell
+python test_zpa_flow_preview.py                       # 预览 q7_21
+python test_zpa_flow_preview.py --manifest m.json --bit q7_21
+python test_zpa_flow_preview.py --execute             # 真机执行（同一套步骤）
+```
+
+预览里会直接看到：离线区间判出来的 bias 候选（q7_21 = −3.0…−0.2 与 2.6…3.0 两段）、
+每个 bias 的 spectroscopy/iqraw/piamp、标定链 11 步，以及 `allow_execute` /
+`allow_set_params` / 服务端口是否在线。注意 `offline_mode=auto` 时 LabRAD 掉线会
+**悄悄用历史数据**顶替，真机跑前建议先切 `online`。
+
 ## ZPA 区间怎么判（zpa_interval.py + 训练出来的模型）
 
 S21ZPA 图 = 逐层（每个 zpa 一层）扫一条 S21-vs-频率 曲线。**旧规则**是"每层取全局
