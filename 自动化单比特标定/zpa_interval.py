@@ -48,6 +48,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import h5py
 import numpy as np
 
+from dv_open import open_datavault
+
 HERE = Path(__file__).resolve().parent
 MODEL_PATH = HERE / "zpa_interval_model.json"
 
@@ -87,7 +89,7 @@ def load_model(path=None) -> Dict[str, Any]:
 
 def load_grid(path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (freq GHz, zpa, amplitude dB matrix[nf, nz])."""
-    with h5py.File(path, "r", locking=False) as h:
+    with open_datavault(path) as h:
         a = h["DataVault"][()]
     f = np.unique(a["f0"])
     z = np.unique(a["f1"])

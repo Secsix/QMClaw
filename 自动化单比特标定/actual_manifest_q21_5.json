@@ -1,0 +1,60 @@
+{
+  "datavault_root": "D:\\DataVault\\LQHL.dir\\test.dir",
+  "model": "zpa_v2\\model.json",
+  "out": "zpa_pipeline_plan_q21_5",
+  "settings": {
+    "bias_step": 0.2,
+    "visibility_threshold": 0.05,
+    "spec_start": 5.5,
+    "spec_stop": 4.005,
+    "spec_step": -0.005,
+    "spec_amp": 0.1,
+    "piamp_amp": 2.0,
+    "execution_route": "qwf",
+    "workflow_base": "http://127.0.0.1:3008",
+    "quantum_base": "http://127.0.0.1:3003",
+    "acquire_s21zpa": true,
+    "search_update": false,
+    "zpa_lo": -3.0,
+    "zpa_hi": 3.1,
+    "zpa_step": 0.2,
+    "zpa_freq_span": 0.002,
+    "pidf_df": 0.08,
+    "t1_delay_stop": 84000.0,
+    "t1_delay_step": 6000.0,
+    "ramsey_t2_delay_stop": 40000.0,
+    "ramsey_t2_delay_step": 4000.0,
+    "xeb_m": 3,
+    "xeb_k": 10,
+    "xeb_stats": 300
+  },
+  "qubits": [
+    {
+      "bit": "q21_5",
+      "s21zpa_file": "D:\\DataVault\\LQHL.dir\\test.dir\\20261113_20qubits.dir\\00179 - q21_5%c S21zpa2d.hdf5"
+    }
+  ],
+  "adapter_config": {
+    "route": "qwf",
+    "session": "20261113_20qubits",
+    "datavault_root": "D:\\DataVault\\LQHL.dir\\test.dir",
+    "bias_limits": [
+      -3.0,
+      3.0
+    ],
+    "frequency_unit": "GHz",
+    "settle_seconds": 2.0,
+    "tracked_params": [
+      "bias_z",
+      "f10",
+      "f21",
+      "fread",
+      "PiGate.length",
+      "PiGate.amp",
+      "PiHalf.length",
+      "PiHalf.amp"
+    ],
+    "readback_tolerance": 0.001,
+    "readback_timeout": 30.0
+  }
+}

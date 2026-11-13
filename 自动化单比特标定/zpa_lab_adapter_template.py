@@ -34,6 +34,7 @@ from typing import Any, Dict
 import numpy as np
 
 from datavault_live import extract_calibration_metrics, iqraw_visibility, pipulse_excitation
+from dv_open import open_datavault
 from zpa_qwf_runner import dataset_file, get, post
 
 QUANTUM_BASE = "http://127.0.0.1:3003"
@@ -87,7 +88,7 @@ def _load_result(result: Dict[str, Any]):
     path = result.get("path")
     if not path:
         raise ValueError("结果里没有 DataVault 路径，无法取指标")
-    with h5py.File(path, "r") as handle:
+    with open_datavault(path) as handle:
         dataset = handle["DataVault"]
         return {"path": str(path), "data": dataset[()], "attrs": dict(dataset.attrs)}
 

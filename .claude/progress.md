@@ -1906,3 +1906,33 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   `<root>/<session>.dir`，数据集号→文件也只在该目录下找），与现场口径一致。
 - 验证：三套离线测试全绿；预览输出已刷新（31 点）。
 - 本轮**没有**下发任何真机实验。
+
+## 2026-11-13 q21_5 真机标定首跑（进行中）
+
+- 用户确认开始标定 **q21_5**（不是 q7_21）。
+- 现场核查（只读分析）：
+  - q21_5 的 S21ZPA：`00179`（15:43，最新，正常）、`00044`、`00032`（500 点宽扫）；
+    有效区间 **[-1.8, 1.8]** → 19 个 bias 候选（0.2 V 步进）。
+  - 寄存器（从 00032 的 attrs 解 base64）：f10=4.7659319 GHz、f21=4.5459320、
+    fread=6.5388327、bias_z=1.2；通道 xy=DAC_LQ 950 / z=DAC_LQ 951 / readin=DAC_LQ 959 /
+    readout=ADC_LQ 960（9xx 系列，与 q7_21 同板组，不是 q23_7 那种 6xx 旧接线）。
+  - 历史上 q21_5 的 5 个 IQraw（bias_z=1.2）visibility 0.0025~0.0073。
+  - **本 session 33 个 IQraw 的 visibility 最大 0.0149、中位 0.0059、p95 0.0132**
+    → 原来的「visibility > 0.05」在这台机器上从未达到过。已向用户提出三个门槛方案，
+    用户选择**保持 0.05**（原口径不变）。
+- 新增 `actual_manifest_q21_5.json`：target=q21_5、session=20261113_20qubits、
+  s21zpa_file=00179、spectroscopy 5.5→4.005 GHz / 0.005 GHz 步长（299 点，覆盖
+  f10=4.766 与 f21=4.546）、visibility_threshold=0.05、其余沿用 q7_21 的设置。
+- 真机前把 quantum_service 的 offline_mode 从 auto 切到 **online**
+  （auto 时 LabRAD 一掉线就会悄悄用历史数据顶替）。
+- **首跑失败并定位到根因**：阶段 0 的 `sq.s21_zpa2d` 成功（dataset 180，86.6 s），
+  但紧接着读那张新文件时 `PermissionError [Errno 13]` → status=error。
+  根因：LabRAD 写完数据集后**还会独占文件句柄 20~30 s**（实测第 3 次重试才可读），
+  而 `zpa_features.extract` 用的是 `h5py.File(path,'r')`（既没 locking=False，
+  也没重试等待）。这正好卡在"刚采完就要读"的路径上。
+- 修复：新增 `dv_open.py`（统一只读入口：`locking=False` + 最多 60 次 × 3 s 重试等待），
+  并替换 `zpa_features.extract`、`datavault_live.wait_for_result`、
+  `zpa_lab_adapter_template._load_result`、`zpa_interval.load_grid`、
+  `plan_zpa_bias`（plan / plan_legacy）里的裸 `h5py.File`。
+- 验证：py_compile 通过；`test_zpa_interval_offline.py` / `test_zpa_trained_model.py` 全绿。
+- 第二次起跑：阶段 0 成功（dataset 181，86.7 s），正在进入 bias 遍历。
