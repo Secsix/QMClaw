@@ -188,15 +188,23 @@ class QwfLabAdapter:
 
     def __init__(self, config):
         self.config = config
-        self.datavault_root = config.get("datavault_root", DEFAULT_DATAVAULT)
+        self.datavault_root = Path(config.get("datavault_root", DEFAULT_DATAVAULT))
         self.quantum_base = config.get("quantum_base", QUANTUM_BASE)
         self.workflow_base = config.get("workflow_base", WORKFLOW_BASE)
-        self.session = config.get("session", "")          # 例："20260822_device1"
+        self.session = config.get("session", "")          # 例："20261113_20qubits"
         self.bias_limits = config.get("bias_limits", [-3.0, 3.0])
         self.frequency_unit = config.get("frequency_unit", "GHz")
         self.settle_seconds = float(config.get("settle_seconds", 2.0))
         self.readback_tolerance = float(config.get("readback_tolerance", 1e-3))
         self.readback_timeout = float(config.get("readback_timeout", 30.0))
+        # DataVault 根目录下按 session 分子目录（`<session>.dir`）。数据集号在**每个
+        # session 里重新编号**，只按根目录 rglob 会撞上别的 session 的同号文件 ——
+        # 所以优先锁定当前 session 的子目录，找不到再退回根目录。
+        for candidate in (self.datavault_root / f"{self.session}.dir",
+                          self.datavault_root / self.session):
+            if self.session and candidate.is_dir():
+                self.datavault_root = candidate
+                break
         # 快照/回滚要盯住的寄存器（其余不动）
         self.tracked_params = list(config.get("tracked_params", [
             "bias_z", "f10", "f21", "fread",

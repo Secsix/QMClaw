@@ -149,7 +149,21 @@ python portable_zpa_pipeline.py actual_manifest.json --dry --adapter my_lab_adap
 python portable_zpa_pipeline.py actual_manifest.json --execute --adapter my_lab_adapter
 ```
 
-执行前检查：
+### session 名从哪来
+
+`.qwf` 的 `env.session` 与 DataVault 子目录都由它决定，**必须与当前实验窗口一致**：
+
+```powershell
+(Invoke-WebRequest http://127.0.0.1:3003/health -UseBasicParsing).Content
+```
+
+取 `session_path` 的最后一段（例如 `20261113_20qubits`），填进 `adapter_config.session`。
+注意 `config/session.json` 里的 `path` 可能是旧的，别拿它当准。
+
+DataVault 数据集号在**每个 session 里重新编号**，所以适配器会优先锁定
+`<datavault_root>/<session>.dir`，避免按根目录搜时撞上别的 session 的同号文件。
+
+### 执行前检查
 
 1. 先使用一个已确认的单比特和一个全新输出目录；
 2. 确认 DataVault 根目录与当前实验会话一致；
@@ -159,6 +173,9 @@ python portable_zpa_pipeline.py actual_manifest.json --execute --adapter my_lab_
 6. 第一次实验建议把真实适配器的执行参数打印/记录，不要同时跑多比特；
 7. **真机写闸门默认关闭**（`fallback_config.json` 的 `allow_set_params=false`），
    必须由人显式打开；驱动**绝不**绕过闸门。
+   `allow_execute` 管实验下发，`allow_set_params` 管改寄存器（写 `bias_z`）——
+   **后者不开，bias 遍历一定失败**。
+8. 硬件 lane 并发是 1：别的实验在跑时，本流程会排队（workflow_service 租约）。
 
 流程为：
 
