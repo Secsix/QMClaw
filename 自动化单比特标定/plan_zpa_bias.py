@@ -32,7 +32,11 @@ def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None):
  classification=analyze(path,model)
  with h5py.File(path,'r') as h:
   ds=h['DataVault'];a=ds[()];at=dict(ds.attrs)
- bit=re.search(r'q\d+_\d+',path.name).group();f=np.unique(a['f0']);z=np.unique(a['f1'])
+ # 比特名：DataVault 文件名形如 "00731 - q23_7%c S21zpa2d.hdf5"，
+ # 但真机上也有 "q7ld3" / "q21_7" 这类写法 —— 原来的 r'q\d+_\d+' 遇到 q7ld3
+ # 会 AttributeError（.group() 作用在 None 上）。改成宽松匹配并留回退。
+ m=re.search(r'(?<![A-Za-z0-9])q[0-9A-Za-z_]+',Path(path).name);bit=m.group() if m else Path(path).stem
+ f=np.unique(a['f0']);z=np.unique(a['f1'])
  m=np.full((len(f),len(z)),np.nan);m[np.searchsorted(f,a['f0']),np.searchsorted(z,a['f1'])]=a['f2']
  db=20*np.log10(np.where(m>0,m,np.nan));points=[]
  for j,bias in enumerate(z):
