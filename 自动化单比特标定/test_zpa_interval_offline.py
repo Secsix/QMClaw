@@ -143,9 +143,11 @@ def main():
             check("q7_21 历史图判出区间", bool(r["intervals"]), f"intervals={r['intervals']}")
             if r["intervals"]:
                 iv = r["intervals"][0]
+                lo, hi = iv["sampled_zpa_interval"]
+                # 训练后的模型把窗口边缘的谐振也算进轨迹（人工标注就是这个意思），
+                # 所以只要求它覆盖 -2.6..-1.0 这一段，不锁定端点。
                 check("q7_21 主区间覆盖 -2.6..-1.0",
-                      abs(iv["sampled_zpa_interval"][0] + 2.6) < 1e-6 and
-                      abs(iv["sampled_zpa_interval"][1] + 1.0) < 1e-6,
+                      lo <= -2.6 + 1e-6 and hi >= -1.0 - 1e-6,
                       f"iv={iv['sampled_zpa_interval']}")
         except PermissionError:
             print("  [SKIP] q7_21 文件正被 LabRAD 占用")

@@ -22,7 +22,7 @@ from dataclasses import dataclass,asdict,field
 from datetime import datetime,timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 from classify_zpa_datavault import load_model
 from plan_zpa_bias import plan
@@ -37,9 +37,9 @@ class Settings:
     spec_step: float = -.001
     spec_amp: float = .1
     piamp_amp: float = 2.
-    min_prominence_db: float = 1.
-    min_interval_points: int = 3
-    interval_tol_mhz: float = 1.5      # 分支跟踪：相邻两层谐振最大位移
+    min_prominence_db: Optional[float] = None   # None = 用训练出来的模型（zpa_interval_model.json）
+    min_interval_points: Optional[int] = None
+    interval_tol_mhz: Optional[float] = None      # None = 用训练出来的模型
     # ── 执行路线 ──
     execution_route: str = 'qwf'          # 'qwf'（默认）| 'direct'（旧版进程内直调）
     workflow_base: str = 'http://127.0.0.1:3008'
@@ -65,11 +65,13 @@ class Settings:
         vals=list(asdict(self).values())
         if not all(math.isfinite(float(x)) for x in vals if isinstance(x,(int,float)) and not isinstance(x,bool)):raise ValueError('Non-finite settings')
         if self.bias_step<=0 or self.spec_step>=0 or self.spec_start<=self.spec_stop:raise ValueError('Invalid bias/frequency steps')
-        if self.spec_amp<=0 or self.piamp_amp<=0 or self.min_prominence_db<=0 or self.min_interval_points<3:raise ValueError('Invalid amplitude/interval settings')
+        if self.spec_amp<=0 or self.piamp_amp<=0:raise ValueError('Invalid amplitude settings')
+        if self.min_prominence_db is not None and self.min_prominence_db<=0:raise ValueError('Invalid min_prominence_db')
+        if self.min_interval_points is not None and self.min_interval_points<2:raise ValueError('Invalid min_interval_points')
+        if self.interval_tol_mhz is not None and self.interval_tol_mhz<=0:raise ValueError('Invalid interval tolerance')
         if not 0<=self.visibility_threshold<=1:raise ValueError('Visibility threshold must be in [0,1]')
         if len(np.arange(self.spec_start,self.spec_stop,self.spec_step))>100000:raise ValueError('Too many spectroscopy points')
         if self.zpa_step<=0 or self.zpa_hi<=self.zpa_lo:raise ValueError('Invalid zpa range')
-        if self.interval_tol_mhz<=0:raise ValueError('Invalid interval tolerance')
         if self.t1_delay_step<=0 or self.t1_delay_stop<=0:raise ValueError('Invalid t1 delay range')
         if self.ramsey_t2_delay_step<=0 or self.ramsey_t2_delay_stop<=0:raise ValueError('Invalid ramsey_t2 delay range')
         if self.xeb_m<=0 or self.xeb_k<=0 or self.xeb_stats<=0:raise ValueError('Invalid xeb parameters')

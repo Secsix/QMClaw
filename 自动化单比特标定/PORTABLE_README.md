@@ -206,7 +206,7 @@ bias 遍历阶段的 `spectroscopy/iqraw/piamp` 默认 **只采不写**（`setti
 实验异常、超时或中断会尝试关闭驱动并恢复快照；清理失败会停止后续批次。
 不要强制杀 Python 进程替代适配器的安全停机。
 
-## ZPA 区间怎么判（zpa_interval.py）
+## ZPA 区间怎么判（zpa_interval.py + 训练出来的模型）
 
 S21ZPA 图 = 逐层（每个 zpa 一层）扫一条 S21-vs-频率 曲线。**旧规则**是"每层取全局
 argmin + 局部 find_peaks prominence ≥ 1 dB"，在真机数据上有三个硬伤：
@@ -218,19 +218,74 @@ argmin + 局部 find_peaks prominence ≥ 1 dB"，在真机数据上有三个硬
 3. **谐振扫出窗口就报废**：dip 落到窗口边界就判 `frequency_window_edge`，明明是
    谐振走出了读出窗口，判据却当成"数据不可用"。
 
-当前规则（`zpa_interval.analyze_intervals`）：
+### 人工标注的口径（这是模型的判据来源）
 
-- 每层找**所有**局部极小，深度以该层 **p90（离谐振的透射基线）** 为基准，
-  默认 `min_depth_db=1.0`（`settings.min_prominence_db` 复用同一参数）；
-- **跨层连分支**：相邻两层的 dip 频率差 ≤ `interval_tol_mhz`（默认 1.5 MHz）就接上，
-  只接**内部** dip（边界上的最小值是谐振尾巴，不参与，避免串出假分支）；
-- 一条分支连续覆盖 ≥ `min_interval_points`（3）层 = 一个可用 ZPA 区间；
-- 候选工作点 = 深度 + 居中性最好的那一层（**不是**已认证的 sweet point）。
+现场人工看图标注了 5 张图（`zpa_interval_labels.json`）：
 
-在当前 session 的历史图上离线对比（`python validate_zpa_intervals.py`）：
-可读 25 张，**旧规则 19 张有区间 → 新规则 23 张有区间**，旧规则判出的区间全部保留。
-q7_21（`00088`）旧规则判"无可靠区间"，新规则给出 **[-2.6, -1.0]（5 层，谐振从窗口
-左缘扫到 1.34 MHz）** + [2.2, 3.0]。
+| 文件 | 比特 | 人工标注的有效区间 |
+|---|---|---|
+| 00044 | q21_5 | (-2, 2) |
+| 00047 | q11_15 | (-2, 1) |
+| 00049 | q13_13 | (-2.6, 3) |
+| 00055 | q11_15 | (-3, 2) |
+| 00059 | q19_7 | (0, 3) ← **与数据不符，见下** |
+
+口径 = **谐振轨迹在频率窗口内的跨度**（不是逐层 dip 强度）：
+
+- 谐振从窗口一侧扫入、扫过、再扫出 → 这段 zpa 都算有效；
+- **窗口边缘上的 dip 也要算**（它就是谐振进出窗口的证据）；
+- 中间"平层"（dip 太浅的那几层）**也属于有效区间** → 区间取各段的跨度（hull），
+  不是把区间切成碎片。00049 就是两支之间夹着 5 层平层，人工仍然标成 (-2.6, 3)。
+
+### 训练出来的模型（`zpa_interval_model.json`）
+
+`train_zpa_interval.py` 用这 5 张标注做网格搜索 + 留一交叉验证，产出：
+
+```
+depth_rel = 0.12      显著 dip：depth >= max(depth_floor_db, depth_rel × 本文件最大深度)
+depth_floor_db = 2.0  绝对下限（dB），挡住噪声层的假 dip
+tol_mhz = 2.0         相邻两层的 dip 频率差 ≤ 2 MHz 才算同一条轨迹
+min_points = 2        一条轨迹至少覆盖 2 层才算一个区间
+max_gap = 0           不跨层跳过 dip 太浅的层（宁可切成两段，也不要串错）
+```
+
+显著性必须**相对该文件的最大深度**：不同比特的对比度差一个量级
+（7.4 dB ~ 41 dB），绝对阈值跨文件不通用。
+
+留一验证（用 4 张选参数、第 5 张上测，端点误差按 zpa 栅格折成"层数"）：
+
+| 留出 | 人工 | 预测 | 误差 |
+|---|---|---|---|
+| 00044 | (-2, 2) | (-1.4, 1.4) | 3.0 层 |
+| 00047 | (-2, 1) | (-2.2, 1.4) | 1.5 层 |
+| 00049 | (-2.6, 3) | (-3.0, 3.0) | 1.0 层 |
+| 00055 | (-3, 2) | (-3.0, 1.8) | 0.5 层 |
+| 00059 | (0, 3) | (0.2, 1.8) | 3.5 层 |
+
+平均 **1.9 层**（zpa 步长 0.4 V ⇒ 约 0.76 V）。全量训练下 4 张与人工相差 ≤ 1 层。
+模型文件里另存了训练时的 200 组次优参数（`ensemble`），运行时用来报
+`ensemble_agreement`（参数轻微变化时结论是否稳定），**不参与判区间**。
+
+### ⚠ 一条标注与数据冲突（00059 / q19_7）
+
+人工标注 (0, 3)，但数据里 zpa = 2.2 / 2.6 / 3.0 三层是**平层**（深度
+0.75~1.09 dB、无 dip），和 00047 里被判为无效的 1.8~3.0 平层特征完全一样，
+无法用任何特征区分；谐振实测只在 **0.2 ~ 1.8**。把这张图排除后重新训练，
+模型仍然给 (0.2, 1.8)，说明是**标注本身离群**，不是模型问题。
+`test_zpa_trained_model.py` 会把它标成 WARN 等现场复核。
+
+### 离线复核
+
+```powershell
+python train_zpa_interval.py            # 重新训练（默认读 DataVault session 目录）
+python test_zpa_trained_model.py         # 验收：运行时结果 vs 人工标注
+python validate_zpa_intervals.py         # 整目录新旧规则对比（只读）
+```
+
+当前 session（20261113_20qubits）28 张图：**旧规则 22 张有区间 → 新规则 27 张有区间**。
+q7_21（`00088`）新规则给出 **[-3.0, -0.2]（8 层，读出腔支）+ [2.6, 3.0]（2 层，
+比特跃迁支）** —— 这两支正是 00049 那种"两支夹着平层"的结构，所以要分开扫，
+中间 -0.2~2.6 不扫。
 
 采集侧的参数含义（厂商 `sq.s21_zpa2d`）：
 
@@ -249,6 +304,7 @@ q7_21（`00088`）旧规则判"无可靠区间"，新规则给出 **[-2.6, -1.0]
 python -m py_compile zpa_calibration_pipeline.py zpa_qwf_runner.py zpa_lab_adapter_template.py zpa_interval.py
 python test_zpa_qwf_offline.py     # .qwf 生成/DSL 校验/legacy 参数纪律/离线规划
 python test_zpa_interval_offline.py # ZPA 区间判定：合成图 + 真机历史图
+python test_zpa_trained_model.py   # 训练出来的模型 vs 人工标注（验收）
 ```
 
 （`test_zpa_pipeline.py` / `test_datavault_live.py` 在新版包 `D:\QMClaw\s21zpa\` 里，本包不带。）
@@ -259,4 +315,5 @@ python test_zpa_interval_offline.py # ZPA 区间判定：合成图 + 真机历�
 
 `test_zpa_interval_offline.py` 用合成 S21ZPA 图覆盖四类失效模式（移动谐振、宽 dip、
 同层双 dip、纯噪声、谐振在窗口外），并在 DataVault 在场时顺带检查 q7_21 的历史图。
+`test_zpa_trained_model.py` 用现场人工标注的 5 张图验收训练出来的模型。
 `validate_zpa_intervals.py` 拿整目录历史图对比新旧两套规则（只读，不写硬件）。

@@ -1,0 +1,31 @@
+{
+  "source": "人工标注（现场，2026-11-13）",
+  "note": "zpa 有效区间 = 人工看图判断的可用 ZPA 范围；用于训练 zpa2d 区间识别",
+  "labels": [
+    {
+      "file": "00044 - q21_5%c S21zpa2d.hdf5",
+      "bit": "q21_5",
+      "valid_zpa_interval": [-2.0, 2.0]
+    },
+    {
+      "file": "00047 - q11_15%c S21zpa2d.hdf5",
+      "bit": "q11_15",
+      "valid_zpa_interval": [-2.0, 1.0]
+    },
+    {
+      "file": "00049 - q13_13%c S21zpa2d.hdf5",
+      "bit": "q13_13",
+      "valid_zpa_interval": [-2.6, 3.0]
+    },
+    {
+      "file": "00055 - q11_15%c S21zpa2d.hdf5",
+      "bit": "q11_15",
+      "valid_zpa_interval": [-3.0, 2.0]
+    },
+    {
+      "file": "00059 - q19_7%c S21zpa2d.hdf5",
+      "bit": "q19_7",
+      "valid_zpa_interval": [0.0, 3.0]
+    }
+  ]
+}

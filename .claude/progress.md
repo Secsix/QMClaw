@@ -1819,3 +1819,42 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   bias 候选 -2.6…-1.0 与 2.2…3.0（step 0.2）。
 - ⚠️ 本轮**没有**下发任何真机实验：q23_7 在首句断言中止；q7_21 只做离线规划。
   写闸门 `allow_set_params` 已由人打开（`fallback_config.json`，按请求热生效、无需重启）。
+
+## 2026-11-13 ZPA 区间识别器按人工标注重新训练（离线，未下发真机）
+
+- 目标：把现场人工标注的 5 张 S21ZPA 有效区间，变成可复现、可回归的识别代码。
+- 标注（`zpa_interval_labels.json`）：00044 q21_5 (-2,2)；00047 q11_15 (-2,1)；
+  00049 q13_13 (-2.6,3)；00055 q11_15 (-3,2)；00059 q19_7 (0,3)。
+- 口径（模型要学的就是它）：**有效区间 = 谐振轨迹在频率窗口内的跨度**
+  - 窗口边缘上的 dip 参与（它就是谐振进出窗口的证据）；
+  - 中间 dip 太浅的"平层"也算在区间里 → 区间取各段的跨度（hull），不切碎；
+  - 显著性必须**相对该文件最大深度**（不同比特对比度差一个量级：7.4~41 dB）。
+- 训练（`train_zpa_interval.py`，新）：网格搜索
+  depth_rel / depth_floor_db / tol_mhz / max_gap / min_points / min_chain_rel，
+  minimax 损失 + 留一交叉验证，并与逐层逻辑回归（sklearn）对照。
+  - 训练出的参数：`depth_rel=0.12`、`depth_floor_db=2.0 dB`、`tol_mhz=2.0`、
+    `min_points=2`、`max_gap=0`、`min_chain_rel=0`；
+  - 全量训练下 4/5 张与人工相差 ≤ 1 层（zpa 栅格 0.4 V）；LOO 平均 **1.9 层**
+    ≈ 0.76 V；逻辑回归 LOO 2.3 层（更差、且不可解释），故采用规则模型。
+- ⚠ **00059 标注与数据冲突（需现场复核）**：标注 (0,3)，但 zpa = 2.2/2.6/3.0 三层是
+  平层（深度 0.75~1.09 dB、无 dip），与 00047 里被判无效的 1.8~3.0 平层特征完全相同，
+  无法用任何特征区分；谐振实测只在 0.2~1.8。把该图排除后重训，模型仍给 (0.2,1.8)
+  → 判定为**标注离群**，不是模型问题。`test_zpa_trained_model.py` 对它报 WARN。
+- 运行时：`zpa_interval.load_model()` 读 `zpa_interval_model.json`；
+  文件里另存 200 组次优参数（`ensemble`），运行时只用来报 `ensemble_agreement`
+  （参数轻微变化时结论是否稳定），**不参与判区间** —— 否则会丢掉 00049 那种
+  "两支夹平层"里的第二支。
+- q7_21（00088）新结论：**[-3.0, -0.2]（读出腔支，8 层）+ [2.6, 3.0]（比特跃迁支，
+  2 层）**，中间 -0.2~2.6 不扫；离线计划 `ready_for_preflight`，bias 18 点（0.2 V）。
+- 改动文件（新建）：`zpa_interval_labels.json`、`zpa_interval_labels.py`、
+  `train_zpa_interval.py`、`zpa_interval_model.json`、`test_zpa_trained_model.py`；
+  （改）：`zpa_interval.py`（训练参数 + ensemble 一致性 + 显式覆盖时禁用 ensemble）、
+  `plan_zpa_bias.py`（`plan()` 三个阈值默认 None = 用训练模型；输出 `valid_zpa_range`）、
+  `zpa_calibration_pipeline.py`（`min_prominence_db` / `min_interval_points` /
+  `interval_tol_mhz` 改为可选，默认 None = 用训练模型）、
+  `actual_manifest_q7_21.json`（去掉旧阈值）、`test_zpa_interval_offline.py`、
+  `PORTABLE_README.md`。
+- 验证：`test_zpa_interval_offline.py` **ALL PASS**；`test_zpa_trained_model.py`
+  **ALL PASS**（00059 一条 WARN）；`validate_zpa_intervals.py` 整目录 28 张
+  （旧规则 22 张有区间 → 新规则 27 张）。
+- 本轮**没有**下发任何真机实验，也没有改写硬件参数。

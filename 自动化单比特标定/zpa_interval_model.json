@@ -1,0 +1,1786 @@
+{
+  "trained_at": "2026-11-13",
+  "source": "zpa_interval_labels.json（现场人工标注 5 张）",
+  "method": "rule: significant dip = depth >= max(floor, rel*file_max); 轨迹跨层连接 + 取各段跨度；运行时用 params，ensemble 只报一致性",
+  "params": {
+    "depth_rel": 0.12,
+    "depth_floor_db": 2.0,
+    "tol_mhz": 2.0,
+    "max_gap": 0,
+    "min_points": 2,
+    "min_chain_rel": 0.0
+  },
+  "ensemble": [
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 2,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 3,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 4,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 5,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 2.0,
+      "max_gap": 6,
+      "min_points": 3,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.14,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.16,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 0,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.0
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.2
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.3
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.4
+    },
+    {
+      "depth_rel": 0.12,
+      "depth_floor_db": 2.0,
+      "tol_mhz": 1.5,
+      "max_gap": 1,
+      "min_points": 2,
+      "min_chain_rel": 0.5
+    }
+  ],
+  "training": {
+    "total_endpoint_error_layers": 6.500000000000014,
+    "files": [
+      {
+        "file": "00044 - q21_5%c S21zpa2d.hdf5",
+        "human": [
+          -2.0,
+          2.0
+        ],
+        "predicted": [
+          -1.8000000000000003,
+          1.799999999999999
+        ],
+        "error_layers": 1.0000000000000022
+      },
+      {
+        "file": "00047 - q11_15%c S21zpa2d.hdf5",
+        "human": [
+          -2.0,
+          1.0
+        ],
+        "predicted": [
+          -2.2,
+          0.9999999999999991
+        ],
+        "error_layers": 0.5000000000000028
+      },
+      {
+        "file": "00049 - q13_13%c S21zpa2d.hdf5",
+        "human": [
+          -2.6,
+          3.0
+        ],
+        "predicted": [
+          -3.0,
+          2.9999999999999982
+        ],
+        "error_layers": 1.0000000000000044
+      },
+      {
+        "file": "00055 - q11_15%c S21zpa2d.hdf5",
+        "human": [
+          -3.0,
+          2.0
+        ],
+        "predicted": [
+          -3.0,
+          1.799999999999999
+        ],
+        "error_layers": 0.5000000000000028
+      },
+      {
+        "file": "00059 - q19_7%c S21zpa2d.hdf5",
+        "human": [
+          0.0,
+          3.0
+        ],
+        "predicted": [
+          0.1999999999999993,
+          1.799999999999999
+        ],
+        "error_layers": 3.5000000000000018
+      }
+    ],
+    "loo": [
+      {
+        "file": "00044 - q21_5%c S21zpa2d.hdf5",
+        "human": [
+          -2.0,
+          2.0
+        ],
+        "predicted": [
+          -1.4000000000000004,
+          1.3999999999999986
+        ],
+        "error_layers": 3.0000000000000036,
+        "params": {
+          "depth_rel": 0.12,
+          "depth_floor_db": 2.0,
+          "tol_mhz": 0.6,
+          "max_gap": 6,
+          "min_points": 2,
+          "min_chain_rel": 0.0
+        }
+      },
+      {
+        "file": "00047 - q11_15%c S21zpa2d.hdf5",
+        "human": [
+          -2.0,
+          1.0
+        ],
+        "predicted": [
+          -2.2,
+          1.3999999999999986
+        ],
+        "error_layers": 1.4999999999999971,
+        "params": {
+          "depth_rel": 0.1,
+          "depth_floor_db": 2.0,
+          "tol_mhz": 2.0,
+          "max_gap": 0,
+          "min_points": 2,
+          "min_chain_rel": 0.0
+        }
+      },
+      {
+        "file": "00049 - q13_13%c S21zpa2d.hdf5",
+        "human": [
+          -2.6,
+          3.0
+        ],
+        "predicted": [
+          -3.0,
+          2.9999999999999982
+        ],
+        "error_layers": 1.0000000000000044,
+        "params": {
+          "depth_rel": 0.12,
+          "depth_floor_db": 2.0,
+          "tol_mhz": 2.0,
+          "max_gap": 0,
+          "min_points": 2,
+          "min_chain_rel": 0.0
+        }
+      },
+      {
+        "file": "00055 - q11_15%c S21zpa2d.hdf5",
+        "human": [
+          -3.0,
+          2.0
+        ],
+        "predicted": [
+          -3.0,
+          1.799999999999999
+        ],
+        "error_layers": 0.5000000000000028,
+        "params": {
+          "depth_rel": 0.12,
+          "depth_floor_db": 2.0,
+          "tol_mhz": 2.0,
+          "max_gap": 0,
+          "min_points": 2,
+          "min_chain_rel": 0.0
+        }
+      },
+      {
+        "file": "00059 - q19_7%c S21zpa2d.hdf5",
+        "human": [
+          0.0,
+          3.0
+        ],
+        "predicted": [
+          0.1999999999999993,
+          1.799999999999999
+        ],
+        "error_layers": 3.5000000000000018,
+        "params": {
+          "depth_rel": 0.12,
+          "depth_floor_db": 2.0,
+          "tol_mhz": 2.0,
+          "max_gap": 0,
+          "min_points": 2,
+          "min_chain_rel": 0.0
+        }
+      }
+    ],
+    "loo_mean_error_layers": 1.9000000000000021,
+    "logreg_loo_mean_error_layers": 2.3000000000000007,
+    "ensemble_size": 200,
+    "ensemble_loo_mean_error_layers": 1.500000000000003
+  }
+}
