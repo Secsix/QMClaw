@@ -9,8 +9,8 @@
       "default_mode": "auto"
     },
     "actuation": {
-      "allow_execute": false,
-      "allow_set_params": false,
+      "allow_execute": true,
+      "allow_set_params": true,
       "require_task": false,
       "writer_mode": "shadow",
       "replay_auto_record": "off",
@@ -32,7 +32,7 @@
       "default_mode": "auto"
     },
     "actuation": {
-      "allow_execute": false,
+      "allow_execute": true,
       "allow_set_params": false
     },
     "retry": {
