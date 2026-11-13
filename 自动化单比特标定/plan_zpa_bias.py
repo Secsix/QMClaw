@@ -83,20 +83,24 @@ def _assemble(classification,at,path,bit,intervals,points,bias_map=None):
    else:r['status']='bias_z_outside_configured_limits'
  return r
 
-def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None,tol_mhz=None):
+def plan(path,model,min_prominence_db=None,min_points=None,bias_map=None,tol_mhz=None):
  """Current rule: dip depth against the off-resonance level + branch tracking.
 
  `min_prominence_db` is reinterpreted as the minimum dip **depth** in dB.  The old
  rule measured a local find_peaks prominence, which is ~0 dB for a broad dip on a
  0.2 MHz grid, so real 5-8 dB resonances were rejected.
+
+ All three knobs default to None -> the **trained** model in
+ ``zpa_interval_model.json`` is used (trained on the hand labels of
+ 2026-11-13); pass a value to override it.
  """
  from zpa_interval import analyze_intervals,DEFAULT_TOL_MHZ
  classification=analyze(path,model)
  with h5py.File(path,'r',locking=False) as h:
   ds=h['DataVault'];at=dict(ds.attrs)
  m=re.search(r'(?<![A-Za-z0-9])q[0-9A-Za-z_]+',Path(path).name);bit=m.group() if m else Path(path).stem
- res=analyze_intervals(path,min_depth_db=float(min_prominence_db),min_points=int(min_points),
-                       tol_mhz=float(tol_mhz or DEFAULT_TOL_MHZ))
+ res=analyze_intervals(path,min_depth_db=min_prominence_db,min_points=min_points,
+                       tol_mhz=tol_mhz)
  intervals=[]
  for iv in res['intervals']:
   q=dict(iv)
@@ -108,7 +112,10 @@ def plan(path,model,min_prominence_db=1.,min_points=3,bias_map=None,tol_mhz=None
   q=dict(p)
   q['prominence_db']=q.get('depth_db',0.)
   points.append(q)
- return _assemble(classification,at,path,bit,intervals,points,bias_map)
+ r=_assemble(classification,at,path,bit,intervals,points,bias_map)
+ r['valid_zpa_range']=res.get('valid_zpa_range')
+ r['zpa_interval_params']=res.get('params')
+ return r
 
 def main():
  ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('directory',nargs='?',default='.');ap.add_argument('--out',default='zpa_bias_plan');ap.add_argument('--mapping',type=Path);ap.add_argument('--min-prominence-db',type=float,default=1.);ap.add_argument('--min-points',type=int,default=3);a=ap.parse_args()
