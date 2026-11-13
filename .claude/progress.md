@@ -1858,3 +1858,26 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   **ALL PASS**（00059 一条 WARN）；`validate_zpa_intervals.py` 整目录 28 张
   （旧规则 22 张有区间 → 新规则 27 张）。
 - 本轮**没有**下发任何真机实验，也没有改写硬件参数。
+
+## 2026-11-13 自动标定流程梳理 + 流程预览脚本（离线，未下发真机）
+
+- 需求：把"自动化标定一个比特"的完整流程讲清楚，并附一份可人工复核的测试代码，
+  确认流程后再真机跑一个比特（q7_21）。
+- 改动：
+  - `zpa_calibration_pipeline.py`：把 bias 探测三件套与标定链从 `run_bit` 里提成
+    模块级 `probe_steps(settings,bit,bias)` / `chain_steps(settings,bit,bias)`，
+    `run_bit` 改为调用它们（行为不变），预览脚本复用同一份定义 → 预览与真跑不会分叉；
+  - `test_zpa_flow_preview.py`（新）：默认离线，打印真跑会下发的调用序列
+    （阶段 0 现场 S21ZPA / 阶段 1 bias 遍历探测 / 阶段 2 标定链 11 步）、
+    每个调用的参数与点估计、闸门与服务端口状态；`--execute` 才真机执行。
+  - `PORTABLE_README.md`：新增"开跑前先预览流程"一节。
+- 预览输出（q7_21）：有效区间 [-3.0,-0.2] + [2.6,3.0] → bias 候选 18 个（0.2 V）；
+  每个 bias 探测三件套（spectroscopy 350 点 / iqraw / piamp，只采不写）；
+  标定链 11 步（pidf(df=0.08) → pidf → ramsey_df → s21_dis → iqraw →
+  set_pi(X) → set_pi(X/2) → t1(zpa=选中bias) → ramsey_t2 → xeb → iqraw）；
+  闸门 `allow_execute`/`allow_set_params` 均 true，:3003/:3008 在线。
+- 现场注意：`offline_mode=auto` 时 LabRAD 掉线会**悄悄用历史数据**顶替，真跑前建议
+  切 `online`；`writer_mode=shadow` 只影响"单写者"串行方式，**不影响**写入是否执行。
+- 验证：`py_compile` + `test_zpa_qwf_offline.py` / `test_zpa_interval_offline.py` /
+  `test_zpa_trained_model.py` 全绿。
+- 本轮**没有**下发任何真机实验。
