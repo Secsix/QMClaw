@@ -1745,3 +1745,37 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   （`passed=false`）时，workflow 仍然 `status=completed` 且 `outcome.status=achieved` ——
   阈值只是"标记"不"阻断"。若要硬失败需显式用 `assert` 节点。
 - 本地工具保留：`_q21_runner.py`（等闸门 → 自动跑 q21_7 iqwf；`_q21_runner.py [等待秒数]`）。
+
+---
+
+## 2026-11-13 14:20  旧版（legacy API）单比特自动标定改走 .qwf 路线
+- 目标：以 `自动化单比特标定/`（旧版 `(qobj,sq)` 口径）为基线，把实验下发改成 `.qwf`，
+  **调用形式仍按用户给的旧版清单**（`sq.s21_zpa2d/spectroscopy/iqraw/piamp/pidf/ramsey_df/
+  s21_dis/set_pi/t1`），并追加 `sq.ramsey_t2` + `sq.xeb`。
+- 完成内容：
+  - 新增 `自动化单比特标定/zpa_qwf_runner.py`：`.qwf` 生成（legacy 参数名白名单 + 拒绝
+    v1 专有 `piAmp/target_gate/session`）+ `DirectRunner`（进程内 `sq.<fn>(qobj,**args)`）/
+    `QwfRunner`（parse_qwf→validate→run_ir→status 轮询→超时 cancel→按 dataset_id 找 DataVault 文件）。
+  - 重写 `zpa_calibration_pipeline.py`：`settings.execution_route`（默认 `qwf`，可切 `direct`）、
+    首步现场 `sq.s21_zpa2d`（**只认本次 dataset_id 的文件**，历史文件顶替即报错）、
+    bias 经适配器 `apply_bias`（写→等稳定→回读）后再跑探测批、
+    标定链 = pidf(0.08)→pidf→ramsey_df→s21_dis→iqraw→set_pi(X)→set_pi(X/2)→t1(zpa=选中bias)
+    →ramsey_t2→xeb→iqraw；`--dry` 模式只做 parse/validate（不写寄存器、不下发实验）。
+  - `zpa_lab_adapter_template.py` 扩展出 `QwfLabAdapter`（:3003 registry 读写、bias 回读、
+    DataVault 指标、T1/T2 拟合）+ `create_adapter(config)` 按 `route` 选实现；direct 版接口对齐。
+  - 补齐依赖：`zpa_v2/model.json` + `zpa_v2/README.md` + 示例 `00731 - q23_7%c S21zpa2d.hdf5`
+    （旧包原先缺 model.json，离线计划根本跑不起来）。
+  - `plan_zpa_bias.py` 比特名正则 `q\d+_\d+` → `(?<![A-Za-z0-9])q[0-9A-Za-z_]+`（`q7ld3` 不再 AttributeError）。
+  - 新增 `自动化单比特标定/test_zpa_qwf_offline.py`；更新 manifest 示例与 `PORTABLE_README.md`。
+- 验证：
+  - `test_zpa_qwf_offline.py`：**ALL PASS**（legacy 参数纪律、`.qwf` 文本、链顺序、
+    用仓库 DSL 离线 parse+validate+lint 无 error、离线规划算出 bias 候选 -1.0…0.6）。
+  - `python portable_zpa_pipeline.py zpa_pipeline_manifest.example.json` 离线计划通过。
+  - **真服务干跑**（:3003/:3008 均在跑）：`--dry --adapter zpa_lab_adapter_template` →
+    3 个 `.qwf`（s21zpa2d 1 步 / probe 3 步 / chain 11 步）全部 parse+validate 通过，
+    **未下发任何实验、未写任何寄存器**。产物在 `zpa_pipeline_dry_output/`（已 gitignore）。
+  - `py_compile` 通过；提交前 `git grep --cached` 扫密钥模式为空。
+- 提交：`ae68111 feat(zpa): 旧版自动标定改走 .qwf 路线（保留 direct 直调）`
+- ⚠️ **真机执行前置条件（未做、需人处理）**：`fallback_config.json` 的
+  `quantum_service.actuation.allow_execute` / `allow_set_params` 默认 false，
+  开闸与重启服务由人执行；本轮**没有**下发任何真机实验。
