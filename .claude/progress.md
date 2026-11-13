@@ -1716,3 +1716,32 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   约 1 分钟内耗尽）→ 5 次全落在占用窗口内即**永久 degraded**（"已停止重连"），
   只能手动 `POST :3004/connect {"session_path": [...]}` 才恢复（本轮实测：该调用成功，health 转 healthy）。
   代码里 2026-11-02 已修过同类问题（"从未成功连接过就跳过重连"），但**按次数的预算仍有这个洞**。
+
+---
+
+## 2026-11-13 09:55  q21_7 的 iqraw 真机实跑 —— **成功**（写闸门由人打开）
+- 09:54:54 闸门打开（用户把 `fallback_config.json` 的 `quantum_service.actuation.allow_execute`
+  置 true 并重启了 quantum_service；我方的后台等待任务 `_q21_runner.py` 探到后自动开跑）。
+- **qwf 全链路一次跑通**（`.qwf` 文本 → 解析 → 校验 → task_queue(lease) → quantum_service → 真机 → 读回 → 打印）：
+  - `workflowId=q21_7_iqraw_1794534894195`、`irHash=sha256:18313027…`、`trace_id=t-9aeaca20b172`
+  - `c1`（`sq.iqraw` on q21_7）：**真机执行成功**（`Running: 100% 1/1 [00:03<00:00, 3.26s/it]`），
+    `dataset_id=4465`（session `test/20260822_device1`）
+  - `r1`（`kind IQraw`）：`p1_i=0.508` `p1_x=0.5203` **`contrast=0.0123`**
+    `separation=4384.6` `sigma=90990.1` `snr=0.048` `shots=3000` → `passed=false`（阈值 0.4）
+  - `s1`：`say` 输出 `contrast=0.0123（数据集 4465）`
+  - workflow `status=completed`、`outcome.status=achieved`；总耗时约 18s
+- ✅ **上游的 discriminator.center 数值数组修复得到验证**：stdout 里
+  `__setitem__ center0 to [-286559.79005146 -190988.97701544] from [-998927.28612272 -503838.7332307]`
+  —— 写的是**数值数组**（上游 `qwf_auto_calib.py` 修的正是"写字符串会让厂商 iq2prob 抛 TypeError"那个坑）。
+- ⚠️ **真机副作用（需知悉）**：本次实验**改写了 q21_7 的 discriminator center0/center1**（旧
+  `[-998927 -503838]` / `[-329568 -522006]` → 新 `[-286559 -190988]` / `[-186321 -299385]`）；
+  数据集 4465 已落到 DataVault。
+- ⚠️ **contrast 只有 1.2%（远低于 0.4 阈值）** —— **不是流水线故障**：sigma(90990) 远大于
+  separation(4384.6)，是"噪声压倒信号"的典型形态（两簇 p1_i/p1_x 只差 0.012）。本次 iqraw 是默认参数
+  （pumpSwitch/apply_21/correctX/correctZ/reset 全 False，未做频点与读出点优化），
+  下一步建议用 `自动化单比特标定/` 的 `f10_sweep.py` / `qwf_auto_calib.py` 找 f10 最优点、
+  再校读出相位与幅度。
+- 🆕 **新的语义观察（待拍板，已记入补足清单 D3）**：`read` 节点的 `threshold` 不达标
+  （`passed=false`）时，workflow 仍然 `status=completed` 且 `outcome.status=achieved` ——
+  阈值只是"标记"不"阻断"。若要硬失败需显式用 `assert` 节点。
+- 本地工具保留：`_q21_runner.py`（等闸门 → 自动跑 q21_7 iqwf；`_q21_runner.py [等待秒数]`）。
