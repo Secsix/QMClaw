@@ -1779,3 +1779,43 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - ⚠️ **真机执行前置条件（未做、需人处理）**：`fallback_config.json` 的
   `quantum_service.actuation.allow_execute` / `allow_set_params` 默认 false，
   开闸与重启服务由人执行；本轮**没有**下发任何真机实验。
+
+## 2026-11-13 真机标定：boardgroup 排查 + ZPA 区间判定重写（离线，未下发实验）
+
+- 目标：让旧版自动标定在当前 session（`20261113_20qubits`）上跑通。
+- 现场结论（**代码之外的真机阻塞**）：
+  - `q23_7` 在当前板组里**不可用**：其 xy 通道 `DAC_LQ 6130` 不在板组，厂商
+    `device_manager` 直接断言 `DAC_LQ 6130 in q23_7's channel is not configured in the
+    boardgroup`。当前板组是 9xx 通道那批（q7_21=975、q21_7=987、q11_17=978 …），
+    6xx 通道（含 q23_7、q21_9）属上一套接线。
+  - 真机跑 #2 在**第一条语句**就因此中止：没有写 bias_z，没有下发任何实验。
+  - `config/device_profile.json` 是旧 session `20251103_LD_SQ` 的画像，不是当前板组。
+- 预算门：`dsl/executor.py` 的点估计走 `backends/lqcs.py:estimate_points` →
+  `DEFAULT_SCAN_AXES`（厂商默认展开，s21_zpa2d = 16×20 = 320 点）。原先自算的估计值偏小
+  → 节点 `budget_exceeded`（实验根本没派发）。`zpa_qwf_runner.py` 改为镜像引擎的
+  `DEFAULT_SCAN_AXES` / `NO_SCAN_AXES` 表。
+- ZPA 区间判定重写（`zpa_interval.py`，当前规则）：
+  - 旧规则 = 逐层 argmin + 局部 find_peaks prominence≥1 dB，三个硬伤：
+    ① 宽 dip 被误杀（0.2 MHz 栅格下局部 prominence≈0，q7_21 的 -1.4 层 dip 深 5 dB
+    旧规则只给 0.94 dB）；② 同层多 dip（腔 + 比特）时脊线在分支间跳，区间被切碎；
+    ③ 谐振扫出窗口就判 `frequency_window_edge`，真 dip 被当成数据不可用。
+  - 新规则 = 每层找**所有** dip（深度以该层 p90 透射基线为基准，默认 ≥1 dB）+
+    跨层**连分支**（相邻层谐振位移 ≤1.5 MHz，只接内部 dip，边界尾巴不参与）+
+    连续 ≥3 层成一个可用区间；候选工作点 = 深度 + 居中性最好的那一层。
+  - 离线对比（`validate_zpa_intervals.py`，当前 session 历史图）：可读 25 张，
+    **旧规则 19 张有区间 → 新规则 23 张有区间**，旧规则判出的区间全部保留。
+    q7_21（`00088`）旧规则 `skipped_no_reliable_interval` → 新规则 **[-2.6, -1.0]（5 层，
+    谐振从窗口左缘扫到 1.34 MHz）** + [2.2, 3.0]，候选工作点 zpa=-1.8。
+- 参数（按现场口径）：zpa 轴默认 -3→3.1 **步长 0.2**（31 层；厂商默认 0.4 / 16 层）；
+  频率轴 `np.arange(fread±freq_span/2, 0.0002)`，**0.0002 GHz = 0.2 MHz**（不是 Hz，
+  步长写死、与 freq_span 无关），`freq_span=0.002` → ±1 MHz → 11 个频点。
+- 改动文件：`zpa_interval.py`（新）、`plan_zpa_bias.py`（`plan()` 走新规则，旧规则保留为
+  `plan_legacy()`）、`zpa_calibration_pipeline.py`（新增 `interval_tol_mhz`、zpa 步长 0.2、
+  spectroscopy 超时 2400 s、probe 批 90 min）、`zpa_qwf_runner.py`（点估计镜像引擎表）、
+  `test_zpa_interval_offline.py`（新）、`validate_zpa_intervals.py`（新）、
+  `actual_manifest_q7_21.json`（新，target=q7_21）、`PORTABLE_README.md`。
+- 验证：`test_zpa_interval_offline.py` **ALL PASS**（合成图 6 类 + q7_21 历史图）；
+  `test_zpa_qwf_offline.py` **ALL PASS**；q7_21 离线计划 `ready_for_preflight`，
+  bias 候选 -2.6…-1.0 与 2.2…3.0（step 0.2）。
+- ⚠️ 本轮**没有**下发任何真机实验：q23_7 在首句断言中止；q7_21 只做离线规划。
+  写闸门 `allow_set_params` 已由人打开（`fallback_config.json`，按请求热生效、无需重启）。
