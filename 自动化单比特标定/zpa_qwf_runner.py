@@ -67,15 +67,30 @@ LEGACY_EXPERIMENT_ARGS: Dict[str, tuple] = {
 V1_ONLY_ARG_NAMES = {"piAmp", "target_gate", "session", "s"}
 
 # 厂商默认展开量（sq_nodes 实测口径，见 dsl/backends/lqcs.py DEFAULT_SCAN_AXES）
-DEFAULT_SCAN_POINTS: Dict[str, int] = {
+# **必须和引擎的表逐条一致**：workflow_service 用它做运行期预算闸门
+# （dsl/executor.py:_estimate_points → backends/lqcs.py:estimate_points），
+# 估小了就是 budget_exceeded，实验根本不会下发。
+DEFAULT_SCAN_AXES: Dict[str, Dict[str, int]] = {
     "sq.t1": {"delay": 16, "zpa": 201},
     "sq.ramsey_df": {"delay": 51},
     "sq.ramsey_t2": {"delay": 100},
-    "sq.s21_dis": {"freq": 40},
-    "sq.pidf": {"df": 21},
+    "sq.s21": {"freq": 20},
     "sq.s21_zpa2d": {"zpa": 16, "freq": 20},
+    "sq.s21_dis": {"freq": 40},
+    "sq.s21_power2d": {"power": 13, "freq": 20},
+    "sq.spectroscopy_auto": {"freq_scan": 33, "zpa_scan": 40},
+    "sq.pidf": {"df": 21},
+    "sq.pidf21": {"df": 21},
+    "sq.time_rabi": {"length": 250},
+    "sq.pulse_shape": {"delay": 26},
     "sq.xeb": {"m": 9, "k": 30},
+    "sq.iqraw": {"states": 2},
+    "sq.test_timing_xyz": {"delay": 1},
+    "sq.spectroscopy": {"freq": 1},
 }
+# 没有隐式扫描轴的函数（单点或由寄存器决定）
+NO_SCAN_AXES = {"sq.piamp", "sq.set_pi", "sq.spectroscopy_iq", "sq.impa_gain",
+                "sq.pulse_shape_ramsey", "sq.iqcenter"}
 
 
 def step(alias: str, fn: str, args: Optional[Dict[str, Any]] = None,
@@ -192,27 +207,30 @@ def _arange_points(nums: Iterable[Any]) -> int:
     return 1
 
 
+def _count_points(value: Any) -> int:
+    """一个参数值展开成多少点（标量=1；数组=长度；$arange=arange 长度）。"""
+    if isinstance(value, dict) and "$arange" in value:
+        return _arange_points(value["$arange"])
+    if isinstance(value, (list, tuple)):
+        return max(1, len(value))
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return 1
+    return 1
+
+
 def estimate_points(item: Dict[str, Any]) -> int:
-    """估算一条实验的扫描点数（用于 budget.max_scan_points，宁大勿小）。"""
+    """估算一条实验的扫描点数（口径对齐引擎，见 DEFAULT_SCAN_AXES）。"""
     fn, args = item["fn"], item["args"]
-    if fn == "sq.s21_zpa2d":
-        z = _arange_points(args["zpa"]["$arange"]) if isinstance(args.get("zpa"), dict) \
-            else DEFAULT_SCAN_POINTS["sq.s21_zpa2d"]["zpa"]
-        span = float(args.get("freq_span") or 0.002)
-        freq_pts = max(1, int(round(abs(span) / 0.002)))
-        return int(z) * freq_pts
-    if fn == "sq.t1":
-        z = 1
-        if isinstance(args.get("zpa"), dict):
-            z = _arange_points(args["zpa"]["$arange"])
-        d = _arange_points(args["delay"]["$arange"]) if isinstance(args.get("delay"), dict) \
-            else DEFAULT_SCAN_POINTS["sq.t1"]["delay"]
-        return int(z) * int(d)
+    axes = DEFAULT_SCAN_AXES.get(fn)
+    if axes is None:
+        if fn in NO_SCAN_AXES:
+            return 1
+        return 1          # 未知函数：引擎也不拦（estimate_points 返回 points=0）
     points = 1
-    for value in args.values():
-        if isinstance(value, dict) and "$arange" in value:
-            points = max(points, _arange_points(value["$arange"]))
-    return points
+    for axis, default_n in axes.items():
+        value = args.get(axis)
+        points *= default_n if value is None else _count_points(value)
+    return max(1, int(points))
 
 
 def default_budget(steps: List[Dict[str, Any]], max_wall: str = "60m") -> Dict[str, Any]:
