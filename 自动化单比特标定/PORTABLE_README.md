@@ -181,8 +181,10 @@ DataVault 数据集号在**每个 session 里重新编号**，所以适配器会
 
 ```text
 【首步】sq.s21_zpa2d(qobj)        ← 现场采图，绑定本次 DataVault 结果
-→ 从现场图识别可靠 ZPA 区间
-→ 0.2 步长 bias_z（每个点：写 bias → 等稳定 → 回读）
+→ 从 session 目录（D:\DataVault\LQHL.dir\test.dir\<session>.dir）读本次那张图
+→ 识别有效 ZPA 区间（谐振轨迹的跨度）
+→ 从区间最小值开始、0.2 步长均匀扫到区间最大值（中间不跳空隙）
+   每个点：写 bias → 等稳定 → 回读
 → spectroscopy / iqraw / piamp（一个 .qwf 一批）
 → Visibility > 0.05 且 P1 激发
 → 停止遍历
@@ -199,6 +201,13 @@ DataVault 数据集号在**每个 session 里重新编号**，所以适配器会
 → iqraw()
 → 输出结果
 ```
+
+bias 遍历从**有效区间的最小值**起步、0.2 V 等步长走到区间最大值，中间不跳空隙：
+S21ZPA 窗口只有 fread 附近 2 MHz，读出腔扫出窗口只说明"谐振离开这个窗口"，
+不代表比特不可用（spectroscopy 扫 350 MHz，比特跃迁仍可能在窗口里）；人工标注也是
+按"谐振轨迹的跨度"给的有效区间（00049 两支之间夹平层仍标成 (-2.6, 3)）。
+若只想扫"看得见谐振"的那些段，用 `bias_grid(intervals, step, span=None)` 的老口径
+（各分段各自起步、不跨空隙）。
 
 bias 遍历阶段的 `spectroscopy/iqraw/piamp` 默认 **只采不写**（`settings.search_update=false`），
 避免中途改写 f10 影响后续判据；`pidf` 等标定步骤仍按厂商默认回写寄存器。
@@ -217,7 +226,8 @@ python test_zpa_flow_preview.py --manifest m.json --bit q7_21
 python test_zpa_flow_preview.py --execute             # 真机执行（同一套步骤）
 ```
 
-预览里会直接看到：离线区间判出来的 bias 候选（q7_21 = −3.0…−0.2 与 2.6…3.0 两段）、
+预览里会直接看到：离线区间判出来的 bias 候选（q7_21 = −3.0…3.0 共 31 点，中间那
+13 个点在 S21ZPA 图上是平层，但比特跃迁仍可能在 spectroscopy 窗口里）、
 每个 bias 的 spectroscopy/iqraw/piamp、标定链 11 步，以及 `allow_execute` /
 `allow_set_params` / 服务端口是否在线。注意 `offline_mode=auto` 时 LabRAD 掉线会
 **悄悄用历史数据**顶替，真机跑前建议先切 `online`。

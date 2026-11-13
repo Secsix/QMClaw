@@ -1881,3 +1881,28 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - 验证：`py_compile` + `test_zpa_qwf_offline.py` / `test_zpa_interval_offline.py` /
   `test_zpa_trained_model.py` 全绿。
 - 本轮**没有**下发任何真机实验。
+
+## 2026-11-13 bias 遍历口径按现场确认修正（离线）
+
+- 现场确认的流程（人给的口径）：
+  1. 先跑待测比特的 `sq.s21_zpa2d(qobj)`；
+  2. 从 `D:\DataVault\LQHL.dir\test.dir\20261113_20qubits.dir` 里读**本次**那张图，
+     分析出有效 zpa 区间；
+  3. **从区间内的最小值开始、步长 0.2 均匀 bias 遍历探测**（中间不跳空隙）；
+     判据 `visibility > 0.05` 且 piamp 明确激发 → 收下这个 bias、停止遍历，否则下一个；
+  4. 在选中的 bias 上一次下发 11 步标定链（pidf(df=0.08) → pidf → ramsey_df →
+     s21_dis → iqraw → set_pi(X) → set_pi(X/2) → t1(zpa=选中bias) → ramsey_t2 →
+     xeb(m=3,k=10,stats=300) → iqraw）。
+- 改动：`zpa_calibration_pipeline.py` 的 `bias_grid(intervals, step, span=None)`：
+  给了 `span`（= 训练模型的 `valid_zpa_range`，谐振轨迹跨度）就**从区间最小值开始
+  均匀步进到区间最大值**；不给 `span` 退回老口径（各分段各自起步、不跨空隙）。
+  `inspect_file` 改成传 `valid_zpa_range`。
+- 理由：S21ZPA 窗口只有 fread 附近 2 MHz，读出腔扫出窗口 ≠ 比特不可用
+  （spectroscopy 扫 350 MHz，比特跃迁仍可能在窗口里）；人工标注也是按"谐振轨迹的
+  跨度"给的有效区间（00049 两支夹平层仍标成 (-2.6, 3)）。
+- 影响：q7_21 的 bias 候选由 18 点（两段，跳过中间）变为 **31 点（−3.0…3.0 连续）**，
+  最坏耗时变长；探到第一个满足判据的 bias 就停。
+- 阶段 0 的数据来源本来就走 session 目录（适配器把 datavault_root 解析到
+  `<root>/<session>.dir`，数据集号→文件也只在该目录下找），与现场口径一致。
+- 验证：三套离线测试全绿；预览输出已刷新（31 点）。
+- 本轮**没有**下发任何真机实验。

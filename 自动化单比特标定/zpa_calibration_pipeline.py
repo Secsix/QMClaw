@@ -94,10 +94,28 @@ def save_json(path,data):
     # Single runner only. Atomic replace to retain last valid checkpoint.
     tmp=path.with_name(path.name+'.tmp');tmp.write_text(json.dumps(serializable(data),ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8');tmp.replace(path)
 
-def bias_grid(intervals,step=.2):
-    """Each interval starts at its own minimum; never steps outside or across gaps."""
+def bias_grid(intervals,step=.2,span=None):
+    """有效 zpa 区间 → bias 候选。
+
+    口径（2026-11-13 现场确认）：**从有效区间的最小值开始**，按 step 均匀走到区间
+    最大值，中间不跳空隙。理由：S21ZPA 窗口只有 fread 附近 2 MHz，读出腔离开这个窗口
+    只说明"谐振扫出去了"，不代表比特不可用 —— spectroscopy 扫的是 350 MHz，比特跃迁
+    仍可能在窗口里。人工标注也是按"谐振轨迹的跨度"给的有效区间（00049 两支之间夹着
+    平层仍标成 (-2.6, 3)）。
+
+    `span` = (lo, hi) 有效区间（zpa_interval 的 valid_zpa_range）；不给就退回老口径
+    （按各分段自己的起点分别起步，不跨空隙）。
+    """
     if not math.isfinite(step) or step<=0:raise ValueError('Invalid step')
     result=set();d=Decimal(str(step))
+    if span is not None and len(span)==2:
+        lo,hi=float(span[0]),float(span[1])
+        if not all(math.isfinite(v) for v in (lo,hi)) or lo>hi:raise ValueError('Invalid interval')
+        low=Decimal(str(round(lo,10)));high=Decimal(str(round(hi,10)))
+        if (high-low)/d>10000:raise ValueError('Too many bias points')
+        n=int((high-low)//d)
+        for i in range(n+1):result.add(float(low+i*d))
+        return sorted(result)
     for lo,hi in intervals:
         if not all(math.isfinite(float(v)) for v in [lo,hi]) or lo>hi:raise ValueError('Invalid interval')
         # Remove binary noise from HDF5 np.arange coordinates.
@@ -113,7 +131,8 @@ def inspect_file(path,settings=None,model=None):
         tol_mhz=settings.interval_tol_mhz)
     allowed=r['file_normal_prediction'] and not r['file_review_required']
     intervals=[i['sampled_zpa_interval'] for i in r['intervals']] if allowed else []
-    r['scan_bias_values']=bias_grid(intervals,settings.bias_step)
+    # bias 候选：按**有效区间**（谐振轨迹跨度）从最小值开始均匀步进，不跳中间空隙。
+    r['scan_bias_values']=bias_grid(intervals,settings.bias_step,span=r.get('valid_zpa_range'))
     r['pipeline_eligible']=bool(r['scan_bias_values'])
     r['bias_mapping']='qobj.regs.bias_z = scanned_zpa (user-confirmed)'
     r['execution_enabled']=False
