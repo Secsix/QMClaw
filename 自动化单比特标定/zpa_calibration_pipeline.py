@@ -1,10 +1,24 @@
 """Integrated S21ZPA recognition -> interval search -> qubit calibration.
+
+2026-11-13 改造：实验调用改为 **`.qwf` 驱动**（默认 `execution_route='qwf'`），
+调用口径仍是**旧版 legacy**：`sq.s21_zpa2d(qobj)` / `sq.spectroscopy(qobj, ...)` /
+`sq.iqraw(qobj)` / `sq.piamp(qobj, amp=2)` / `sq.pidf(qobj, df=0.08)` /
+`sq.ramsey_df(qobj)` / `sq.s21_dis(qobj)` / `sq.set_pi(qobj, gate='X')` /
+`sq.set_pi(qobj, gate='X/2')` / `sq.t1(qobj, zpa=selected_bias)`。
+
+执行层在 `zpa_qwf_runner.py`：
+  * `qwf`（默认）：实验写成 `.qwf` → :3008 `/workflows/run_ir` → workflow_service
+    → quantum_service；`.qwf` 下发出来就是 `sq.<fn>(<qubit>, **args)`，与旧版
+    直调等价。寄存器写（`bias_z`）走 `:3003/qubit/set_params`（`.qwf` 没有写
+    寄存器的节点）。
+  * `direct`：保留旧版行为，在本进程里直调 `sq.<fn>(qobj, **args)`。
+
 Default CLI is OFFLINE. Hardware execution requires an explicit trusted adapter
 and --execute. No LabRAD auto-connect and no inference of experiment return APIs.
 """
 from __future__ import annotations
 import argparse,csv,importlib,json,math,time,traceback
-from dataclasses import dataclass,asdict
+from dataclasses import dataclass,asdict,field
 from datetime import datetime,timezone
 from decimal import Decimal
 from pathlib import Path
@@ -12,6 +26,7 @@ from typing import Any
 import numpy as np
 from classify_zpa_datavault import load_model
 from plan_zpa_bias import plan
+from zpa_qwf_runner import DirectRunner,QwfRunner,step
 
 @dataclass
 class Settings:
@@ -24,14 +39,38 @@ class Settings:
     piamp_amp: float = 2.
     min_prominence_db: float = 1.
     min_interval_points: int = 3
+    # ── 执行路线 ──
+    execution_route: str = 'qwf'          # 'qwf'（默认）| 'direct'（旧版进程内直调）
+    workflow_base: str = 'http://127.0.0.1:3008'
+    quantum_base: str = 'http://127.0.0.1:3003'
+    # ── 实验参数（全部显式写死，避免厂商默认展开出几百点）──
+    acquire_s21zpa: bool = True           # 真机执行先现场采一张 S21ZPA 地图
+    search_update: bool = False           # bias 遍历阶段只采不写（避免 f10 漂移）
+    zpa_lo: float = -3.
+    zpa_hi: float = 3.1
+    zpa_step: float = .4
+    zpa_freq_span: float = .002
+    pidf_df: float = .08
+    t1_delay_stop: float = 84000.
+    t1_delay_step: float = 6000.
+    ramsey_t2_delay_stop: float = 40000.
+    ramsey_t2_delay_step: float = 4000.
+    xeb_m: int = 3
+    xeb_k: int = 10
+    xeb_stats: int = 300
 
     def validate(self):
+        if self.execution_route not in ('qwf','direct'):raise ValueError("execution_route must be 'qwf' or 'direct'")
         vals=list(asdict(self).values())
-        if not all(math.isfinite(float(x)) for x in vals): raise ValueError('Non-finite settings')
-        if self.bias_step<=0 or self.spec_step>=0 or self.spec_start<=self.spec_stop: raise ValueError('Invalid bias/frequency steps')
-        if self.spec_amp<=0 or self.piamp_amp<=0 or self.min_prominence_db<=0 or self.min_interval_points<3: raise ValueError('Invalid amplitude/interval settings')
-        if not 0<=self.visibility_threshold<=1: raise ValueError('Visibility threshold must be in [0,1]')
+        if not all(math.isfinite(float(x)) for x in vals if isinstance(x,(int,float)) and not isinstance(x,bool)):raise ValueError('Non-finite settings')
+        if self.bias_step<=0 or self.spec_step>=0 or self.spec_start<=self.spec_stop:raise ValueError('Invalid bias/frequency steps')
+        if self.spec_amp<=0 or self.piamp_amp<=0 or self.min_prominence_db<=0 or self.min_interval_points<3:raise ValueError('Invalid amplitude/interval settings')
+        if not 0<=self.visibility_threshold<=1:raise ValueError('Visibility threshold must be in [0,1]')
         if len(np.arange(self.spec_start,self.spec_stop,self.spec_step))>100000:raise ValueError('Too many spectroscopy points')
+        if self.zpa_step<=0 or self.zpa_hi<=self.zpa_lo:raise ValueError('Invalid zpa range')
+        if self.t1_delay_step<=0 or self.t1_delay_stop<=0:raise ValueError('Invalid t1 delay range')
+        if self.ramsey_t2_delay_step<=0 or self.ramsey_t2_delay_stop<=0:raise ValueError('Invalid ramsey_t2 delay range')
+        if self.xeb_m<=0 or self.xeb_k<=0 or self.xeb_stats<=0:raise ValueError('Invalid xeb parameters')
 
 
 def utcnow():return datetime.now(timezone.utc).isoformat()
@@ -84,12 +123,39 @@ def metric_number(value,name,lo=None,hi=None):
     return x
 
 
-def preflight(adapter,bit,qobj,sq,biases,settings):
-    for name in ['preflight','snapshot','restore','safe_shutdown','wait_for_bias','maximum_visibility','piamp_excited','latest_datavault_path','final_metrics']:
+@dataclass
+class Context:
+    """一次比特标定的执行上下文（两条路线共用）。"""
+    bit: str
+    session: Any = None
+    qobj: Any = None
+    sq: Any = None
+    runner: Any = None
+
+
+def build_context(adapter,bit,settings,outdir,log=print,dry=False):
+    """按 execution_route 建上下文：qwf 路线拿 (bit, session)，direct 路线拿 (qobj, sq)。"""
+    if settings.execution_route=='qwf':
+        got=adapter.get_context(bit)
+        if not isinstance(got,(tuple,list)) or len(got)!=2:raise TypeError('qwf 路线的 get_context(bit) 必须返回 (bit, session)')
+        name,session=got
+        if name!=bit:raise ValueError('adapter 返回的比特名与请求不一致')
+        runner=QwfRunner(bit=bit,session=session,datavault_root=Path(adapter.datavault_root),
+                         outdir=Path(outdir),workflow_base=settings.workflow_base,dry=dry,log=log)
+        return Context(bit=bit,session=session,qobj=None,sq=None,runner=runner)
+    qobj,sq=adapter.get_context(bit)
+    return Context(bit=bit,session=None,qobj=qobj,sq=sq,runner=DirectRunner(sq,qobj,log=log))
+
+
+def preflight(adapter,ctx,biases,settings):
+    common=['preflight','snapshot','restore','safe_shutdown','maximum_visibility','piamp_excited','final_metrics','apply_bias','read_bias']
+    if settings.execution_route=='direct':common+=['wait_for_bias','latest_datavault_path']
+    for name in common:
         if not callable(getattr(adapter,name,None)):raise TypeError('Adapter missing '+name)
-    for name in ['spectroscopy','iqraw','piamp','pidf','ramsey_df','s21_dis','set_pi','t1']:
-        if not callable(getattr(sq,name,None)):raise TypeError('sq missing '+name)
-    permission=adapter.preflight(bit,qobj,settings,biases)
+    if settings.execution_route=='direct':
+        for name in ['s21_zpa2d','spectroscopy','iqraw','piamp','pidf','ramsey_df','s21_dis','set_pi','t1']:
+            if not callable(getattr(ctx.sq,name,None)):raise TypeError('sq missing '+name)
+    permission=adapter.preflight(ctx.bit,ctx,settings,biases)
     # Adapter must check wiring, units, amplitudes, frequency limits, bias ramp,
     # settling time, readback, and rollback. Never default unspecified limits.
     if not isinstance(permission,dict) or permission.get('approved') is not True:raise ValueError('Preflight not approved')
@@ -101,84 +167,166 @@ def preflight(adapter,bit,qobj,sq,biases,settings):
     return permission
 
 
-def run_bit(bit,qobj,sq,adapter,inspection,outdir,settings=None):
+def acquire_s21zpa(ctx,settings,outdir,log=print):
+    """现场采一张 S21ZPA 地图（首步），并绑定**本次调用**产生的 DataVault 结果。
+
+    返回 (hdf5 路径, 原始结果 dict)。找不到本次结果就报错 —— 绝不用历史文件顶替。
+    """
+    steps=[step('z1','sq.s21_zpa2d',
+                {'zpa':{'$arange':[settings.zpa_lo,settings.zpa_hi,settings.zpa_step]},
+                 'freq_span':settings.zpa_freq_span,'update':False},
+                timeout=1800,note=f"{ctx.bit} 现场 S21ZPA 地图（只采不写）")]
+    results=ctx.runner.batch(steps,name=f'{ctx.bit}_s21zpa2d',
+                              description=f'{ctx.bit} 现场 S21ZPA 地图（bias 区间来源）',
+                              max_wall='40m')
+    result=results[0]
+    if not result.get('path'):
+        raise ValueError('S21ZPA 没有绑定本次调用的 DataVault 结果（不能拿历史文件顶替）')
+    log(f"    S21ZPA 数据集 {result.get('dataset_id')} → {result['path']}")
+    return result['path'],result
+
+
+def run_bit(bit,ctx,adapter,inspection,outdir,settings=None,model=None,dry=False):
     """Hardware-capable API. Call only with authorized, validated live adapter.
     On success, keep the selected bias and calibration. On failure, shut down
     drive and restore adapter snapshot. No automatic retry or process timeout.
     """
     settings=settings or Settings();settings.validate();outdir=Path(outdir);outdir.mkdir(exist_ok=True,parents=True)
-    result=dict(bit=bit,source_file=inspection['file'],source_id=inspection['id'],started_at=utcnow(),status='pending',attempts=[],calibration=[],metrics=None,selected_bias_z=None,settings=asdict(settings))
+    result=dict(bit=bit,source_file=inspection['file'],source_id=inspection['id'],started_at=utcnow(),status='pending',attempts=[],calibration=[],metrics=None,selected_bias_z=None,settings=asdict(settings),execution_route=settings.execution_route)
     checkpoint=outdir/(bit+'_result.json')
     def save():save_json(checkpoint,result)
     def event(name,state,**extra):
         with (outdir/(bit+'_events.jsonl')).open('a',encoding='utf-8') as f:
             f.write(json.dumps(serializable(dict(time=utcnow(),operation=name,state=state,**extra)),ensure_ascii=False)+'\n')
-    def call(name,func,*args,**kwargs):
-        event(name,'started');ret=func(*args,**kwargs);event(name,'completed');return ret
+    def log(msg):print(msg,flush=True)
     biases=inspection.get('scan_bias_values',[])
-    if not inspection.get('pipeline_eligible') or not biases:
-        result['status']='skipped_no_reliable_interval';save();return result
-    if inspection.get('bit')!=bit:raise ValueError('qobj bit does not match selected S21ZPA file')
     try:
-        permission=preflight(adapter,bit,qobj,sq,biases,settings)
-        result['preflight']=permission;snapshot=adapter.snapshot(qobj);save()
+        permission=preflight(adapter,ctx,biases,settings)
+        result['preflight']=permission;snapshot=adapter.snapshot(ctx);save()
     except Exception as exc:
         result['status']='error';result['error']=dict(type=type(exc).__name__,message=str(exc));save();return result
     success=False
     try:
+        # ── 第 0 步：现场采 S21ZPA（真机执行时）──
+        if settings.acquire_s21zpa:
+            event('s21_zpa2d','started')
+            if dry:
+                # 干跑：只生成 + 校验 S21ZPA 的 .qwf，不下发、不取数据集
+                steps=[step('z1','sq.s21_zpa2d',
+                            {'zpa':{'$arange':[settings.zpa_lo,settings.zpa_hi,settings.zpa_step]},
+                             'freq_span':settings.zpa_freq_span,'update':False},
+                            timeout=1800,note=f"{bit} 现场 S21ZPA 地图（只采不写）")]
+                ctx.runner.batch(steps,name=f'{bit}_s21zpa2d',
+                                 description=f'{bit} 现场 S21ZPA 地图（bias 区间来源）',
+                                 max_wall='40m')
+                event('s21_zpa2d','validated')
+            else:
+                path,zpa_result=acquire_s21zpa(ctx,settings,outdir,log)
+                event('s21_zpa2d','completed',dataset=zpa_result.get('dataset_id'),path=path)
+                fresh=inspect_file(path,settings,model)
+                if fresh.get('bit')!=bit:raise ValueError('S21ZPA 文件里的比特名与目标比特不一致')
+                if not fresh.get('pipeline_eligible'):raise ValueError('现场 S21ZPA 没找到可靠区间，停止后续实验')
+                result['live_s21zpa']=dict(dataset=zpa_result.get('dataset_id'),path=path,source_file=fresh['file'],
+                                           scan_bias_values=fresh['scan_bias_values'])
+                result['source_file']=fresh['file'];result['source_id']=fresh['id']
+                biases=fresh['scan_bias_values'];save()
+                # 新区间必须仍在 preflight 批准的 bias 上下限内
+                lo,hi=permission['bias_limits']
+                if any(not float(lo)<=b<=float(hi) for b in biases):
+                    raise ValueError('现场 S21ZPA 得到的 bias 点超出 preflight 批准范围')
+        if not biases:
+            result['status']='skipped_no_reliable_interval';save();return result
+        if inspection.get('bit')!=bit:raise ValueError('qobj bit does not match selected S21ZPA file')
         freq=np.arange(settings.spec_start,settings.spec_stop,settings.spec_step)
         for bias in biases:
             attempt=dict(bias_z=bias,status='running');result['attempts'].append(attempt);save()
             event('set_bias','started',bias_z=bias)
-            # Required assignment. wait_for_bias must apply/ramp actual hardware,
+            # Required assignment. apply_bias must apply/ramp actual hardware,
             # wait until stable and verify actual readback before RF experiments.
-            qobj.regs.bias_z=bias
-            adapter.wait_for_bias(qobj,bias)
-            event('set_bias','completed',bias_z=bias)
-            spec=call('spectroscopy',sq.spectroscopy,qobj,freq=freq.copy(),spec_amp=settings.spec_amp,update=True)
-            iq=call('search_iqraw',sq.iqraw,qobj)
+            if dry:
+                readback=None      # 干跑不写寄存器
+            else:
+                readback=adapter.apply_bias(ctx,bias)
+            event('set_bias','completed',bias_z=bias,readback=readback)
+            attempt['bias_readback']=readback
+            # 三个实验合成一次下发（.qwf 路线）或一次顺序调用（direct 路线）
+            steps=[step('s1','sq.spectroscopy',
+                        {'freq':{'$arange':[settings.spec_start,settings.spec_stop,settings.spec_step]},
+                         'spec_amp':settings.spec_amp,'update':settings.search_update},
+                        timeout=900,note=f'{bit} bias_z={bias} spectroscopy'),
+                   step('q1','sq.iqraw',{'update':settings.search_update},
+                        timeout=300,note=f'{bit} bias_z={bias} IQraw'),
+                   step('p1','sq.piamp',{'amp':settings.piamp_amp,'update':settings.search_update},
+                        timeout=600,note=f'{bit} bias_z={bias} PiPulse')]
+            event('bias_probe','started',bias_z=bias)
+            probe=ctx.runner.batch(steps,name=f'{bit}_probe_b{bias}'.replace('-','m').replace('.','p'),
+                                   description=f'{bit} bias_z={bias} 探测（spectroscopy + iqraw + piamp）',
+                                   max_wall='40m')
+            event('bias_probe','completed',bias_z=bias,datasets=[p.get('dataset_id') for p in probe])
+            spec,iq,pi=probe
+            attempt['datasets']={'spectroscopy':spec.get('dataset_id'),'iqraw':iq.get('dataset_id'),'piamp':pi.get('dataset_id')}
+            if spec.get('path'):attempt['spectroscopy_path']=spec['path']
+            if iq.get('path'):attempt['iqraw_datavault_path']=iq['path']
+            if not iq.get('path') and not dry:
+                raise ValueError('Current IQraw DataVault result handle missing')
+            if dry:
+                attempt.update(status='dry_run');save();break
             # The real IQraw schema has stats, Is|I, Qs|I, Is|X, Qs|X;
             # visibility must be calculated from this current result handle.
-            if callable(getattr(adapter,'latest_datavault_path',None)):
-                attempt['iqraw_datavault_path']=adapter.latest_datavault_path()
-                if not attempt['iqraw_datavault_path']:raise ValueError('Current IQraw DataVault result handle missing')
             # Always perform piamp as requested, even if visibility is weak.
-            pi=call('search_piamp',sq.piamp,qobj,amp=settings.piamp_amp)
-            visibility=metric_number(adapter.maximum_visibility(iq,qobj),'Maximum Visibility',0,1)
-            excited=adapter.piamp_excited(pi,qobj)
+            visibility=metric_number(adapter.maximum_visibility(iq,ctx),'Maximum Visibility',0,1)
+            excited=adapter.piamp_excited(pi,ctx)
             if not isinstance(excited,(bool,np.bool_)):raise ValueError('piamp_excited must return explicit bool')
             attempt.update(visibility=visibility,piamp_excited=bool(excited),status='accepted' if visibility>settings.visibility_threshold and excited else 'rejected')
             save()
             if attempt['status']=='accepted':result['selected_bias_z']=bias;break
         if result['selected_bias_z'] is None:
-            result['status']='no_working_bias';return result
-        b=result['selected_bias_z'];returns={}
-        sequence=[
-            ('pidf_df008',lambda:sq.pidf(qobj,df=.08)),
-            ('pidf',lambda:sq.pidf(qobj)),
-            ('ramsey_df',lambda:sq.ramsey_df(qobj)),
-            ('s21_dis',lambda:sq.s21_dis(qobj)),
-            ('iqraw_before_pi',lambda:sq.iqraw(qobj)),
-            ('set_pi',lambda:sq.set_pi(qobj, gate='X')),
-            ('set_pi_half',lambda:sq.set_pi(qobj, gate='X/2')),
-            ('t1',lambda:sq.t1(qobj,zpa=b)),
-            ('iqraw_final',lambda:sq.iqraw(qobj)),
+            if dry and biases:
+                b=biases[0]   # 干跑：用占位 bias 把标定链也生成 + 校验一遍
+            else:
+                result['status']='no_working_bias';return result
+        else:
+            b=result['selected_bias_z']
+        returns={}
+        # 标定链：严格按旧版序列（pidf(df=0.08) → pidf → ramsey_df → s21_dis →
+        # iqraw → set_pi(X) → set_pi(X/2) → t1 → ramsey_t2 → xeb → iqraw）
+        chain=[
+            step('d1','sq.pidf',{'df':settings.pidf_df},600,f'pidf df={settings.pidf_df} 定 f10'),
+            step('d2','sq.pidf',{},600,'pidf 默认'),
+            step('r1','sq.ramsey_df',{},900,'ramsey_df 精调 f10'),
+            step('m1','sq.s21_dis',{},400,'s21_dis 读出区分度'),
+            step('q1','sq.iqraw',{},300,'IQraw（pi 之前）'),
+            step('x1','sq.set_pi',{'gate':'X'},300,'set_pi gate=X'),
+            step('x2','sq.set_pi',{'gate':'X/2'},300,'set_pi gate=X/2'),
+            step('t1','sq.t1',{'zpa':b,'delay':{'$arange':[0,settings.t1_delay_stop,settings.t1_delay_step]}},1800,f'T1（zpa={b}）'),
+            step('e1','sq.ramsey_t2',{'delay':{'$arange':[0,settings.ramsey_t2_delay_stop,settings.ramsey_t2_delay_step]}},1800,'ramsey_t2（T2*）'),
+            step('xb','sq.xeb',{'m':settings.xeb_m,'k':settings.xeb_k,'stats':settings.xeb_stats},3600,'xeb 随机基准'),
+            step('q2','sq.iqraw',{},300,'IQraw（标定后）'),
         ]
-        for name,func in sequence:
-            if not math.isclose(float(qobj.regs.bias_z),b,abs_tol=1e-9,rel_tol=0):raise ValueError('Calibration unexpectedly changed bias_z; abort before next experiment')
-            returns[name]=call(name,func)
-            result['calibration'].append(dict(step=name,status='completed'));save()
+        event('calibration_chain','started',bias_z=b)
+        chain_results=ctx.runner.batch(chain,name=f'{bit}_chain',
+                                       description=f'{bit} 标定链：bias_z={b}',
+                                       max_wall='180m')
+        event('calibration_chain','completed',bias_z=b,datasets=[c.get('dataset_id') for c in chain_results])
+        for item in chain_results:
+            returns[item['alias']]=item
+            result['calibration'].append(dict(step=item['alias'],fn=item['fn'],args=item['args'],
+                                              dataset=item.get('dataset_id'),path=item.get('path'),
+                                              status='completed'))
+            save()
+        if dry:
+            # 干跑：只验证 .qwf 能过 parse/validate，不取指标、不动寄存器
+            result['status']='dry_run';return result
         # Adapter maps actual API outputs/fit parameters and explicitly converts
         # T1/T2 to us and f01 to GHz. Missing metrics are errors, never made up.
-        if not math.isclose(float(qobj.regs.bias_z),b,abs_tol=1e-9,rel_tol=0):raise ValueError('Final experiment changed bias_z')
-        metrics=adapter.final_metrics(qobj,returns)
+        current=float(adapter.read_bias(ctx))
+        if not math.isclose(current,float(b),abs_tol=1e-9,rel_tol=0):raise ValueError('Calibration unexpectedly changed bias_z')
+        metrics=adapter.final_metrics(ctx,returns)
         for key in ['readout_fidelity','T1_us','T2_us','qubit_frequency_GHz']:
             if key not in metrics:raise ValueError('Final metric missing '+key)
             metrics[key]=metric_number(metrics[key],key,0,1 if key=='readout_fidelity' else None)
             if key!='readout_fidelity' and metrics[key]<=0:raise ValueError('Nonpositive '+key)
         if not isinstance(metrics.get('T2_type'),str) or not metrics['T2_type']:raise ValueError('Must specify T2_type (e.g. Ramsey T2*)')
-        if not math.isclose(float(qobj.regs.bias_z),b,abs_tol=1e-9,rel_tol=0):raise ValueError('Metric extraction unexpectedly changed bias_z')
-        adapter.wait_for_bias(qobj,b)
         result['metrics']=metrics;result['status']='success';success=True
         return result
     except BaseException as exc:
@@ -189,11 +337,12 @@ def run_bit(bit,qobj,sq,adapter,inspection,outdir,settings=None):
     finally:
         # Always attempt RF shutdown, then restore on failure. Log cleanup errors.
         cleanup=[]
-        try:adapter.safe_shutdown(qobj)
-        except BaseException as e:cleanup.append('safe_shutdown: '+repr(e))
-        if not success or cleanup:
-            try:adapter.restore(qobj,snapshot)
-            except BaseException as e:cleanup.append('restore: '+repr(e))
+        if not dry:
+            try:adapter.safe_shutdown(ctx)
+            except BaseException as e:cleanup.append('safe_shutdown: '+repr(e))
+            if not success or cleanup:
+                try:adapter.restore(ctx,snapshot)
+                except BaseException as e:cleanup.append('restore: '+repr(e))
         if cleanup:result['cleanup_errors']=cleanup;result['status']='cleanup_failed'
         result['finished_at']=utcnow();save()
 
@@ -205,9 +354,10 @@ def write_summary(path,results):
         for r in results:w.writerow(dict(r,**(r.get('metrics') or {})))
 
 
-def run_manifest(manifest,adapter=None,execute=False):
+def run_manifest(manifest,adapter=None,execute=False,dry=False):
     """One explicit current file per bit; no historical/latest-file guessing."""
-    manifest_path=Path(manifest).resolve();cfg=json.loads(manifest_path.read_text(encoding='utf-8'));settings=Settings(**cfg.get('settings',{}));settings.validate()
+    manifest_path=Path(manifest).resolve();cfg=json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+    settings=Settings(**cfg.get('settings',{}));settings.validate()
     out=Path(cfg.get('out','zpa_pipeline_output'));out=out if out.is_absolute() else manifest_path.parent/out
     if out.exists() and any(out.iterdir()):raise ValueError('Output directory must be empty to prevent accidental rerun or overwriting a prior run')
     out.mkdir(exist_ok=True,parents=True);entries=cfg['qubits'];bits=[e['bit'] for e in entries]
@@ -220,18 +370,22 @@ def run_manifest(manifest,adapter=None,execute=False):
         r=inspect_file(source,settings,model)
         if r['bit']!=e['bit']:raise ValueError('File/bit mismatch')
         inspections.append(r)
-    save_json(out/'offline_plan.json',dict(created_at=utcnow(),settings=asdict(settings),entries=inspections,execution_enabled=execute))
-    if not execute:return inspections
+    save_json(out/'offline_plan.json',dict(created_at=utcnow(),settings=asdict(settings),entries=inspections,execution_enabled=execute,dry=dry))
+    if not execute and not dry:return inspections
+    if dry and settings.execution_route!='qwf':raise ValueError('--dry 只支持 qwf 路线（direct 路线会真的调实验）')
     if not cfg.get('datavault_root'):raise ValueError('Manifest requires datavault_root for live result discovery')
     if adapter is None:raise ValueError('Execution requires explicit adapter')
     results=[]
     for entry,inspection in zip(entries,inspections):
-        if not inspection['pipeline_eligible']:
+        # 真机执行且现场重采 S21ZPA 时，manifest 里那张历史文件只用于离线计划，
+        # 不再决定能不能执行；区间以现场那张为准。
+        manifest_required=not (execute and settings.acquire_s21zpa)
+        if not inspection['pipeline_eligible'] and manifest_required:
             r=dict(bit=entry['bit'],source_id=inspection['id'],status='skipped_no_reliable_interval',metrics=None)
         else:
             try:
-                qobj,sq=adapter.get_context(entry['bit'])
-                r=run_bit(entry['bit'],qobj,sq,adapter,inspection,out,settings)
+                ctx=build_context(adapter,entry['bit'],settings,out,dry=dry)
+                r=run_bit(entry['bit'],ctx,adapter,inspection,out,settings,model,dry=dry)
             except BaseException as exc:
                 checkpoint=out/(entry['bit']+'_result.json')
                 r=json.loads(checkpoint.read_text(encoding='utf-8')) if checkpoint.exists() else dict(bit=entry['bit'],source_id=inspection['id'],status='interrupted' if isinstance(exc,(KeyboardInterrupt,SystemExit)) else 'error',metrics=None,error=str(exc))
@@ -245,12 +399,14 @@ def run_manifest(manifest,adapter=None,execute=False):
 
 
 def main():
-    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('manifest',type=Path);ap.add_argument('--execute',action='store_true');ap.add_argument('--adapter',help='Trusted Python module exporting create_adapter(config). Imports execute code.');a=ap.parse_args()
+    ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('manifest',type=Path);ap.add_argument('--execute',action='store_true');ap.add_argument('--dry',action='store_true',help='生成 .qwf 并做 parse/validate，不下发实验（需要 :3008 在跑）');ap.add_argument('--adapter',help='Trusted Python module exporting create_adapter(config). Imports execute code.');a=ap.parse_args()
     if a.execute and not a.adapter:ap.error('--execute needs --adapter; use offline mode first')
+    if a.dry and not a.adapter:ap.error('--dry needs --adapter (要拿当前比特/session)')
+    if a.execute and a.dry:ap.error('--execute and --dry are mutually exclusive')
     adapter=None
-    if a.execute:
-        cfg=json.loads(a.manifest.read_text(encoding='utf-8'));adapter=importlib.import_module(a.adapter).create_adapter(cfg.get('adapter_config',{}))
-    results=run_manifest(a.manifest,adapter,a.execute)
+    if a.execute or a.dry:
+        cfg=json.loads(a.manifest.read_text(encoding='utf-8-sig'));adapter=importlib.import_module(a.adapter).create_adapter(cfg.get('adapter_config',{}))
+    results=run_manifest(a.manifest,adapter,a.execute,a.dry)
     print(json.dumps(serializable([dict(bit=r['bit'],status=r.get('status','offline_planned'),bias_values=r.get('scan_bias_values'),metrics=r.get('metrics')) for r in results]),ensure_ascii=False,indent=2))
     if a.execute and any(r.get('status')!='success' for r in results):raise SystemExit(2)
 if __name__=='__main__':main()

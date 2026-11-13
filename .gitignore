@@ -246,6 +246,9 @@ tools/s21_photo_reader/_tmp_test/
 /q7ld3_*
 /自动化单比特标定/out/
 /自动化单比特标定/model.json
+# 单比特标定流水线的运行产物（离线计划 / 干跑 .qwf / 结果与事件）
+/自动化单比特标定/zpa_pipeline_*output*/
+/自动化单比特标定/zpa_pipeline_dry_manifest.json
 /wfstatus.json
 /_task_data/
 /_progress_append.md
