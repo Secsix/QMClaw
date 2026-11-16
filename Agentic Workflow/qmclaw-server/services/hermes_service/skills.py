@@ -75,6 +75,67 @@ def _get_config_path() -> Path:
     return config_dir / "skills_config.json"
 
 
+def _parse_frontmatter(fm: str) -> dict:
+    """解析 SKILL.md 的 YAML frontmatter 子集（够用即可，不引入 PyYAML）。
+
+    关键点：**必须支持块标量**。本仓库 11 个 skill 的 `description` 全部写成
+    `description: >` 或 `description: >-` 的多行折叠形式；只按 `key: value`
+    逐行取值会得到字面量 `">"` / `">-"` —— 于是 agent 拿到的技能描述是 `>-`，
+    技能路由（"什么时候该加载这个 skill"）直接失效。上游 skill
+    `qmclaw-service-endpoints` 的 description 里有 40 多个触发词，全被吞掉。
+
+    支持：`>` `>-` `>+`（折叠，行间以空格连接）、`|` `|-` `|+`（保留换行）、
+    以及普通的单行 `key: value`；引号包裹的单行值会去掉引号。
+    """
+    out: dict = {}
+    lines = fm.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if ":" not in line or line.startswith((" ", "\t", "#")):
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+        if not key:
+            continue
+        if val in (">", ">-", ">+", "|", "|-", "|+"):
+            folded = val.startswith(">")
+            body = []
+            while i < len(lines):
+                nxt = lines[i]
+                if nxt.strip() and not nxt.startswith((" ", "\t")):
+                    break
+                body.append(nxt)
+                i += 1
+            # 去掉首尾空行，再统一缩进
+            while body and not body[0].strip():
+                body.pop(0)
+            while body and not body[-1].strip():
+                body.pop()
+            indents = [len(b) - len(b.lstrip()) for b in body if b.strip()]
+            cut = min(indents) if indents else 0
+            texts = [b[cut:].rstrip() for b in body]
+            if folded:
+                joined, buf = [], []
+                for t in texts:
+                    if t:
+                        buf.append(t)
+                    else:
+                        if buf:
+                            joined.append(" ".join(buf))
+                            buf = []
+                if buf:
+                    joined.append(" ".join(buf))
+                out[key] = " ".join(joined).strip()
+            else:
+                out[key] = "\n".join(texts).strip()
+        else:
+            out[key] = val.strip("'\"")
+    return out
+
+
 def _parse_skill_md(path: Path) -> dict:
     """从 SKILL.md 文件提取内容"""
     try:
@@ -87,14 +148,10 @@ def _parse_skill_md(path: Path) -> dict:
     # 提取 YAML frontmatter
     fm_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if fm_match:
-        fm = fm_match.group(1)
-        for line in fm.split("\n"):
-            if ":" in line:
-                key, _, val = line.partition(":")
-                key = key.strip()
-                val = val.strip().strip("'\"")
-                if key in ("name", "description", "version", "author"):
-                    info[key] = val
+        meta = _parse_frontmatter(fm_match.group(1))
+        for key in ("name", "description", "version", "author"):
+            if meta.get(key):
+                info[key] = meta[key]
 
     # 如果没有 description，从第一段非标题内容提取
     if "description" not in info or not info["description"]:
