@@ -154,6 +154,9 @@ tools/s21_photo_reader/_tmp_test/
 !/skills/qubit-calibration/
 !/skills/qubit-data-analysis/
 !/skills/s21-photo-reader/
+# 上游 2026-11-16 入库的两个 skill（服务端点速查 / 对比度调校）
+!/skills/qmclaw-service-endpoints/
+!/skills/qubit-contrast-tuning/
 /state.db*
 /.tmp_*/
 /.deploy-logs/
