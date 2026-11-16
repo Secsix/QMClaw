@@ -1,4 +1,4 @@
-# 待办总表（BACKLOG）
+﻿# 待办总表（BACKLOG）
 
 > **本文档是唯一的待办入口。** 所有「日后待做 / 已知局限 / 已接受的现状」都登记在这里，
 > 不再散落在多份文档里。详细设计放在关联文档中，这里只登记条目、证据、影响与前置条件。
@@ -888,3 +888,53 @@ lowering 出来的 `repeat / if / assert` 语句因此**没有** `effect` 键。
 
 `run_all_checks.py` → **39 项 / 0 失败 / 0 跳过**（`_qwf_gen_goal_check.py` 首次真跑通过）；
 `_verify_qwf.py` → **92 项全绿**；`_docs_paths_check.py` → 6/6。
+
+---
+
+## M 组 — 上游 skill 增量同步（登记日期：2026-11-16）
+
+上游 `sync/qmclaw-20261111` 又前进一格：`4fad224` → `1bffeda`（**fast-forward**，不是重写，这次很干净），
+只做一件事 —— 把两个本地 skill 入库，并改 `.gitignore` 的 `/skills/` → `/skills/*` + 两条 `!` 放行。
+合并提交 `1b01d25`，备份标签 `backup/pre-sync-20261116-skills`（`af81383`）。
+
+| 新增内容 | 说明 |
+|---|---|
+| `skills/qmclaw-service-endpoints/SKILL.md`（429 行） | 全部微服务端点总表（:3002 网关 / :3003 真机 / :3004 分析 / :3008 DSL / :3009 队列 / :3005 agent / :3006 llm / :3007 image / :3010 qubitclient / :3011 qca / :3012 hermes），含"禁止在沙箱里 `import lqms` 直连 LabRAD"的铁律、写闸门语义、goal 块用法 |
+| `skills/qubit-contrast-tuning/{SKILL.md,README.md}` | contrast 迭代调优序列 `iqraw → piamp → iqraw → pidf → iqraw → piamp`，含 contrast 计算口径、判定门限（<0.2 不可用 / 0.2~0.4 可优化 / >0.4 合格 / >0.7 良好）、实测基线（q2ld3 0.22→0.765） |
+
+### M1 ✅ 合并与放行
+
+`.gitignore` 冲突是"两边都改同一段"：本地早就是 `/skills/*` + 显式白名单（10 条），上游只加 2 条 `!`。
+手工并集 → 保留本地 10 条 + 追加这 2 条。`git check-ignore` 验证 3 个新文件都不被忽略；
+`data/skills` ⇄ `skills` 的目录联接（junction）已存在，`rglob('SKILL.md')` 扫到 **11 个技能**。
+
+### M2 ✅ 修 B9：`skills.py` 不认 YAML 块标量（**上游缺陷，需回流**）
+
+**发现过程**：技能入库后先做离线发现验证，结果 11 个 skill 的 description 全是 `>` / `>-`。
+根因：`services/hermes_service/skills.py::_parse_skill_md` 只做逐行 `key: value` 拆分，
+而本仓库 **11 个 SKILL.md 的 description 全部**是 `description: >` / `description: >-` 的多行折叠块。
+
+**影响**：agent 侧拿到的技能描述是字面量 `">-"`，**技能路由彻底失效** ——
+`qmclaw-service-endpoints` 的 description 里有 40 多个触发词（微服务 / 端点 / 3003 / 写闸门 / goal 块 / run_ir …），
+全部被吞掉；新入库的两个 skill 等于白加。这是**上游一直有、但直到这次才发现**的老 bug。
+
+**修法**：新增 `_parse_frontmatter(fm)`，支持 `>` `>-` `>+`（折叠：行间空格连接、空行分段）
+与 `|` `|-` `|+`（字面量：保留换行），以及普通单行与引号包裹；`_parse_skill_md` 改调它。
+不引入 PyYAML（保持零依赖）。
+
+**回归网**：`_phase16_check.py` 新增第 10 节 4 条断言 ——
+① `skills.py` 里出现 `_parse_frontmatter` 与 `">-"`；② 遍历全部 SKILL.md，description 必须非空且不是块标量符号；
+③④ 两个新 skill 必须能被 `collect_skills()` 发现。**`_phase16_check` 62 PASS / 0 FAIL / 0 SKIP**
+（不新增自检文件，避免动 OFFLINE=39 的清单与文档表格）。
+
+**验证**（离线，不连服务）：11 个 skill 描述全部可读，例如
+`qmclaw-service-endpoints → "QMClaw 全部微服务的端点清单与功能说明（端口、路径、请求体、响应、用途）。 覆盖 Express 网关 :3002、quantum_s…"`。
+
+### M3 ⚠️ 新 skill 引用了不存在的文档（**已记入补足清单 A2**）
+
+`qmclaw-service-endpoints/SKILL.md:255` 写 "`docs/DSL_FACTS.md` / `docs/DSL_DESIGN.md` —— DSL 与治理层细节"，
+`:267` 写 "机制见 `docs/DSL_DESIGN.md` §13"。但这两份**在上游自己的仓库里也搜不到**
+（`git ls-tree -r 1bffeda` 全树 `DSL_` 只命中 `_p1_goal_dsl_check.py` 与 `docs/deploy_diff_tools/express_dsl_check.py`）。
+`docs/DSL_FACTS.md` 是本轮**新发现**的缺口（此前清单只有 `DSL_DESIGN`）。
+⇒ agent 照 skill 指引会去读一个不存在的路径。已请上游要么补文档、要么改引用。
+`docs/deploy_diff_tools/iqraw_contrast_tune.py` 这类实际存在的引用已核对通过。

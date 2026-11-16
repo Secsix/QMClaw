@@ -10,11 +10,15 @@
 
 ## 0. 一句话摘要（可直接粘进微信/邮件）
 
-> 上游分支重写后我方已再次合并，**现在 39 项离线自检全部真跑通过（0 跳过）、qwf 体检 92 项全绿，
-> qwf → 队列 → 真机服务整条链路实测打通（q21_7 的 iqraw 已跑到写闸门被拦下，红线按预期生效，未下发硬件指令）**。
-> 剩下 **3 件只能你们给的东西**（LLM 配置文件、4 份设计文档、离线数据包），
-> 外加 **上游仓库自身 8 处缺陷需要回流**（补丁我方已写好，可直接 cherry-pick），
+> 上游分支重写后我方已再次合并（含 2026-11-16 新入库的两个 skill），
+> **现在 39 项离线自检全部真跑通过（0 跳过）、qwf 体检 92 项全绿，
+> qwf → 队列 → 真机服务整条链路实测打通**：q21_7 的 iqraw **已真机实跑成功**
+> （dataset 4465，contrast 1.23%），写闸门按预期生威，未发生任何越权下发。
+> 剩下 **3 件只能你们给的东西**（LLM 配置文件、5 份设计文档、离线数据包），
+> 外加 **上游仓库自身 9 处缺陷需要回流**（补丁我方已写好，可直接 cherry-pick），
 > 以及 **CI 覆盖**这一项工程建议。
+> ⚠️ 其中 **B9 最影响你们这次的新增内容**：`skills.py` 不认 YAML 块标量，导致
+> **11 个技能的 description 全部退化成 `">-"`**，你们新 skill 里那 40 多个触发词一个都没生效。
 
 ---
 
@@ -54,14 +58,19 @@
 
 | ❌ 待补 | 内容 | 被谁引用 |
 |---|---|---|
-| `docs/DSL_DESIGN.md` | **DSL 子系统总体设计**（本次同步的关键增量） | 代码注释 |
+| `docs/DSL_DESIGN.md` | **DSL 子系统总体设计**（本次同步的关键增量） | 代码注释；**上游 2026-11-16 新入库的 skill `qmclaw-service-endpoints` 第 255/267 行以路径引用它**（"`docs/DSL_FACTS.md` / `docs/DSL_DESIGN.md` —— DSL 与治理层细节"、"机制见 `docs/DSL_DESIGN.md` §13"） |
+| `docs/DSL_FACTS.md` | DSL 与治理层的**事实口径**（字段表/额度语义/闸门行为） | 同上（skill 第 255 行）；**这份连上游自己的仓库里都搜不到**（`git ls-tree -r` 全树只有 `_p1_goal_dsl_check.py` 与 `docs/deploy_diff_tools/express_dsl_check.py` 命中 `DSL_`），属于**文档承诺了但从未入库** |
 | `docs/DSL_EXPERIMENTS.md` | DSL 实验说明 | 代码注释 |
 | `docs/BACKEND_ADAPTERS.md` | 后端适配器约定 | `dsl/backends/` |
 | `docs/TUNEUP_FLOW.md` | 调优流程 | 脚本 |
 
-**建议动作**：把这 4 份入库（**改 `.gitignore` 白名单，不要改文件名**；照 11-12 那两篇的做法即可）。
+**建议动作**：把这 5 份入库（**改 `.gitignore` 白名单，不要改文件名**；照 11-12 那两篇的做法即可）。
 若属于未发表/内部材料不便公开，至少给**一份对接口径说明**（IR 字段表、budget 语义、后端调用约定），
 否则第三方按 `.qwf` 写工作流只能靠猜。
+
+> ⚠️ **2026-11-16 补充**：你们新入库的 skill 已经把 `docs/DSL_DESIGN.md` 与 `docs/DSL_FACTS.md`
+> 当成"必读文档"写给 agent（"机制见 `docs/DSL_DESIGN.md` §13"），但这两份**在仓库里都不存在**。
+> 也就是说 agent 照 skill 的指引会去读一个 404 的路径。要么补文档，要么把 skill 里的引用改成实际存在的路径。
 
 **验收**：`git clone` 后这 4 个文件存在；`_phase13/14/16/17/18_check.py` 不再报"文档缺失"。
 
@@ -147,6 +156,7 @@
 | **B6** | 回归段永远零命中 | `_p1_goal_dsl_check.py` 的 glob 指仓库根 `*.qwf`，示例在 `qwf_examples/` | **示例从来没被回归过**（B5 就是被它漏掉的） | 该脚本 glob 修正 + 新增第 7 段回归断言 | ❌ 上游未修 |
 | **B7** | 能力基线硬编码某台机器 | `services/common/capabilities.py` 的 `KNOWN_RUNTIME_EXPORTS`/`KNOWN_MISSING` 写死上游那台机器的 `.pyd` 导出情况 | 别的机器上能力探测结论不对 | **我方未改**（改语义需你们拍板）→ **想请你们定：给一份"能力基线配置文件"，还是让代码自己探测？** | ⬜ 待拍板 |
 | **B8** | **analysis_service 与 quantum_service 同时重启时，analysis 会永久 degraded** | 2026-11-12 实测：analysis 启动时 `labrad_connect()` 失败（LabRAD 此刻被 quantum_service 占用），其重连预算是**按次数**（5 次指数退避，约 1 分钟内耗尽）→ 5 次全落在占用窗口内 → 打印"LabRAD 不可用（**已停止重连**）"、状态永久 `degraded`、`session_path: []`、`data_source: offline`；**只能手动 `POST /3004/connect {"session_path": [...]}` 才恢复**（本轮实测该调用成功，health 立刻转 `healthy`） | ① 重启后 analysis 一直是 offline，出图/统计拿不到真机数据；② `offlineAvailable:false` 时**离线兜底也没有**（本机没装离线包）→ 实际是"两头都没有" | **我方未改**（属上游语义，改法要你们定）。代码里 2026-11-02 已修过同类问题（"从未成功连接过就跳过重连"），但**按次数的预算仍有这个洞** | ❌ 上游未修 |
+| **B9** | **`hermes_service/skills.py` 不解析 YAML 块标量 → 全部技能描述退化成 `">-"`** | 2026-11-16 实测：仓库里 **11 个 SKILL.md 的 `description` 全部**写成 `description: >` / `description: >-` 的多行折叠形式，而解析器只做逐行 `key: value` 拆分 → `description` 字段拿到字面量 `">"` / `">-"`。于是 `/api/hermes/skills` 与 agent 的技能清单里，**每个技能的描述都是 `>-`**，`qmclaw-service-endpoints` 那 40 多个触发词（微服务/端点/3003/写闸门/goal 块…）**全被吞掉** | **技能路由失效**：agent 无法"按描述判断该不该加载这个技能"，只能靠名字猜 → 新入库的这两个 skill 等于白加（它们恰恰是靠 description 里的触发词起作用的） | 我方已修（`services/hermes_service/skills.py`：新增 `_parse_frontmatter`，支持 `>` `>-` `>+` `\|` `\|-` `\|+` 与普通单行；折叠用空格连接、字面量保留换行）。回归网挂在 `_phase16_check.py` 第 10 节（逐个数 11 个 SKILL.md 的 description 必须非空且不是块标量符号） | ❌ 上游未修 |
 
 ---
 
@@ -157,7 +167,7 @@
 | **C1** | **上游 CI 只跑 4 项**：`.github/workflows/checks.yml` 实际只跑 `_syntax_check.py` / `_docs_paths_check.py` / `_phase19_check.py` / `qwf_lint.py`；39 项 OFFLINE 全量自检**没进 CI** | ❌ 11-12 未变 | 把 OFFLINE 清单接进 CI（能否满足依赖请确认 runner 环境）。B5 就是 CI 没覆盖才漏出来的 |
 | **C2** | 上游跟踪了运行时产物：`services/task_queue/data/tasks/*.json` 有 10 个 `t-*.json` 被跟踪 | ✅ **11-12 已修**（全部出库） | 无需再动（我方上一轮也已出库，两边一致） |
 | **C3** | `docs/deploy_diff_tools/e3_tuneup18_edsl.py` 引用的产物路径在本机不存在 | ❌ 未变 | 给正确路径，或把脚本出库 |
-| **C4** | 上游 `.gitignore` 的"只公开 README/install + 运维/适配文档"是**对方公开仓库的策略**，与本仓库的 17+ 篇 docs + 9 个 skills + 3 个约定文件冲突 | ❌ 未变（11-12 只是多放行了 2 篇） | 本地已按"不照搬、放行本地路径"处理；若要统一口径请给一句话说明 |
+| **C4** | 上游 `.gitignore` 的"只公开 README/install + 运维/适配文档"是**对方公开仓库的策略**，与本仓库的 17+ 篇 docs + 11 个 skills + 3 个约定文件冲突 | ❌ 未变（11-12 只是多放行了 2 篇） | 本地已按"不照搬、放行本地路径"处理；若要统一口径请给一句话说明 |
 
 ---
 
@@ -200,7 +210,7 @@
 | 1 | `GET :3010/health` | `healthy` / `initialized: true` | ❌ 503 degraded（缺 `qubitclient.json`） |
 | 2 | `GET :3004/health` | `healthy` / `datalab_connected: true` | ✅ **已达成** |
 | 3 | analysis_service `offlineAvailable` | `true` | ❌ false（缺离线数据包） |
-| 4 | 6 份设计文档 | 新 clone 后可见 | ⚠️ 2/6（缺 `DSL_DESIGN` / `DSL_EXPERIMENTS` / `BACKEND_ADAPTERS` / `TUNEUP_FLOW`） |
+| 4 | 7 份设计文档 | 新 clone 后可见 | ⚠️ 2/7（缺 `DSL_DESIGN` / `DSL_FACTS` / `DSL_EXPERIMENTS` / `BACKEND_ADAPTERS` / `TUNEUP_FLOW`） |
 | 5 | `run_all_checks.py` OFFLINE 39 项 | 无"文件不存在"导致的 SKIP | ✅ **已达成**（0 跳过） |
 | 6 | 上游 CI | 覆盖 OFFLINE 全量 | ❌ 只 4 项 |
 | 7 | `git clone` 上游后跑全量自检 | 0 FAIL | ⚠️ 4 个脚本仍缺（白名单漏放行） |

@@ -1936,3 +1936,26 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   `plan_zpa_bias`（plan / plan_legacy）里的裸 `h5py.File`。
 - 验证：py_compile 通过；`test_zpa_interval_offline.py` / `test_zpa_trained_model.py` 全绿。
 - 第二次起跑：阶段 0 成功（dataset 181，86.7 s），正在进入 bias 遍历。
+
+---
+
+## 2026-11-16 10:15  同步上游两个新 skill（fast-forward）+ 修 B9（技能描述全变 ">-"）
+- **上游这次是 fast-forward**：``4fad224`` → ``1bffeda``（终于不是重写历史了），只做一件事 —— 两个 skill 入库。
+- **合并提交 ``1b01d25``**，备份标签 ``backup/pre-sync-20261116-skills``（``af81383``）。唯一冲突在 ``.gitignore``
+  （本地早就是 ``/skills/*`` + 10 条白名单，上游加 2 条 ``!``）→ 手工并集。
+- **新增内容**：
+  - ``skills/qmclaw-service-endpoints/SKILL.md``（429 行，全部微服务端点总表 + "禁止沙箱里 import lqms 直连 LabRAD" 铁律）
+  - ``skills/qubit-contrast-tuning/{SKILL.md,README.md}``（contrast 迭代调优，含判定门限与 q2ld3 实测基线 0.22→0.765）
+- **🔴 修 B9（上游缺陷）**：技能入库后做离线发现验证，发现 **11 个 skill 的 description 全是 ``>`` / ``>-``**。
+  根因：``services/hermes_service/skills.py::_parse_skill_md`` 只做逐行 ``key: value`` 拆分，不认 YAML 块标量，
+  而本仓库全部 SKILL.md 的 description 都写成 ``description: >`` / ``>-``。后果：agent 拿到的技能描述是 ``">-"``，
+  **技能路由彻底失效**（新 skill 那 40 多个触发词一个都没生效）。修法：新增 ``_parse_frontmatter`` 支持
+  ``>`` ``>-`` ``>+`` 与 ``|`` ``|-`` ``|+``（不引 PyYAML）。**回归网**：``_phase16_check.py`` 第 10 节 4 条断言
+  （不新增自检文件，避免动 OFFLINE=39 的清单/文档表格）。
+- **验证**：``run_all_checks.py`` 39/0/0；``_phase16_check.py`` **62/0/0**；``_docs_paths_check.py`` 6/6；
+  离线技能发现 **11 个**，``qmclaw-service-endpoints`` / ``qubit-contrast-tuning`` 均 ✅。
+- **新发现缺口**：新 skill 第 255/267 行引用 ``docs/DSL_FACTS.md`` / ``docs/DSL_DESIGN.md``，
+  而这两份**在上游仓库里也搜不到**（``git ls-tree -r 1bffeda`` 全树无此文件）→ 已并入补足清单 A2（现 5 份）。
+- **文档**：``docs/UPSTREAM_GAP_LIST.md`` 加 B9、A2 补 DSL_FACTS、验收表 2/7、摘要更新；
+  ``docs/BACKLOG.md`` 新增 M 组；``docs/SYNC_20261111_MERGE_PLAN.md`` 新增 S9 段。
+- **本地工具**：``_verify_skills.py``（离线列出全部 skill 与其 description，断言目标 skill 被发现）。

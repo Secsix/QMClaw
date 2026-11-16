@@ -1,4 +1,4 @@
-# 同步分支 `sync/qmclaw-20261111` 合并计划（DSL 全链合入版）
+﻿# 同步分支 `sync/qmclaw-20261111` 合并计划（DSL 全链合入版）
 
 > 对比对象：[QMC-AI/QMClaw](https://github.com/QMC-AI/QMClaw)
 > - `main` = `e3cb8fa`（= 本地 `origin/main`，**零增量**）
@@ -398,3 +398,17 @@ merge-base 退回 `e3cb8fa` ⇒ 上一轮合过的文件这轮全是 add/add 冲
 
 **A5**：远端 `.gitignore` 的「文档只留 3 篇 / `skills/` 整体忽略 / 忽略 CLAUDE.md·AGENTS.md」是对方公开仓库的策略。本地仓库有 17 篇在跟踪的 `docs/`、9 个 `skills/`、三个约定文件。计划按 **A5 = 不照搬**（改为放行本地路径的窄规则）执行。
 → 若你希望**完全照搬**远端策略（本地 docs/skills 出库），请说明——那会额外产生一次大规模出库提交。
+
+### S9　第三轮：上游 skill 增量（2026-11-16）
+
+上游 `sync/qmclaw-20261111`：`4fad224` → `1bffeda`，**fast-forward**（这次没有重写历史）。
+
+| 项 | 内容 |
+|---|---|
+| 合并提交 | `1b01d25`（父 1 = `af81383` 本地，父 2 = `1bffeda` 上游） |
+| 备份标签 | `backup/pre-sync-20261116-skills`（`af81383`） |
+| 上游变化 | 新增 `skills/qmclaw-service-endpoints/SKILL.md`（429 行）、`skills/qubit-contrast-tuning/{SKILL.md,README.md}`；`.gitignore` 的 `/skills/` → `/skills/*` + 2 条 `!` 放行 |
+| 冲突 | 仅 `.gitignore` 一处（两边改同一段）→ 手工并集：保留本地 10 条放行 + 追加 2 条 |
+| 附带修复 | **B9**：`hermes_service/skills.py` 不认 YAML 块标量 → 全部 11 个技能 description 退化成 `">-"`、技能路由失效。新增 `_parse_frontmatter` 支持 `>`/`|` 系列；回归断言挂在 `_phase16_check.py` 第 10 节 |
+| 验证 | `run_all_checks.py` 39/0/0；`_phase16_check.py` 62/0/0；`_docs_paths_check.py` 6/6；离线技能发现 **11 个**、两个新 skill 均 ✅ |
+| 新发现缺口 | `docs/DSL_FACTS.md` 被新 skill 引用但**上游仓库也没有** → 已并入补足清单 A2（现为 5 份待补文档） |

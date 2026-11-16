@@ -352,6 +352,55 @@ else:
     skip("方案文档保留（契约可查）",
          "docs/PLAN_PRODUCER_DEFAULT.md not in repo (upstream .gitignore excludes /docs/**/*.md)")
 
+
+# ── 10 skills frontmatter：description 必须真的解析出来 ───────────────────────
+# 曾经的 bug：只按 `key: value` 逐行取值，而本仓库所有 SKILL.md 的 description
+# 都写成 `description: >` / `description: >-` 的 **YAML 块标量**，于是解析结果是
+# 字面量 ">" / ">-" —— 11 个技能描述全部退化成 ">-"，技能路由（何时加载）失效。
+# 这里锁死：每个 SKILL.md 的 description 必须是可读文本，且不得以块标量符号开头。
+try:
+    _hs = os.path.join(SERVER, "services", "hermes_service", "skills.py")
+    _src = read(_hs)
+    check("skills.py 支持 YAML 块标量（> / |）",
+          "_parse_frontmatter" in _src and '">-"' in _src)
+
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location("_hs_skills", _hs)
+    _mod = importlib.util.module_from_spec(_spec)          # type: ignore[arg-type]
+    _spec.loader.exec_module(_mod)                          # type: ignore[union-attr]
+
+    _SKILLS_DIR = os.path.join(ROOT, "skills")
+    _bad_desc: list[str] = []
+    _n = 0
+    if os.path.isdir(_SKILLS_DIR):
+        for _base, _dirs, _files in os.walk(_SKILLS_DIR):
+            _dirs[:] = [d for d in _dirs if d not in ("__pycache__", ".git")]
+            for _fn in _files:
+                if _fn != "SKILL.md":
+                    continue
+                _n += 1
+                _p = os.path.join(_base, _fn)
+                _info = _mod._parse_skill_md(__import__("pathlib").Path(_p))
+                _desc = (_info.get("description") or "").strip()
+                _name = os.path.basename(_base)
+                if not _desc or _desc in (">", ">-", ">+", "|", "|-", "|+"):
+                    _bad_desc.append(f"{_name} → {_desc!r}")
+    check(f"全部 SKILL.md 的 description 解析为非空文本（共 {_n} 个）",
+          bool(_n) and not _bad_desc,
+          "; ".join(_bad_desc[:6]))
+
+    # 新增/上游同步进来的两个 skill 必须能被发现（技能路由的入口）
+    _collected = {getattr(s, "name", "") for s in _mod.collect_skills().skills}
+    for _need in ("qmclaw-service-endpoints", "qubit-contrast-tuning"):
+        _exists = os.path.isdir(os.path.join(_SKILLS_DIR, _need))
+        if _exists:
+            check(f"skill 可被发现：{_need}", _need in _collected)
+        else:
+            skip(f"skill 可被发现：{_need}", "本仓库没有该 skill 目录")
+except Exception as _exc:                                   # noqa: BLE001
+    skip("skills frontmatter 解析", f"导入 hermes skills 失败：{_exc!r}")
+
 print(f"\n_phase16_check: PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
 if FAILED:
     print("失败项：")
