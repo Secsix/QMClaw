@@ -416,11 +416,71 @@ export const api = {
     }
   },
 
+  // ── qiskit 后端（本地 Aer 模拟，与真机 sq.* 并列的第三个后端）──────────────
+  //
+  // qiskit 是**可选依赖**：/qiskit/health 永远返回 200，靠 `available` 字段
+  // 告诉前端能不能真跑。所以前端不要用 try/catch 当"是否可用"的判据。
+
+  /**
+   * qiskit 后端可用性 / 版本 / 执行方式（进程内 or 子进程）
+   */
+  qiskitHealth: async () => {
+    const res = await fetch(`${API_BASE}/api/quantum/qiskit/health`);
+    if (!res.ok) {
+      return { available: false, backend: "qiskit", error: `HTTP ${res.status}` };
+    }
+    return res.json();
+  },
+
+  /**
+   * qiskit 后端支持的实验目录（不需要装 qiskit 也能调）
+   *
+   * 返回：{ experiments: [...], coverage: {...} }
+   * 每个实验带 approximation（exact/model）、params 说明、metrics 名单。
+   */
+  qiskitExperiments: async () => {
+    const res = await fetch(`${API_BASE}/api/quantum/qiskit/experiments`);
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload?.error || `HTTP ${res.status}`);
+    return payload;
+  },
+
+  /**
+   * 用 qiskit/Aer 跑一个实验（同步返回，不走 job 队列）
+   *
+   * 结果信封与离线合成路径同构：data / metrics / plotPath，
+   * 外加 backend="qiskit"、unit_system="qiskit_normalized"、approximation。
+   *
+   * 注意：`status` 可能是 qiskit_completed / qiskit_unavailable /
+   * qiskit_timeout / qiskit_error —— 后三者**不算抛异常**，是把错误当数据
+   * 带回来了，所以这里不 throw，调用方按 status 分流。
+   */
+  qiskitRun: async (params: {
+    experiment?: string;
+    qubit?: string;
+    params?: Record<string, unknown>;
+    shots?: number;
+    seed?: number;
+    /** QASM2 源码：传了就忽略 experiment，直接跑自定义线路 */
+    circuit?: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/api/quantum/qiskit/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const payload = await res.json();
+    // 502（服务没起）才会走到这里，其余状态码都带完整 payload
+    if (res.status === 502) {
+      throw new Error(payload?.error || "quantum service unreachable");
+    }
+    return payload;
+  },
+
   /**
    * List offline datasets
    */
-  listOfflineDatasets: async (params?: { qubit?: string; experiment_type?: string; date?: string }) => {
-    const searchParams = new URLSearchParams();
+  listOfflineDatasets: async (params?: { qubit?: string; experiment_type?: string; date?: string }) => {    const searchParams = new URLSearchParams();
     if (params?.qubit) searchParams.set("qubit", params.qubit);
     if (params?.experiment_type) searchParams.set("experiment_type", params.experiment_type);
     if (params?.date) searchParams.set("date", params.date);
