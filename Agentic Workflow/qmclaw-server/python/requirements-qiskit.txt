@@ -1,0 +1,29 @@
+# qmclaw-server 可选依赖：qiskit 后端
+#
+# 为什么单独一个文件：qiskit + qiskit-aer 约 200MB，而且**只有用 qiskit
+# 后端的人才需要**。主 requirements.txt 里加上会让所有部署都得装一遍，
+# 拖慢构建，还可能和别的包的 numpy/scipy 版本打架。
+#
+# 装法（两种都行）：
+#
+#   1) 装进服务自己的解释器（最简单，进程内执行）：
+#        pip install -r python/requirements-qiskit.txt
+#
+#   2) 装进独立 conda 环境（推荐，不污染 lqcs 环境）：
+#        conda create -n qiskit python=3.11 -y
+#        conda activate qiskit
+#        pip install -r python/requirements-qiskit.txt
+#      然后在 config/system.json 里指过去：
+#        "qiskit": { "python_executable": "D:\\anaconda3\\envs\\qiskit\\python.exe" }
+#      量子服务会自动改走子进程执行（见 services/quantum_service/qiskit_runner.py）。
+#
+# 没装也不影响服务启动：量子服务照常起得来，只是 /qiskit/run 返回
+# "qiskit 后端不可用" 的明确提示，而不是 500。
+
+# 量子电路框架 + Aer 模拟器
+qiskit>=1.0
+qiskit-aer>=0.15
+
+# QASM3 导入器（可选：QASM2 不需要它）。
+# 不装的话 /qiskit/run 的 "circuit" 字段只支持 QASM2。
+# qiskit-qasm3-import>=0.5
