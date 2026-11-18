@@ -468,6 +468,17 @@ class QuantumService(BaseService):
                 if x and y:
                     ax.scatter(x, y, alpha=0.5, s=10)
 
+            elif data_type == "bar":
+                # 读出类实验（单发读出 / SWAP / 自定义线路）的结果分布
+                x = plot_data.get("x", [])
+                y = plot_data.get("y", [])
+                labels = plot_data.get("labels")
+                if x and y:
+                    if labels and len(labels) == len(x):
+                        ax.bar([str(v) for v in labels], y, color="#4C78A8")
+                    else:
+                        ax.bar(list(range(len(y))), y, color="#4C78A8")
+
             # 设置标签
             ax.set_xlabel(plot_data.get("xlabel", "X"))
             ax.set_ylabel(plot_data.get("ylabel", "Y"))
@@ -475,8 +486,9 @@ class QuantumService(BaseService):
             ax.grid(True, alpha=0.3)
             plt.tight_layout()
 
-            # 保存
-            filename = f"offline_sim_{result.get('exp_type', 'unknown')}_{int(time.time() * 1000)}.png"
+            # 保存。不同后端用不同前缀，免得 qiskit 的图和离线合成的图混在一起。
+            _prefix = "qiskit_sim" if result.get("backend") == "qiskit" else "offline_sim"
+            filename = f"{_prefix}_{result.get('exp_type', 'unknown')}_{int(time.time() * 1000)}.png"
             plot_path = plots_dir / filename
             fig.savefig(str(plot_path), dpi=150, bbox_inches='tight')
             plt.close(fig)
@@ -594,6 +606,12 @@ class QuantumService(BaseService):
             return self._handle_mode(data)
         elif path == "/datasets":
             return self._handle_datasets(data)
+        elif path == "/qiskit/run":
+            return self._handle_qiskit_run(data)
+        elif path == "/qiskit/experiments":
+            return self._handle_qiskit_experiments()
+        elif path == "/qiskit/health":
+            return self._handle_qiskit_health()
         else:
             raise ValueError(f"Unknown path: {path}")
 
@@ -1247,6 +1265,95 @@ class QuantumService(BaseService):
         with self._labrad_lock:
             experiments = self._labrad.list_experiments()
             return {"experiments": experiments, "count": len(experiments), "source": "live"}
+
+    def _handle_qiskit_run(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /qiskit/run — 用 qiskit/Aer 本地模拟跑一个实验。
+
+        请求：{"experiment": "t1", "qubit": "q0", "params": {...}, "shots": 2000}
+              也可传 "circuit": "<QASM2 源码>" 跑自定义线路。
+        返回：与离线合成路径同构的信封（data / metrics / plotPath），
+              外加 backend="qiskit"、unit_system="qiskit_normalized"、
+              approximation="exact"|"model"。
+
+        **写闸门豁免**：qiskit 是纯本地模拟，没有任何物理副作用，
+        所以不受真机的 allow_execute 闸门约束 —— 见 docs/qiskit_backend.md。
+
+        **不受 mode 影响**：online/offline/auto 三态管的是 LabRAD 真机，
+        qiskit 端点不碰 LabRAD，因此不参与 mode 语义。
+        """
+        from services.quantum_service import qiskit_backend
+
+        try:
+            result = qiskit_backend.run(data or {})
+        except Exception as exc:  # noqa: BLE001 - 端点绝不能 500
+            _log(f"[QISKIT] 未捕获异常: {exc}")
+            return error_envelope(
+                "internal_error",
+                f"qiskit 执行失败: {type(exc).__name__}: {exc}",
+                error_type="qiskit_error",
+            )
+
+        # 绘图：复用离线合成那套，图标题里带 "(qiskit 模拟)" 标记来源
+        if result.get("data"):
+            result.setdefault("exp_type", result.get("experiment"))
+            try:
+                plot_path = self._generate_simulation_plot(result)
+                if plot_path:
+                    result["plotPath"] = plot_path
+            except Exception as exc:  # noqa: BLE001 - 画不出图不该让执行失败
+                _log(f"[QISKIT] 绘图失败（不影响结果）: {exc}")
+
+        _log(
+            f"[QISKIT] experiment={result.get('experiment')} "
+            f"qubit={result.get('qubit')} status={result.get('status')} "
+            f"elapsed_ms={result.get('elapsed_ms')} error={result.get('error')}"
+        )
+        return self._json_safe(result)
+
+    def _handle_qiskit_experiments(self) -> Dict[str, Any]:
+        """GET /qiskit/experiments — qiskit 后端支持的实验目录。
+
+        不需要装 qiskit 也能调（目录是静态声明），所以前端可以据此
+        把入口列出来，再用 /qiskit/health 判断能不能真跑。
+        """
+        from services.quantum_service import qiskit_backend
+
+        try:
+            payload = qiskit_backend.list_experiments()
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[QISKIT] 实验目录读取失败: {exc}")
+            return error_envelope(
+                "internal_error",
+                f"qiskit 实验目录读取失败: {exc}",
+                error_type="qiskit_error",
+            )
+
+        payload["success"] = True
+        return self._json_safe(payload)
+
+    def _handle_qiskit_health(self) -> Dict[str, Any]:
+        """GET /qiskit/health — qiskit 后端可用性 / 版本 / 执行方式。
+
+        永远返回 200 + 结构化信息（available 真或假），
+        不因为"没装 qiskit"就报错 —— 前端要靠这个字段决定置灰入口。
+        """
+        from services.quantum_service import qiskit_backend
+
+        try:
+            status = qiskit_backend.status()
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[QISKIT] 健康检查失败: {exc}")
+            return {
+                "success": True,
+                "backend": "qiskit",
+                "available": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+
+        status["success"] = True
+        _log(f"[QISKIT] health: available={status.get('available')} "
+             f"execution={status.get('execution')}")
+        return self._json_safe(status)
 
     def _handle_datasets(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """获取数据集列表"""

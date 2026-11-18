@@ -16,10 +16,21 @@
     },
     "qiskit": {
       "enabled": false,
-      "description": "Qiskit backend for IBM quantum systems (future)",
+      "description": "job_runner 插件槽位：预留的 QiskitBackend（尚未实现，启用会因找不到类而失败）。注意与下面的顶层 qiskit 块不是一回事。",
       "version": "0.0.0",
       "required_packages": ["qiskit"]
     }
+  },
+  "qiskit": {
+    "enabled": true,
+    "description": "quantum_service 的 qiskit/Aer 本地模拟后端（与 sq.* 真机后端并列的第三个后端）",
+    "comment": "python_executable 指向装了 qiskit 的解释器。留空则要求 qiskit 装在服务自己的解释器里（进程内执行）；配了别的解释器则走子进程（qiskit_runner）。",
+    "python_executable": "D:\\anaconda3\\envs\\qiskit\\python.exe",
+    "shots": 2000,
+    "seed": 42,
+    "timeout_s": 120,
+    "max_shots": 200000,
+    "max_points": 501
   },
   "lqcs": {
     "connection": {
