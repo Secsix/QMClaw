@@ -35,6 +35,16 @@
 | `model_configs.json` | LLM 模型配置 |
 | `fallback_config.json` | 离线模式配置（offline_mode 配置） |
 
+**`system.json` 里有两个 `qiskit` 块，不是一个东西**（别再混）：
+
+- `backends.qiskit` —— `scripts/job_runner.py` 的后端**插件槽位**，`QiskitBackend` 类
+  **并不存在**，`enabled` 必须保持 `false`，改成 `true` 会让 job_runner 找不到类而失败
+- 顶层 `qiskit` —— `quantum_service` 的 qiskit/Aer 本地模拟后端配置
+  （`python_executable` / `shots` / `timeout_s` 等），见 `docs/qiskit_backend.md`
+
+qiskit 是**可选依赖**（`python/requirements-qiskit.txt`，不在主 `requirements.txt` 里）：
+没装不影响服务启动，只是 `/qiskit/run` 返回明确的 `qiskit_unavailable`。
+
 **API Key 说明**：从环境变量读取，不保存在配置文件中
 - `OPENAI_API_KEY`、`MINIMAX_API_KEY`、`ANTHROPIC_API_KEY`、`DEEPSEEK_API_KEY`
 

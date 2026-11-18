@@ -1959,3 +1959,63 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - **文档**：``docs/UPSTREAM_GAP_LIST.md`` 加 B9、A2 补 DSL_FACTS、验收表 2/7、摘要更新；
   ``docs/BACKLOG.md`` 新增 M 组；``docs/SYNC_20261111_MERGE_PLAN.md`` 新增 S9 段。
 - **本地工具**：``_verify_skills.py``（离线列出全部 skill 与其 description，断言目标 skill 被发现）。
+
+---
+
+## 2026-11-18 19:20  量子微服务新增 qiskit 后端（P0~P4 全量，含网关与前端）
+
+需求：在 quantum_service 里支持 qiskit 后端。经 `ask_user_question` 确认的四个选择：
+**独立增量端点**（不改 mode 语义、不套 `backends/` 插件、不走 DSL adapter）、
+**Aer 本地模拟器**（不接 IBM 硬件）、**覆盖全部 13 个实验词表**、**单独 conda 环境 `qiskit`**、
+**做完整 P0~P4（含网关与前端）**。
+
+- **提交**：``848784c``（三层模块）→ ``c2c8cf5``（服务路由+网关+配置）→ ``2e497ab``（单测+前端）
+  → 本文档提交。回退点：``848784c^``。
+- **为什么要拆两层**：qiskit 是可选依赖（约 200MB），而服务跑在 ``lqcs`` 环境、
+  那儿的 ``lqms`` 是真机 LabRAD 的唯一出路（``lqms`` 是私有包，本机无 cp311 轮子，
+  新环境装不上）。换解释器跑整个服务会废掉真机路径 → 让目录层不 import qiskit：
+  - ``qiskit_experiments.py``：13 实验元数据 + 懒调度（``impl="qiskit_circuits:_build_t1"``
+    形式，``importlib`` 懒加载；ImportError 转 ``QiskitUnavailable``）
+  - ``qiskit_circuits.py``：线路构造与拟合（978 行，需要 qiskit）
+  - ``qiskit_backend.py``：信封 / 入参钳位 / 健康检查 / 执行位置选择
+  - ``qiskit_runner.py``：跨解释器子进程入口
+- **跨解释器（本机默认走这条）**：``config/system.json`` 顶层 ``qiskit.python_executable``
+  指向 ``D:\anaconda3\envs\qiskit\python.exe`` → 起子进程；留空则进程内。
+  ``/qiskit/health`` 探测的是**配置指定的那个解释器**，否则会出"子进程能跑但 health 说不可用"的假阴性。
+  - 踩坑：结果一开始走 stdout 传回，但 ``python -m`` 会先跑包 ``__init__``，
+    那里打印 ``MemoryStore: Initialized at ...`` 把 JSON 冲掉 → 改成**走临时文件**。
+  - 开销：每次请求 +1.5s（``import qiskit + qiskit_aer`` 实测 1.6s）。没做常驻 worker
+    是刻意的：要处理存活/僵尸/崩溃重启，而现在的方案无状态、超时能真杀进程。
+- **五个硬约束**（代码注释 + ``docs/qiskit_backend.md`` 都写明）：
+  1. 无量纲单位制 → 结果打 ``unit_system: "qiskit_normalized"``（ħ=1，T1/T2 靠 ``t1_us``/``t2_us`` 先验换算）
+  2. 来源打标 → ``backend:"qiskit"`` + stdout ``[QISKIT]`` 前缀 + 图标题 "(qiskit 模拟)" + 文件名 ``qiskit_sim_``
+  3. **写闸门豁免** → 纯本地模拟无物理副作用，不受 ``allow_execute`` 约束（写成 ``WRITE_GATE_EXEMPTION`` 常量并由 health 返回，免被误判成漏检）
+  4. 可选依赖 → ``python/requirements-qiskit.txt`` 单独一份，不可用返回明确错误而非 500
+  5. 同步执行 → 不引入 job 队列/Ray，不碰 ``mode`` 语义
+- **13 个实验映射**：``exact`` = t1/ramsey/piamp/xeb/single_shot/swap；
+  ``model`` = spectroscopy/pulsed_spec/s21/s21_dis/iqraw/allxy/drag_calibrate。
+  实验名与 ``config/experiment_configs.json`` **完全同名**，agent/workflow/前端不用另学一套；
+  ``coverage_report()`` 交叉两边词表，``missing_in_qiskit`` 必须为空（单测盯着）。
+- **调试中修掉的实质 bug**（都是物理/语义错，不是代码风格）：
+  - XEB 保真度对 1% 噪声不敏感 → 改成按**深度**测 F(d)=A·α^d，且 1Q 门清单补全 s/sdg/sx/sxdg
+  - Ramsey T2 偏 2 倍 → ``phase_damping_error`` 的相干包络假设错了，换 ``thermal_relaxation_error``
+    （实测拟合 19.948 µs vs 真值 20.000）
+  - 谱学曲线全平 → Rabi 模型的 Ω·t 小到 3e-5 量级，换 Landau-Zener 长脉冲洛伦兹线型
+  - π 幅度取成半π → 原来找 ⟨Z⟩ 第一个过零点（θ=π/2），改成找极小值（θ=π）
+  - DRAG 的泄漏读错比特 → qiskit counts 串是**高位在左**（``c_{n-1}…c_0``），
+    需 ``len-1-q`` 换算，原来用了 ``key[-1]``
+  - Ramsey 失谐 0 被 ``or 1e6`` 吃掉 → 改 FFT 初值 + 带限 + ``resolved`` 回退先验
+- **验证**：
+  - ``python -m unittest tests.test_qiskit_backend tests.test_model_config_env`` → **32 通过 / 0 跳过**（约 39s）
+  - 13/13 实验冒烟（shots=800）：T1=5.02e-5 s、T2=2.36e-5 s、pi_amp=0.27528、
+    readout_fidelity=0.9744、swap_fidelity=0.99125、allxy=0.98292、drag=0.45、
+    iqraw SNR=4.0、s21_dis χ=2e6
+  - 降级路径：``lqcs``（无 qiskit）下服务模块正常 import、``/qiskit/experiments`` 照常列 13 个、
+    ``run`` 返回 ``qiskit_unavailable`` + 安装指引
+  - 跨解释器：``lqcs`` 进程 → ``qiskit`` 环境子进程，t1 端到端 1.48s
+  - ``tsc --noEmit``：服务端 38→38、前端 20→20（**无新增**，均为既有问题）
+- **注意**：``system.json`` 里有两个 ``qiskit`` 块。``backends.qiskit`` 是 job_runner 的插件槽位、
+  ``QiskitBackend`` 类并不存在，**必须保持 ``enabled: false``**；顶层 ``qiskit`` 才是本后端配置。
+  已写进 ``CLAUDE.md`` 防再踩。
+- **待人工（约定 3）**：起服务后肉眼验证前端 ⚛️ Qiskit 面板与图；本机未装
+  ``react-markdown`` 等 4 个前端依赖（既有缺口，与本改动无关）。
