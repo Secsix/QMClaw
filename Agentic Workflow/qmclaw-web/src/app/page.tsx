@@ -21,6 +21,7 @@ import HermesChatPanel from "../components/HermesChatPanel";
 import HermesSessionsSidebar from "../components/HermesSessionsSidebar";
 import HermesToolbar from "../components/HermesToolbar";
 import QubitParamsPanel from "../components/QubitParamsPanel";
+import QiskitBackendPanel from "../components/QiskitBackendPanel";
 import ModelRegistry from "../components/ModelRegistry";
 import ExperimentConfigs from "../components/ExperimentConfigs";
 import { useModelStore } from "../store/modelStore";
@@ -145,6 +146,7 @@ export default function Dashboard() {
 
   // Model registry modal
   const [showModelRegistry, setShowModelRegistry] = useState(false);
+  const [showQiskit, setShowQiskit] = useState(false);
 
   // Experiment configs modal
   const [showExperimentConfigs, setShowExperimentConfigs] = useState(false);
@@ -933,6 +935,23 @@ export default function Dashboard() {
             <option value="online">🌐 Online</option>
             <option value="offline">📦 Offline {offlineAvailable ? "✓" : ""}</option>
           </select>
+          {/* Qiskit 模拟后端 button —— 与真机/离线并列的第三个后端 */}
+          <button
+            onClick={() => setShowQiskit(true)}
+            title="qiskit/Aer 本地模拟（无量纲结果，不打真机）"
+            style={{
+              padding: "0.25rem 0.6rem",
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "0.375rem",
+              color: "#38bdf8",
+              cursor: "pointer",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+            }}
+          >
+            ⚛️ Qiskit
+          </button>
           {/* Model Registry button */}
           <button
             onClick={() => setShowModelRegistry(true)}
@@ -1618,6 +1637,11 @@ export default function Dashboard() {
       {/* Model Registry Modal */}
       {showModelRegistry && (
         <ModelRegistry onClose={() => setShowModelRegistry(false)} />
+      )}
+
+      {/* Qiskit 模拟后端 Modal */}
+      {showQiskit && (
+        <QiskitBackendPanel onClose={() => setShowQiskit(false)} />
       )}
 
       {/* Experiment Configs Modal */}
