@@ -3872,6 +3872,65 @@ app.get("/api/quantum/sessions", async (_req, res) => {
   }
 });
 
+/** GET /api/quantum/qiskit/health — qiskit 后端可用性（microservice）
+ *
+ * 永远返回 200 + 结构化信息：`available` 为 false 时前端据此把入口置灰，
+ * 而不是弹一个 502。qiskit 是可选依赖，没装不是故障。
+ */
+app.get("/api/quantum/qiskit/health", async (_req, res) => {
+  if (!USE_MICROSERVICES) {
+    res.status(501).json({ error: "qiskit backend requires microservice mode" });
+    return;
+  }
+  const result = await proxyToService('quantum', '/qiskit/health', 'GET');
+  res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+});
+
+/** GET /api/quantum/qiskit/experiments — qiskit 实验目录（microservice）
+ *
+ * 不需要装 qiskit 也能调：目录是静态声明的。返回每个实验的
+ * approximation（exact/model）、参数说明、指标名，以及与真机词表的覆盖情况。
+ */
+app.get("/api/quantum/qiskit/experiments", async (_req, res) => {
+  if (!USE_MICROSERVICES) {
+    res.status(501).json({ error: "qiskit backend requires microservice mode" });
+    return;
+  }
+  const result = await proxyToService('quantum', '/qiskit/experiments', 'GET');
+  res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+});
+
+/** POST /api/quantum/qiskit/run — 用 qiskit/Aer 本地模拟跑实验（microservice）
+ *
+ * body: { experiment, qubit?, params?, shots?, seed?, circuit? }
+ *   circuit 为 QASM2 源码时跑自定义线路，忽略 experiment。
+ *
+ * HTTP 码按结果映射，便于前端分流（payload 始终完整带回）：
+ *   qiskit_completed  → 200
+ *   qiskit_unavailable→ 503  后端没装，不是请求的错
+ *   qiskit_timeout    → 504
+ *   qiskit_error      → 400
+ */
+app.post("/api/quantum/qiskit/run", async (req, res) => {
+  if (!USE_MICROSERVICES) {
+    res.status(501).json({ error: "qiskit backend requires microservice mode" });
+    return;
+  }
+  const result = await proxyToService('quantum', '/qiskit/run', 'POST', req.body ?? {});
+  if (!result.ok) {
+    res.status(502).json({ error: result.error });
+    return;
+  }
+  const payload: any = result.data ?? {};
+  const status = payload.status as string | undefined;
+  const httpStatus =
+    status === "qiskit_completed" ? 200 :
+    status === "qiskit_unavailable" ? 503 :
+    status === "qiskit_timeout" ? 504 :
+    status === "qiskit_error" ? 400 : 200;
+  res.status(httpStatus).json(payload);
+});
+
 /** GET /datasets — get detailed hardware connection status (microservice) */
 app.get("/hardware/status", async (_req, res) => {
   if (USE_MICROSERVICES) {
