@@ -57,7 +57,7 @@ VENDOR_DIR = REPO_ROOT / "vendor" / "openqwf"
 UPSTREAM_META = VENDOR_DIR / "UPSTREAM.json"
 
 UPSTREAM_REPO = "https://github.com/Secsix/OpenQWF.git"
-DEFAULT_BRANCH = "feat/qwf-multiqubit-vocab"
+DEFAULT_BRANCH = "main"
 
 #: 只同步这两个包（目录名 → 包名）
 VENDORED_PACKAGES = ("qwf", "adapters")
