@@ -44,10 +44,18 @@ def _git(args, cwd):
 def _sha256(path: Path) -> str:
     import hashlib
     h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
+    h.update(_normalized_bytes(path.read_bytes(), path.name))
     return h.hexdigest()
+
+
+TEXT_SUFFIX = (".py", ".json", ".toml", ".md", ".txt", ".cfg", ".ini", ".yml", ".yaml")
+
+
+def _normalized_bytes(data: bytes, name: str) -> bytes:
+    """文本文件统一成 LF 后再比（上游工作区可能是 CRLF，仓库内容是 LF）。"""
+    if name.lower().endswith(TEXT_SUFFIX) and b"\r\n" in data:
+        return data.replace(b"\r\n", b"\n")
+    return data
 
 
 def _tree_hashes(root: Path) -> dict:
