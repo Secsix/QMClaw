@@ -1,0 +1,120 @@
+# 单比特标定链 —— 一条流程跑完 5 个实验
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py calib_single            # 只打印计划，不跑
+#   python qwf_exp.py calib_single --if yes   # 真跑
+#   python qwf_exp.py calib_single --dry      # 干跑，不碰硬件
+#
+# 为什么是"工作流"而不是"一个实验一份文件"：
+#   标定是一条**链** —— T1 定时间尺度 → Ramsey 定退相干 → π 脉冲幅度 →
+#   读出标定 → 门保真度。链的价值在于：
+#     * 中间任何一步失败，后面的实验照样能跑（每个 measure 都 `onError continue`）；
+#     * 每步都有**门槛**（assert → quality_gate），不达标会留下 FAIL 记录；
+#     * 门槛还能**驱动分支**：读出不达标就跳过门标定（省机时），达标才往下走。
+#
+# 三个写这类流程会踩的坑（都已在下面注释里标出）：
+#   1. `say "…${c4.metrics.readout_fidelity}"` 在 c4 失败时会抛 undefined ref
+#      —— **整个流程跟着挂**。所以指标一律通过 assert 门槛读，不直接插值。
+#   2. `onError continue` 只保证"继续往下走"，不保证"指标还在"。
+#   3. 分支里的 measure 不能在分支外引用（validate 会拦），所以分支要自带收尾。
+
+workflow ex_calib_single {
+  meta {
+    name        "ex_calib_single"
+    description "单比特标定链：T1 → Ramsey → π 幅度 → 读出 → AllXY（带门槛与分支）"
+    tags        ["calibration", "single-qubit", "workflow"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     30m
+    max_writes   6
+    max_datasets 6
+  }
+
+  # ── ① T1 弛豫时间（后面所有实验的时间尺度都按它定）────────────────────────
+  measure as c1 {
+    fn      sq.t1
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "① T1 弛豫"
+    args {
+      points 21
+      t1_us 50
+      zpa 0.0
+      delay range 0 2000 100
+    }
+  }
+  # 门槛：T1 < 20µs → 记一条 FAIL，但流程继续（后面的数只能当参考）
+  assert $c1.metrics.T1 >= 0.00002 else continue as g_t1
+
+  # ── ② Ramsey 退相干 T2 ──────────────────────────────────────────────────
+  measure as c2 {
+    fn      sq.ramsey_df
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "② Ramsey T2"
+    args {
+      points 41
+      t2_us 20
+    }
+  }
+  assert $c2.metrics.T2 >= 0.00001 else continue as g_t2
+
+  # ── ③ π 脉冲幅度标定（会回写 PiGate.amp / PiHalf.amp）──────────────────
+  measure as c3 {
+    fn      sq.piamp
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "③ π 脉冲幅度"
+    args {
+      points 41
+      amp_max 1.0
+    }
+  }
+  assert $c3.metrics.pi_amplitude >= 0.1 else continue as g_pi
+
+  # ── ④ 单发读出保真度（决定还要不要做门标定）────────────────────────────
+  measure as c4 {
+    fn      sq.single_shot
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "④ 单发读出"
+    args {
+      p_readout 0.03
+    }
+  }
+  assert $c4.metrics.readout_fidelity >= 0.95 else continue as g_ro
+
+  # ── ⑤ 门标定：只有读出达标才做（省机时的典型写法）──────────────────────
+  if $g_ro.passed {
+    measure as c5 {
+      fn      sq.allxy
+      qubit   $env.qubit
+      timeout 300
+      onError continue
+      note    "⑤ AllXY 门保真度"
+      args {
+        error_rate 0.02
+      }
+    }
+    assert $c5.metrics.average_fidelity >= 0.98 else continue as g_gate
+
+    if $g_gate.passed {
+      say "门标定通过：T1/T2/π/读出/AllXY 全过"
+    } else {
+      say "门保真度不达标 → 建议标 DRAG alpha 后复测 AllXY"
+    }
+  } else {
+    say "读出保真度不达标 → 跳过门标定（先重标 discriminator 中心，再跑 iqraw）"
+  }
+
+  say "单比特标定链结束（每步的 PASS/FAIL 看 QUALITY GATE 行）"
+}

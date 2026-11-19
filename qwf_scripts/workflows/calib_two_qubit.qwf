@@ -1,0 +1,71 @@
+# 双比特标定链 —— SWAP 保真度 → 达标才标 DRAG alpha
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py calib_two_qubit --if yes
+#
+# 和单比特链的差别：
+#   * 双比特实验用 `qubits ["q0","q1"]`（字面量列表，不接受 $env 变量）；
+#   * 典型工艺顺序：先把 SWAP 标定到 ≥0.9，再标 DRAG alpha 压泄漏。
+#     SWAP 不达标时标 DRAG 是白费机时 —— 这就是"条件跳过"的价值。
+#
+# 坑：
+#   * `if $c1.metrics.swap_fidelity` 在 c1 失败时会 undefined ref 把流程带挂；
+#     所以先用 assert 门槛把指标"接住"，再用 `$g.passed` 驱动分支。
+
+workflow ex_calib_two_qubit {
+  meta {
+    name        "ex_calib_two_qubit"
+    description "双比特标定链：SWAP →（达标才标）DRAG alpha"
+    tags        ["calibration", "two-qubit", "workflow"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     30m
+    max_writes   3
+    max_datasets 3
+  }
+
+  # ── ① SWAP 保真度 ───────────────────────────────────────────────────────
+  measure as c1 {
+    fn      sq.swap
+    qubits  ["q0", "q1"]
+    timeout 300
+    onError continue
+    note    "① SWAP 保真度"
+    args {
+      error_rate 0.01
+    }
+  }
+  assert $c1.metrics.swap_fidelity >= 0.9 else continue as g_swap
+
+  # ── ② DRAG alpha：SWAP 达标才标（分支内的绑定不能在外面引用）───────────
+  if $g_swap.passed {
+    measure as c2 {
+      fn      sq.drag_calibrate
+      qubits  ["q0", "q1"]
+      timeout 300
+      onError continue
+      note    "② DRAG alpha 标定"
+      args {
+        points 41
+        alpha_min -1.0
+        alpha_max 1.0
+      }
+    }
+    assert $c2.metrics.fidelity_at_opt >= 0.99 else continue as g_drag
+
+    if $g_drag.passed {
+      say "双比特标定通过：SWAP 与 DRAG 都达标"
+    } else {
+      say "DRAG 最优点保真度不足 0.99 → 建议缩小 alpha 扫描区间重标"
+    }
+  } else {
+    say "SWAP 保真度不足 0.9 → 跳过 DRAG 标定（先修两比特耦合/交换门）"
+  }
+
+  say "双比特标定链结束"
+}
