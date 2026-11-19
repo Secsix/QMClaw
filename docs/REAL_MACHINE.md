@@ -138,8 +138,34 @@ D:\semester4\deploy\qmclaw\qmclaw\python.exe "Agentic Workflow\qmclaw-server\scr
 | `stuck` / `stuck_reason` | 是否因超时卡死 |
 | `ray_ready` | Ray/DeviceManager 是否就绪（只读不依赖） |
 
-## 七、明确不在本期
+## 七、双比特能力在哪（2026-11-19 实测内省）
+
+真机**有**双比特能力，但它不在 `sq_nodes` 里：
+
+| | 单比特 | 双比特 |
+|---|---|---|
+| 模块 | `lqms.measure.tuners.sq_nodes`（编译版 `.pyd`） | `lqms.measure.tuners.cz_nodes`（`.py` 源码） |
+| 形态 | 模块级函数 `sq.t1(...)` | **类方法** `DCZTuner.swap11to20(...)` |
+| 对象 | 1 个比特 | **2 个比特 + 1 个耦合器**（`DCZTuner(qubits)` 里 `qubits[2]` 是 coupler） |
+| 主要实验 | t1 / ramsey_df / xeb / s21 / spectroscopy … | `swap11to20`（11↔20 SWAP 振荡）、`interaction`、`zpa_q_m` / `zpa_c_m`、`zpa_q_czecho` / `zpa_c_czecho`、`gate_time_m` / `gate_time_czecho`、`sq_phase_xeb` / `run_xeb`、`Swap11to20Entanglement`（部分迹测纠缠） |
+| 前置 | 直接调 | 还要 `initialize_gate()` 建 registry 键 + `find_zpa_*` 标定 |
+
+`DCZTuner.__init__(qubits, gate_name="DCZGate")` 里 `qubits[:2]` 是两个比特、
+`qubits[2]` 是耦合器；底层实验类在 `cz_experiment`（`TQExperiment` 存
+P00/P01/P10/P11）。批量并行用 `MultiDCZTuner` / `SMTRunner`。
+
+**当前 DSL 的缺口**（本轮只登记，未实现）：
+
+1. 后端链只会拼 `sq.xxx(...)` 模块级函数 → 调不到类方法；
+2. `.qwf` 的 `qubits ["q0","q1"]` 描述不了**耦合器**（真机双比特要第三个对象）；
+3. 词表里没有双比特实验的元数声明（`vendor_capabilities.two_qubit.dsl_support=false`）。
+
+建议的下一步（待拍板）：IR 加 `coupler` 字段（`qubits ["q0","q1"] + coupler "c0"`），
+后端加一条 `cz_nodes` 适配路径（`DCZTuner` 生命周期 + registry 建键 + ZPA 标定前置）。
+
+## 八、明确不在本期
 
 - 不打开写权限、不跑真机实验
 - 不改离线模拟器、不升级 `lqms`
 - 无硬件时无法验证真实比特参数与数据质量（需硬件恢复后单独验收）
+- 不实现 `cz_nodes` 双比特适配（见第七节，等拍板）

@@ -119,16 +119,26 @@
 
   "capabilities": {
     "lqms_available_functions": {
-      "note": "本机 lqms（lqcs 环境）实际可用的 sq_nodes 函数。.pyd 编译扩展遮蔽了更新的 .py 源码，因此新函数不可用。",
-      "available": ["iqraw","piamp","pidf","pulse_shape","pulse_shape_ramsey","ramsey_df","ramsey_t2","s21","s21_dis","s21_power2d","s21_zpa2d","set_pi","spectroscopy","spectroscopy_auto","spinecho_t2","t1","test_timing_xyz","xeb"],
-      "missing_in_pyd": ["spectroscopy_iq","time_rabi","iqcenter","impa_gain","pidf21"],
-      "missing_because": "D:/anaconda3/envs/lqcs/Lib/site-packages/lqms/measure/tuners/ 下 .pyd(2026-04-21) 遮蔽 .py(2026-09-08)；重启服务无用，需实验室重编译。"
+      "note": "本机 lqms（lqcs 环境）实际可用的 sq_nodes 函数。2026-11-19 实测内省编译版 .pyd（dir(sq_nodes)）：22 个实验函数都在，只有 pidf21 不存在。此前把 spectroscopy_iq / time_rabi / iqcenter / impa_gain 记成缺失是过期误判，已更正。",
+      "available": ["iqraw","iqcenter","piamp","pidf","impa_gain","t1","ramsey_df","ramsey_t2","spinecho_t2","xeb","time_rabi","test_timing_xyz","spectroscopy","spectroscopy_auto","spectroscopy_iq","s21","s21_dis","s21_power2d","s21_zpa2d","pulse_shape","pulse_shape_ramsey","set_pi"],
+      "missing_in_pyd": ["pidf21"],
+      "missing_because": "2026-11-19 实测：本机 tuners 目录下 sq_nodes 只有编译版 .pyd（无 .py 源码），该 .pyd 未导出 pidf21；厂商更新源码的机器上可能可用（lint 只给 warning）。"
+    },
+    "two_qubit_vendor": {
+      "note": "真机的双比特能力不在 sq_nodes，在 lqms.measure.tuners.cz_nodes.DCZTuner（类方法）。",
+      "module": "lqms.measure.tuners.cz_nodes",
+      "class": "DCZTuner",
+      "requires_coupler": true,
+      "coupler_index": 2,
+      "methods": ["initialize_gate","swap11to20","interaction","find_zpa_c_half_cycle","find_zpa_q","zpa_c_m","zpa_q_m","sweep_sq_phase","swap11to20_sq_phase","gate_time_m","zpa_q_czecho","zpa_c_czecho","gate_time_czecho","sq_phase_xeb","run_xeb","tune"],
+      "dsl_support": false,
+      "dsl_gap": "后端链只会拼 sq.xxx(...) 模块级函数；DSL 的 qubits 列表也描述不了耦合器（真机双比特要 2 比特 + 1 耦合器）。"
     },
     "experiment_configs_unavailable": {
       "allxy": "无同名函数；替代：iqraw + 重复对比",
       "single_shot": "无同名函数；替代：iqraw 高 shots + 逐次判定",
-      "pulsed_spec": "替代：sq.spectroscopy_iq（当前不可用）",
-      "swap": "无同名函数",
+      "pulsed_spec": "替代：sq.spectroscopy_iq（2026-11-19 实测可用）",
+      "swap": "sq_nodes 无同名函数；真机路径是 cz_nodes.DCZTuner.swap11to20（类方法 + 耦合器，当前 DSL 调不到）",
       "drag_calibrate": "无同名函数"
     },
     "vendor_pitfalls": [

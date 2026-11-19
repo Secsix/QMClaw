@@ -174,5 +174,70 @@ class TestQuantumSide(unittest.TestCase):
         self.assertEqual(params, {"do_plot": False})
 
 
+class TestVendorBaseline(unittest.TestCase):
+    """厂商能力基线（2026-11-19 实测校正）的一致性回归。
+
+    背景：能力基线曾经过期，把 4 个**真实存在**的函数（spectroscopy_iq /
+    time_rabi / iqcenter / impa_gain）误判成"运行时不存在"，
+    还把一个真正不存在的 `sq.pidf21` 留在 lint 白名单里。
+    """
+
+    def test_lint_whitelist_matches_runtime_exports(self):
+        """lint 放行的函数，运行时必须真的导得出。"""
+        from services.common.capabilities import KNOWN_RUNTIME_EXPORTS
+        from services.workflow_service.dsl.lint import SQ_NODE_FNS
+
+        runtime = set(KNOWN_RUNTIME_EXPORTS["lqms.measure.tuners.sq_nodes"])
+        for fn in SQ_NODE_FNS:
+            bare = fn.split(".", 1)[-1]
+            self.assertIn(bare, runtime, f"{fn} 在运行时基线里不存在")
+
+    def test_vendor_only_fns_are_not_in_whitelist(self):
+        """厂商源码有、运行时没有的函数（如 pidf21）不能进白名单，只能单独列。"""
+        from services.workflow_service.dsl.lint import (
+            SQ_NODE_FNS,
+            SQ_NODE_FNS_VENDOR_ONLY,
+        )
+
+        self.assertNotIn("sq.pidf21", SQ_NODE_FNS)
+        self.assertIn("sq.pidf21", SQ_NODE_FNS_VENDOR_ONLY)
+
+    def test_known_missing_is_only_pidf21(self):
+        from services.common.capabilities import KNOWN_MISSING
+
+        self.assertEqual(KNOWN_MISSING, ["pidf21"])
+
+    def test_four_experiments_exist_at_runtime(self):
+        """这四个今天实测都在，别再当成缺失。"""
+        from services.common.capabilities import KNOWN_RUNTIME_EXPORTS
+
+        runtime = set(KNOWN_RUNTIME_EXPORTS["lqms.measure.tuners.sq_nodes"])
+        for fn in ("spectroscopy_iq", "time_rabi", "iqcenter", "impa_gain"):
+            self.assertIn(fn, runtime)
+
+
+class TestTwoQubitVendor(unittest.TestCase):
+    """真机双比特能力登记（cz_nodes.DCZTuner）。"""
+
+    def test_vendor_block_registered(self):
+        from services.workflow_service.dsl.experiments import two_qubit_vendor
+
+        block = two_qubit_vendor()
+        self.assertEqual(block.get("module"), "lqms.measure.tuners.cz_nodes")
+        self.assertEqual(block.get("class"), "DCZTuner")
+        self.assertTrue(block.get("requires_coupler"))
+        self.assertIn("swap11to20", block.get("methods") or [])
+
+    def test_swap_note_points_to_cz_nodes(self):
+        """词表里 swap 的说明要指向真正的真机路径，而不是"真机没有"。"""
+        cfg = json.loads(
+            (_SERVER_DIR / "config" / "experiment_configs.json").read_text(encoding="utf-8")
+        )
+        swap = cfg["experiments"]["swap"]
+        self.assertFalse(swap.get("available", True))
+        self.assertIn("cz_nodes", swap["note"])
+        self.assertTrue("coupler" in swap["note"].lower() or "耦合器" in swap["note"])
+
+
 if __name__ == "__main__":
     unittest.main()
