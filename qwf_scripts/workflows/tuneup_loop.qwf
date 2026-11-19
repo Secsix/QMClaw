@@ -1,0 +1,59 @@
+# 有界自主循环 —— T1 不到阈值就自动复测（最多 3 轮）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py tuneup_loop --if yes
+#
+# 这是 qwf 里最"自动驾驶"的一块：`repeat max N stop_when <判据>`。
+#   - max 3        ：硬上限，最多 3 轮（不会无限跑）
+#   - stop_when    ：达标就停（这里是 T1 ≥ 60µs）
+#   - export c1    ：把循环体里的绑定 c1 留在外面，循环结束后还能用
+#   - 每轮重新绑定：上一轮的 c1 不会带进下一轮（避免拿旧值判停）
+#
+# 坑：
+#   * 循环体里**不要**写 `onError continue` —— 测量失败时 stop_when 拿不到指标，
+#     比较会直接 Halt（"比较失败：不是数值"）。让测量失败把流程停下来更诚实。
+#   * qiskit 是确定性模拟：三轮的 T1 完全一样，所以这里演示的是**机制**，
+#     真机上每轮 shot 噪声不同，复测才有意义。
+
+workflow ex_tuneup_loop {
+  meta {
+    name        "ex_tuneup_loop"
+    description "有界自主循环：T1 不到 60µs 就自动复测，最多 3 轮"
+    tags        ["loop", "autonomous", "workflow"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     20m
+    max_writes   3
+    max_datasets 3
+  }
+
+  # ── 循环体：测一次 T1，达标就停，否则再来一轮 ────────────────────────────
+  repeat max 3 stop_when $c1.metrics.T1 >= 0.00006 export c1 {
+    measure as c1 {
+      fn      sq.t1
+      qubit   $env.qubit
+      timeout 300
+      note    "T1 复测"
+      args {
+        points 21
+        t1_us 50
+        zpa 0.0
+        delay range 0 2000 100
+      }
+    }
+  }
+
+  # ── 循环结束：c1 还在（export 出来的），照常判一次门槛 ──────────────────
+  assert $c1.metrics.T1 >= 0.00006 else continue as g_t1
+
+  if $g_t1.passed {
+    say "T1 达标：${c1.metrics.T1}s"
+  } else {
+    say "3 轮复测都没到 60µs → 建议加 shots 或换 delay 区间再测"
+  }
+}

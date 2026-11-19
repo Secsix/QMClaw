@@ -1,0 +1,168 @@
+# 全量体检 —— 13 个实验一条流程跑完
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py bench_all --if yes
+#
+# 这是"回归式体检"的工作流版本：把单比特、双比特、频谱、读出、
+# 门标定全部串成一条流程，每个实验都 `onError continue`
+# —— 任何一项失败都**不会**让整条流程塌掉，最后统一看门槛结果。
+#
+# 和 `qwf_scripts/experiments/` 下的 13 个单项脚本的区别：
+#   * 单项脚本：一次一个实验，失败一眼定位（隔离用）
+#   * 本流程  ：一次跑完全部，出的是"整体体检报告"（回归用）
+#
+# 门槛阈值按 qiskit 的实际量级给（真机上要按器件重新定）：
+#   T1 ≥ 20µs、T2 ≥ 10µs、IQ 分隔 ≥ 1、π 幅度 ≥ 0.1、读出 ≥ 0.95、
+#   XEB ≥ 0.99、AllXY ≥ 0.97、SWAP ≥ 0.9、DRAG ≥ 0.99、色散位移 ≥ 1MHz。
+#   频谱类（spectroscopy / pulsed_spec / s21）在 qiskit 里只返回占位值，
+#   不设门槛，只记录。
+
+workflow ex_bench_all {
+  meta {
+    name        "ex_bench_all"
+    description "全量体检：13 个测控实验一条流程跑完（失败不塌，逐项给门槛）"
+    tags        ["bench", "regression", "workflow"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     60m
+    max_writes   13
+    max_datasets 13
+  }
+
+  # ── 单比特：弛豫 / 退相干 / 读出 / 门 ────────────────────────────────────
+  measure as c1 {
+    fn      sq.t1
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "① T1 弛豫"
+    args { points 21  t1_us 50  zpa 0.0  delay range 0 2000 100 }
+  }
+  assert $c1.metrics.T1 >= 0.00002 else continue as g_t1
+
+  measure as c2 {
+    fn      sq.ramsey_df
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "② Ramsey T2"
+    args { points 41  t2_us 20 }
+  }
+  assert $c2.metrics.T2 >= 0.00001 else continue as g_t2
+
+  measure as c3 {
+    fn      sq.iqraw
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "③ IQ 原始点云"
+    args { samples 300  p_readout 0.03 }
+  }
+  assert $c3.metrics.separation >= 1.0 else continue as g_iq
+
+  measure as c4 {
+    fn      sq.piamp
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "④ π 脉冲幅度"
+    args { points 41  amp_max 1.0 }
+  }
+  assert $c4.metrics.pi_amplitude >= 0.1 else continue as g_pi
+
+  measure as c5 {
+    fn      sq.single_shot
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "⑤ 单发读出"
+    args { p_readout 0.03 }
+  }
+  assert $c5.metrics.readout_fidelity >= 0.95 else continue as g_ro
+
+  measure as c6 {
+    fn      sq.allxy
+    qubit   $env.qubit
+    timeout 300
+    onError continue
+    note    "⑥ AllXY 门保真度"
+    args { error_rate 0.02 }
+  }
+  assert $c6.metrics.average_fidelity >= 0.97 else continue as g_allxy
+
+  measure as c7 {
+    fn      sq.xeb
+    qubit   $env.qubit
+    timeout 1800
+    onError continue
+    note    "⑦ XEB 随机基准"
+    args { cycles 8  sequences 12 }
+  }
+  assert $c7.metrics.gate_fidelity >= 0.99 else continue as g_xeb
+
+  # ── 双比特 ───────────────────────────────────────────────────────────────
+  measure as c8 {
+    fn      sq.swap
+    qubits  ["q0", "q1"]
+    timeout 300
+    onError continue
+    note    "⑧ SWAP 保真度"
+    args { error_rate 0.01 }
+  }
+  assert $c8.metrics.swap_fidelity >= 0.9 else continue as g_swap
+
+  measure as c9 {
+    fn      sq.drag_calibrate
+    qubits  ["q0", "q1"]
+    timeout 300
+    onError continue
+    note    "⑨ DRAG alpha 标定"
+    args { points 41  alpha_min -1.0  alpha_max 1.0 }
+  }
+  assert $c9.metrics.fidelity_at_opt >= 0.99 else continue as g_drag
+
+  # ── 频谱 / 腔（qiskit 只返回占位值，不设门槛）──────────────────────────
+  measure as c10 {
+    fn      sq.spectroscopy
+    qubit   $env.qubit
+    timeout 600
+    onError continue
+    note    "⑩ 连续波频谱找 f10"
+    args { points 51  df_hz 5000000  freq range 3.6 3.7 0.002 }
+  }
+
+  measure as c11 {
+    fn      sq.spectroscopy_iq
+    qubit   $env.qubit
+    timeout 600
+    onError continue
+    note    "⑪ IQ 域谱学"
+    args { points 51  df_hz 5000000 }
+  }
+
+  measure as c12 {
+    fn      sq.s21
+    qubit   $env.qubit
+    timeout 600
+    onError continue
+    note    "⑫ 读取腔 S21"
+    args { points 51  df_hz 5000000 }
+  }
+
+  measure as c13 {
+    fn      sq.s21_dis
+    qubit   $env.qubit
+    timeout 600
+    onError continue
+    note    "⑬ 色散位移"
+    args { points 51  df_hz 5000000 }
+  }
+  assert $c13.metrics.dispersive_shift >= 1000000 else continue as g_dis
+
+  say "全量体检结束：13 个实验跑完，逐项 PASS/FAIL 看 QUALITY GATE 行"
+}

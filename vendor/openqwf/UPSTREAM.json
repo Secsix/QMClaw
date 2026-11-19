@@ -1,8 +1,8 @@
 {
   "repo": "https://github.com/Secsix/OpenQWF.git",
   "branch": "main",
-  "commit": "067292584fd9092d9e19eaf7ffc2ca6d3c56c35d",
-  "synced_at": "2026-11-19T21:35:00+08:00",
+  "commit": "96a22407bb18909c74dde62894a7314e4514fbb9",
+  "synced_at": "2026-11-19T22:24:36+08:00",
   "source": "C:\\Users\\f6756\\AppData\\Local\\Temp\\OpenQWF3",
   "pending_upstream": false,
   "vendored_packages": [
@@ -31,7 +31,7 @@
     "qwf/helpers.py": "23819a8045e6ca5edab47f0513e144a8c8608cece010adb2d506d79bf4d4def1",
     "qwf/host.py": "ca4b432f6170cf41a03a52d64585d5edb882c39212f9f236ecb8416b15e8a090",
     "qwf/ir.py": "d8208a0d70924fcd164375989e70c65e1de5a8bfc15bd2c389559940e1dbbeee",
-    "qwf/lint.py": "6ee68192563d17c54a5e5568c93bc7cceb936b4e35710fa9cb4bc957e4b63a72",
+    "qwf/lint.py": "b31b18816b5bb3453cdcdca757026c8d0dc5a0578e68f9118002f2de289dbdd2",
     "qwf/llm.py": "c68a2b2f1958cb155f500cb19adeaf3f42cad4fdbfd49a5571ad552453a5e382",
     "qwf/manifest.py": "4f56478893d7607ae5af4f80c9ce34ed0787191a1c758997dc0820cce2197676",
     "qwf/metrics.py": "aff346aed39685f8210e79f06880216bf334bc24781085a3af3d319e93d3031b",
@@ -57,12 +57,12 @@
     "qwf/rules/schema.json": "723209110761b93cf0328d1fb353407c4f30befb6cfad2195e5dfda195914f4d",
     "qwf/store.py": "f0dcbf416964d02e35bedd0bb6bcb5c2ef3395a42f67be01d00296f72d91ce95",
     "qwf/textdsl/__init__.py": "b1c84200f643fe8971d4254f2a04b687add83c5ef9eb6404845282c5209336da",
-    "qwf/textdsl/lexer.py": "df31e16bb0a5aacaebf3b9870a100cc2f080faf376b7851d4d3aff494819d2e8",
+    "qwf/textdsl/lexer.py": "57f0f3005a8674bd8d13806e90ba8ef5609893a1952808b7e3b3d50dcd25bf37",
     "qwf/textdsl/parser.py": "72b6642a583e974ac9f3a3efbea760139adfb4850bc7f407273f7a8b35132a10",
     "qwf/textdsl/printer.py": "c96baf9bfe35e06a64d27b628e0e48a17acf71410bdc2c3405b54d12cb8b22e7",
     "qwf/validate.py": "6028cfa3e029dff45f2003b3ddfd61a54f45ec20bad51389b67f69f2d1ca1c62",
     "qwf/vendor_semantics.py": "ec9dfbb2eff8ac5bf722a4b764ab413b4d451708159b85a169dd2b4ea9f6d37b",
     "qwf/vocabulary.py": "3c43396dbea0c03e18a55cffc695d7f5e13f6df35de7c40f2063f2c8787612de"
   },
-  "note": "A1 multi-qubit IR + A2 paths/vocab + A3 qiskit forwarding + A4 fixes + A5 canvas bounds/from 修复（已随 PR #1 并入上游 main，文件内容与 a11778b 逐字节一致）"
+  "note": "feat(qwf): .qwf 支持科学计数法；lint 登记 assert 绑定"
 }

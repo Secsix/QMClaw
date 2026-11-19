@@ -43,7 +43,7 @@ jobs:
       - name: qwf 离线体检（受版本控制的产品范例，必须 0 error）
         shell: pwsh
         run: |
-          $files = @(git ls-files "qwf_examples/*.qwf" "qwf_scripts/*.qwf")
+          $files = @(git ls-files "qwf_examples/*.qwf" "qwf_scripts/*.qwf" "qwf_scripts/workflows/*.qwf" "qwf_scripts/experiments/*.qwf")
           if (-not $files -or $files.Count -eq 0) { Write-Host "没有 .qwf 文件"; exit 0 }
           Write-Host "lint $($files.Count) 个 .qwf"
           python qwf_lint.py @files

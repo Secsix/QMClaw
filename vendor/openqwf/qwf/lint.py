@@ -140,6 +140,9 @@ def _binding_attrs(op: str) -> Set[str]:
         return set(DECIDE_ATTRS)
     if op == "analyze":
         return set(ANALYZE_ATTRS)
+    if op == "assert":
+        # quality_gate 的结果：passed/threshold/operator/metric 都在（executor 摊平到顶层）
+        return set(MEASURE_ATTRS) | {"passed", "threshold", "operator", "metric"}
     return set(MEASURE_ATTRS)
 
 
@@ -445,7 +448,7 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
     for st, _in_branch in _walk(pipeline):
         op = st.get("op")
         name = st.get("as")
-        if name and op in ("measure", "read", "decide", "analyze"):
+        if name and op in ("measure", "read", "decide", "analyze", "assert"):
             binds[name] = {"op": op, "attrs": _binding_attrs(op), "stmt": st}
             if op == "measure":
                 measure_fn[name] = str(st.get("fn") or "")
@@ -711,7 +714,18 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
                                   f"decide 的 from 引用了不存在的绑定 '{nm}'", line)
 
         elif op == "if":
-            cond = st.get("cond") or {}
+            # cond 有三种形态（见 ir.py）：比较对象 {metric, operator, threshold}、
+            # 裸引用字符串（`if $c1.ok`）、布尔。旧的写法直接 `cond.get(...)`，
+            # 遇到字符串条件会 AttributeError 把 lint 整个带崩。
+            raw_cond = st.get("cond")
+            is_compare = isinstance(raw_cond, dict)
+            if isinstance(raw_cond, str):
+                # 字符串条件：取引用本身去查绑定存不存在
+                cond = {"metric": raw_cond.strip()} if raw_cond.strip().startswith("$") else {}
+            elif is_compare:
+                cond = raw_cond
+            else:
+                cond = {}
             metric = str(cond.get("metric") or "")
             if metric.startswith("$"):
                 nm = metric[1:].split(".")[0]
@@ -724,7 +738,7 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
                              f"'{metric}' 里的 '{attr}' 不是 {nm} 的已知字段",
                              line,
                              known=sorted(binds[nm]["attrs"]))
-                if attr == "choice" and nm in decide_choices:
+                if is_compare and attr == "choice" and nm in decide_choices:
                     choices = decide_choices[nm]
                     val = cond.get("threshold")
                     if choices and val not in choices:

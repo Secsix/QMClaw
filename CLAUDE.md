@@ -9,7 +9,7 @@ DSL 的**实现**住在私有独立仓 `Secsix/OpenQWF`（`qwf/` 核心 + `adapt
 | 项 | 值 |
 |----|-----|
 | 上游仓 | `https://github.com/Secsix/OpenQWF.git`（**私有**，靠 git credential helper 拉） |
-| 上游分支 | `main`（`0672925` = PR #1 已并入多比特/转发那批） |
+| 上游分支 | `main`（`96a2240` = PR #1 + lint/词法三次修复：字符串条件、科学计数法、assert 绑定） |
 | vendor 副本 | `vendor/openqwf/`（53 个文件）+ `UPSTREAM.json`（commit / 每文件 sha256） |
 | 门面 | `dsl/*.py` 全部是薄壳：`sys.modules[__name__] = upstream("qwf.<mod>")` |
 | 桥接 | `dsl/_upstream.py`：挂 `sys.path` + 注入 `QWF_CONFIG_DIR`/`QWF_VOCAB_PATH`/`QWF_DATA_DIR` |

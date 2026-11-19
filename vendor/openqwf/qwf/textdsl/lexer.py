@@ -13,7 +13,7 @@ TOKEN_RE = re.compile(
       (?P<WS>\s+)
     | (?P<COMMENT>\#[^\n]*)
     | (?P<STRING>"(?:[^"\\]|\\.)*")
-    | (?P<NUMBER>-?\d+(?:\.\d+)?(?:us|ms|s|m|h)?(?![A-Za-z0-9_]))
+    | (?P<NUMBER>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?:us|ms|s|m|h)?(?![A-Za-z0-9_]))
     | (?P<REF>\$[A-Za-z_][A-Za-z0-9_.]*)
     | (?P<IDENT>[A-Za-z_][A-Za-z0-9_.]*)
     | (?P<OP>>=|<=|==|!=|>|<)

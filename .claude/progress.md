@@ -2546,3 +2546,124 @@ SNR=4.0、average_fidelity=0.9805、optimal_drag=0.45 …）。
 `vendor/openqwf/UPSTREAM.json`、`tools/sync_openqwf.py`、`tools/check_openqwf_drift.py`、
 `CLAUDE.md`、`docs/OPENQWF_SYNC.md`、`docs/BACKLOG.md`、`.claude/progress.md`
 
+---
+
+## 2026-11-19 22:15 ★ 新增 `qwf_scripts/`：13 个实验脚本 + 一条命令跑测控
+
+### 需求
+「写几个 qwf 的脚本，让我可以用命令去运行测控实验」。
+
+### 做了什么
+| 文件 | 说明 |
+|---|---|
+| `qwf_scripts/*.qwf`（13 份） | 每份一个实验：参数已调好（点数、扫描区间、超时、预算写死在文件里） |
+| `qwf_scripts/README.md` | 脚本清单 + 参数口径（qiskit 口径 vs 真机口径）+ lint 警告怎么读 |
+| `qwf_exp.py` | 统一入口：`--list` / `<名字>` / `--if yes` / `--dry` / `--all` |
+| `qwf_sweep.py` | 改成薄壳：不再内嵌那张 EXPS 参数表，改读 `qwf_scripts/*.qwf`（**单一真源**） |
+| `tests/test_qwf_scripts.py` | 守住「脚本集合 = 实验词表」「每个脚本 lint 0 error」「比特元数对得上」 |
+| `.github/workflows/checks.yml` | lint 步骤从 `qwf_examples/*.qwf` 扩到 `+ qwf_scripts/*.qwf` |
+| `docs/qiskit_backend.md` | §10 补上 `qwf_exp.py` 的用法 |
+
+### 命令
+```bash
+python qwf_exp.py --list                 # 看有哪些
+python qwf_exp.py t1                     # 只打印计划（默认不跑）
+python qwf_exp.py t1 --if yes            # 真跑
+python qwf_exp.py --all --if yes         # 全跑 13 个
+python qwf_exp.py t1 swap --if yes       # 一次跑多个
+python qwf_sweep.py --if yes             # 等价于 --all（薄壳）
+```
+
+### 过程中的一个真坑（值得记）
+`spectroscopy.qwf` 第一版写 `freq range 6.5 7.1 0.001`（601 点），
+跑出来 **failed**：
+> c1(sq.spectroscopy): 预计运行 606s，超过语句 timeout=300s
+
+**下发前的耗时闸门按真机速度估（≈1 s/点）**，点一多就 Halt。
+厂商口径又**必须**显式给 `freq`（不给报 `E_SPEC_NO_FREQ`）——
+两个要求夹在一起，只能把区间收窄：改成 `freq range 3.6 3.7 0.002`（51 点，
+顺带对准 q2ld3 的 f10≈3.62 GHz）→ 估 51s，过了 ✓。
+**教训**：qiskit 侧根本不认 `freq`（它只用 points/df_hz），但真机口径的闸门照样按它算点。
+
+### 验证
+- `qwf_lint.py` 13 份脚本：**全部 error=0**（warning 是有信息量的那几条：会回写寄存器 / 双比特写死比特名 / 该函数只有 qiskit 有）
+- `pytest tests/test_qwf_scripts.py`：**28 passed**
+- `python qwf_exp.py t1 --if yes` → completed，backend=qiskit，**T1=4.956850231448054e-05**
+  （与上一轮 sweep 的值逐位一致 ✓ —— 说明脚本文件和 sweep 生成的是同一份东西）
+- `python qwf_sweep.py --if yes` → **13/13 completed**（脚本文件版，与上一轮生成版指标一致）
+- `_syntax_check.py` PASS=391 FAIL=0；`_docs_paths_check.py` PASS=6 FAIL=0
+
+### 改动文件
+`qwf_scripts/`（13 份 .qwf + README.md）、`qwf_exp.py`、`qwf_sweep.py`、
+`Agentic Workflow/qmclaw-server/tests/test_qwf_scripts.py`、
+`.github/workflows/checks.yml`、`docs/qiskit_backend.md`、`.claude/progress.md`
+
+---
+
+## 2026-11-19 22:40 ★ qwf_scripts 改成工作流为主（多实验流程）+ 上游三次修复
+
+### 起因（用户纠正）
+> "qwf的设计是面向工作流运行的，应该每次不止一个实验才对"
+
+原先 `qwf_scripts/` 是"一份脚本一个实验"，方向反了：qwf 的设计目标是面向
+**工作流**运行（一次多个实验 + 门槛 + 分支 + 循环），单实验脚本只该当
+"隔离失败/单独复测"的辅助层。
+
+### 做了什么
+| 文件 | 说明 |
+|---|---|
+| `qwf_scripts/workflows/*.qwf`（4 份，新增） | **主菜**：calib_single（5 实验 + 5 门槛）/ calib_two_qubit（SWAP→达标才标 DRAG）/ tuneup_loop（repeat max 3 stop_when）/ bench_all（13 实验一条流程） |
+| `qwf_scripts/experiments/*.qwf`（13 份，git mv 下沉） | 单项层：隔离失败、单独复测；与 `experiment_configs.json` 仍一一对应 |
+| `qwf_exp.py` | 重写：发现两层、`--list` 两段、`--all`=工作流、`--all-experiments`=单项；工作流会额外收集**全节点指标 + 门槛 PASS/FAIL + say 行** |
+| `qwf_sweep.py` | 薄壳改指 `--all-experiments` |
+| `tests/test_qwf_scripts.py` | 新增：工作流 lint 0 error / 采集次数 ≥2（循环按 max_rounds 折算）/ 非循环 measure 必须 `onError continue` / 两层不重名 |
+| `.github/workflows/checks.yml` | lint glob 扩到 `qwf_scripts/workflows/*.qwf` `qwf_scripts/experiments/*.qwf` |
+| `qwf_scripts/README.md`、`docs/qiskit_backend.md` §12、`CLAUDE.md` | 文档同步 |
+
+### 上游为此推了三次（Secsix/OpenQWF main: 0672925 → **96a2240**）
+| 提交 | 改了什么 | 为什么 |
+|---|---|---|
+| `68c9cf9` | lint 支持字符串/布尔条件 | `if $c4.ok` 之前 `cond.get()` 直接 AttributeError 崩掉 |
+| `2a5af4a` | lint 绑定属性表补 `passed` 等门槛字段 | `if $g.passed` 要能看见门槛结果 |
+| `96a2240` | `.qwf` 数字支持科学计数法；lint 绑定表补 `assert` | `2e-5` 不用再写一串 0；`assert … as g1` 的 g1 是真绑定，之前误报 E_UNKNOWN_BINDING |
+
+vendor 已同步到 `96a2240`（53 文件），漂移检查 `[OK]`。
+上游 CI（`tools/dsl_ci.py`）改动前后与基线**完全一致**：
+selftest 258/259、reliability 117/130、usability 10/10、rules 48/48、e1verify 20/20。
+
+### 验证（走完整 HTTP 链：:3008 → task_queue → :3003 → Aer）
+| 工作流 | 结果 | 门槛 |
+|---|---|---|
+| `calib_single` | completed 42.5s | 5/5 PASS |
+| `calib_two_qubit` | completed 17.4s | 2/2 PASS（分支命中，DRAG 在分支内跑） |
+| `tuneup_loop` | completed 27.5s | 3 轮跑完 → **FAIL 分支**命中（阈值故意定过不去，验证失败分支也走对） |
+| `bench_all` | completed 107.8s | 13 实验全跑完，10 道门槛全 PASS |
+| `--all-experiments` | **13/13 completed**（移动后回归，指标与移动前逐位一致） | — |
+
+`pytest tests/test_qwf_scripts.py` → **41 passed**（含漂移测试共 47 passed / 1 skipped）；
+4 份工作流 lint 全部 error=0；`_syntax_check.py` PASS=391 FAIL=0。
+
+### 过程中踩到的三个坑
+1. **`sq.pulsed_spec` 这个函数不存在**（真机 `sq_nodes` 里没有）→ lint 报 `E_UNKNOWN_FN`（error）。真名是 `sq.spectroscopy_iq`（bench_all 改掉）。
+2. **双比特 measure 不能同时写 `qubit` 和 `qubits`** → 校验阶段 `E_SCHEMA` 拦下（calib_two_qubit / bench_all 改掉）。
+3. **`.qwf` 里的 `2e-5` 在跑着的服务上不认**：服务进程还加载着旧 vendor（服务启停由人控制，不能自己重启）→ 脚本阈值先写普通小数 `0.00002`；上游 `96a2240` 加的科学计数法要**服务重启后**才生效。
+
+### 另一个坑（DSL 语义，记下来）
+`say "…${c4.metrics.X}"` 在 c4 失败时抛 undefined ref → **整条流程挂掉**
+（`onError continue` 只保证"继续往下走"，不保证"指标还在"）。
+指标一律经 `assert` 门槛读，再用 `$g.passed` 分支。
+
+### 一个手滑（记下来，别再犯）
+用 PowerShell 的 `Add-Content -Encoding UTF8` 往 `.claude/progress.md` 追加，
+结果把 2548 行的历史**截断**成 105 行（只剩最后一条）。
+已用 `git checkout HEAD~1 -- .claude/progress.md` 恢复，
+改用编辑工具追加。**以后写这类文件一律用编辑/写文件工具，不用 PowerShell 重定向。**
+
+### 改动文件
+`qwf_scripts/workflows/`（4 份）、`qwf_scripts/experiments/`（13 份下沉）、
+`qwf_scripts/README.md`、`qwf_exp.py`、`qwf_sweep.py`、
+`Agentic Workflow/qmclaw-server/tests/test_qwf_scripts.py`、
+`.github/workflows/checks.yml`、`docs/qiskit_backend.md`、`CLAUDE.md`、
+`vendor/openqwf/`（lint.py / lexer.py / UPSTREAM.json）、`.claude/progress.md`
+
+
