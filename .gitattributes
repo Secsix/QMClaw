@@ -7,3 +7,4 @@ vendor/openqwf/** text eol=lf
 
 # ── Python 源码：仓库内统一 LF ──────────────────────────────────────────
 *.py text eol=lf
+.gitattributes text eol=lf
