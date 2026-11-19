@@ -2207,3 +2207,42 @@ tsc：web 0 错误，server 38 = 既有基线未新增。
 
 **需人工（约定 3）**：重启 Express 网关（PID 37624，监听 8080 的那个 tsx 进程），
 端口才会从 8080 变成 3002。改完前端刷新即可。
+### 补充：qwf 跑 qiskit 后端的一次量子测控实验（2026-11-19）
+**目标**：用 `.qwf`（工作流 DSL）这条唯一推荐入口，跑一次量子测控实验，后端落到 qiskit/Aer。
+
+**环境**：本机没有 lqcs 真机栈（`lqms_installed=false`），后端策略 `order=[lqcs,qiskit,offline_sim]`
+自动落到 qiskit（`backend_active=qiskit`，qiskit 2.6.2 / qiskit-aer 0.18.4，子进程解释器
+`D:\anaconda3\envs\qiskit\python.exe`）。
+
+**结果**：✅ 一次完整绿的 qwf 真跑
+- `qwf_examples/06_qiskit_t1.qwf`（新增，measure sq.t1 + say）
+- `python qwf_run.py qwf_examples/06_qiskit_t1.qwf --if yes`
+- 终态 `completed`，outcome `achieved`，耗时 10.1s
+- 节点 c1：backend=qiskit，approximation=exact，metrics `{T1: 4.949e-05}`，
+  shots=2000，seed=42，elapsed_ms≈1.8s，图 `/plots/qiskit_sim_t1_*.png`
+
+**过程中发现并处理的 3 件事**
+1. `qwf_run.py` 在没有 LabRAD 时**崩在打印 quantum 健康那一步**：`/health` 返回 503
+   （降级但带完整报告，`backend_active=qiskit`），urllib 对非 2xx 抛 HTTPError。
+   → `get()` 改为容忍非 2xx 并解析 body（qwf_run.py:46）；顺带把 `backend=` 打进状态行。
+2. **qiskit 下 `read`/`analyze` 节点必然失败**（读 LabRAD DataVault 数据集，模拟不产生）。
+   实跑 `qwf_examples/01_iqraw_contrast.qwf`：c1 completed（iqraw，SNR=4.0，separation=1.414），
+   r1 failed（"实验模拟器未初始化…离线数据未就绪"），s1 skipped。
+   → qiskit 演示流只保留 measure；已写进 `docs/qiskit_backend.md` §10。
+3. **真机口径的耗时闸门会把 qiskit 流程拦下**：`sq.t1` 不显式给 zpa/delay 时，
+   按厂商默认展开 3216 点 → 估 2582.8s > timeout 300s → 直接 Halt。
+   → qwf 里显式给 `zpa 0.0` + `delay range 0 2000 100`（21 点）。
+
+**修掉的真实缺陷**：`services/quantum_service/offline_simulator.py` 的
+`ExperimentSimulator.parse_experiment_code` 用 `sq\.\w+\s*\([^)]+\)` 截参数表 →
+① 值里带括号（`delay=range(...)`）时提前截断，后面的 kwargs 全丢；
+② 截下来的值带尾随逗号/右括号 → `int()/float()` 失败 → 参数退化成字符串 →
+qiskit 的 `_clamp` 静默退回默认值。**症状：qwf 写 `points 21`，qiskit 实际按 51 点跑，且不报错。**
+→ 改成括号配平扫描 + 顶层逗号切分 + 字面量解析（新增 `_split_call_args` / `_parse_kwarg`）。
+单元验证：`sq.t1(q2ld3, points=21, zpa=0.0, delay=range(0, 2000, 100))`
+→ `{'points': 21, 'zpa': 0.0, 'delay': 'range(0, 2000, 100)'}`（旧实现给的是
+`{'points': '21,', 'zpa': '0.0,', 'delay': 'range(0,'}`）。
+**服务重启后生效**（约定 3：服务启停由人控制）。
+
+**改动文件**：`qwf_run.py`、`services/quantum_service/offline_simulator.py`、
+`qwf_examples/06_qiskit_t1.qwf`（新增）、`docs/qiskit_backend.md`（§10）
