@@ -129,7 +129,7 @@ DSL ↔ qiskit 的契约是**代码文本 + `config/experiment_configs.json`**�
 
 ```bash
 # 1) 拉上游最新（私有仓，靠 credential helper）
-git clone --branch feat/qwf-multiqubit-vocab https://github.com/Secsix/OpenQWF.git <dir>
+git clone --branch main https://github.com/Secsix/OpenQWF.git <dir>
 
 # 2) 同步进 vendor
 python tools/sync_openqwf.py --from <dir> --note "说明这次同步了什么"

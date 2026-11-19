@@ -1,8 +1,8 @@
 {
   "repo": "https://github.com/Secsix/OpenQWF.git",
-  "branch": "feat/qwf-multiqubit-vocab",
-  "commit": "a11778becbb529385b99e84a45c32a7f08ed6b8c",
-  "synced_at": "2026-11-19T17:14:11+08:00",
+  "branch": "main",
+  "commit": "067292584fd9092d9e19eaf7ffc2ca6d3c56c35d",
+  "synced_at": "2026-11-19T21:35:00+08:00",
   "source": "C:\\Users\\f6756\\AppData\\Local\\Temp\\OpenQWF3",
   "pending_upstream": false,
   "vendored_packages": [
@@ -64,5 +64,5 @@
     "qwf/vendor_semantics.py": "ec9dfbb2eff8ac5bf722a4b764ab413b4d451708159b85a169dd2b4ea9f6d37b",
     "qwf/vocabulary.py": "3c43396dbea0c03e18a55cffc695d7f5e13f6df35de7c40f2063f2c8787612de"
   },
-  "note": "A1 multi-qubit IR + A2 paths/vocab + A3 qiskit forwarding + A4 fixes + A5 canvas bounds/from 修复"
+  "note": "A1 multi-qubit IR + A2 paths/vocab + A3 qiskit forwarding + A4 fixes + A5 canvas bounds/from 修复（已随 PR #1 并入上游 main，文件内容与 a11778b 逐字节一致）"
 }

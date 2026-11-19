@@ -953,7 +953,7 @@ DSL 的实现从本仓搬到**私有独立仓** `Secsix/OpenQWF`（`qwf/` 核心
 |---|---|---|
 | N1 | vendor 副本 + `tools/sync_openqwf.py`（同步）+ `tools/check_openqwf_drift.py`（漂移） | ✅ `f3930fe` / `5060a37` |
 | N2 | `services/workflow_service/dsl/` 全部退化成**薄壳门面**（`sys.modules` 整体替换，零 DSL 实现） | ✅ |
-| N3 | 上游 A1–A5 回流：多比特 IR（`measure.qubits`） / `paths`+`vocabulary` / qiskit **转发**适配器 / canvas `bounds` + printer `from` | ✅ 上游 `a11778b` |
+| N3 | 上游 A1–A5 回流：多比特 IR（`measure.qubits`） / `paths`+`vocabulary` / qiskit **转发**适配器 / canvas `bounds` + printer `from` | ✅ 上游 `a11778b`（已随 PR #1 并入 `main` = `0672925`） |
 | N4 | 回归网：`tests/test_openqwf_drift.py`（薄壳纯度 / 同一性 / 双表一致）+ CI `openqwf-drift` 任务 | ✅ |
 | N5 | 路径桥接：`_upstream.py` 注入 `QWF_CONFIG_DIR` / `QWF_VOCAB_PATH` / `QWF_DATA_DIR` | ✅ |
 

@@ -2510,3 +2510,39 @@ SNR=4.0、average_fidelity=0.9805、optimal_drag=0.45 …）。
 ### 改动文件
 `.claude/progress.md`、`docs/BACKLOG.md`（N9 结项）
 
+---
+
+## 2026-11-19 21:40 ★ 两个仓都推上 GitHub 了 + 上游基线切到 `main`
+
+### 推送前先查状态（发现上游有新动作）
+- **上游 OpenQWF**：`feat/qwf-multiqubit-vocab` 早就在远端（`a11778b`），
+  而且 —— 上游 `main` 已经被人合了：**`0672925` = "Merge pull request #1 from
+  Secsix/feat/qwf-multiqubit-vocab"**，我们那条分支**已被并进 main** ✓
+- `git diff a11778b origin/main` **为空**（纯 merge commit，文件内容逐字节一致）→
+  vendor 副本不用重新同步，只是"基线分支名"该从特性分支换成 `main`
+
+### 本仓 QMClaw 推送
+- 推送前扫密钥（index + HEAD 全量）：**无命中**
+- `git merge-base --is-ancestor origin/main main` → 是，**快进**，不需要 force
+- `git push origin main`：`7dd3912..6b8a991 main -> main`（**24 个提交**，含本轮 4 个）
+- 复核 `git ls-remote origin`：`refs/heads/main = 6b8a991`，本地 `0/0`（已同步）
+
+### 基线切到上游 `main`
+| 文件 | 改动 |
+|---|---|
+| `vendor/openqwf/UPSTREAM.json` | branch `feat/qwf-multiqubit-vocab` → `main`；commit → `0672925`；note 补一句"已随 PR #1 并入 main" |
+| `tools/sync_openqwf.py` | `DEFAULT_BRANCH` → `main` |
+| `tools/check_openqwf_drift.py` | `DEFAULT_BRANCH` → `main` |
+| `CLAUDE.md` / `docs/OPENQWF_SYNC.md` / `docs/BACKLOG.md` | 分支名与 commit 更新 |
+
+复核：`check_openqwf_drift.py --from <上游 clone>` → **上游提交 0672925 == 已 vendor 0672925，
+`[OK] vendor 与上游一致`**；`sync_openqwf.py --check` → `[OK] vendor 与 UPSTREAM.json 一致（53 个文件）`。
+
+### 顺带修的
+上游 clone 的 `remote.origin.fetch` 原来只跟 `main` 一条 refspec（特性分支推上去时没建跟踪分支，
+`git fetch` 后没有 `origin/feat/...`）→ 改成 `+refs/heads/*:refs/remotes/origin/*`。
+
+### 改动文件
+`vendor/openqwf/UPSTREAM.json`、`tools/sync_openqwf.py`、`tools/check_openqwf_drift.py`、
+`CLAUDE.md`、`docs/OPENQWF_SYNC.md`、`docs/BACKLOG.md`、`.claude/progress.md`
+
