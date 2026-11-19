@@ -81,6 +81,58 @@ class ExperimentSimulator:
         self._last_simulation_result: Optional[Dict[str, Any]] = None
 
     @classmethod
+    def _split_call_args(cls, body: str) -> List[str]:
+        """按**顶层**逗号切参数表（括号/方括号/引号里的逗号不算）。"""
+        parts: List[str] = []
+        depth = 0
+        quote = ""
+        buf: List[str] = []
+        for ch in body:
+            if quote:
+                buf.append(ch)
+                if ch == quote:
+                    quote = ""
+                continue
+            if ch in "\"'":
+                quote = ch
+                buf.append(ch)
+                continue
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            if ch == "," and depth == 0:
+                parts.append("".join(buf))
+                buf = []
+                continue
+            buf.append(ch)
+        if buf:
+            parts.append("".join(buf))
+        return [p.strip() for p in parts if p.strip()]
+
+    @classmethod
+    def _parse_kwarg(cls, value: str) -> Any:
+        """把一个 kwarg 的值转成 Python 字面量（尽力而为，失败就留字符串）。"""
+        val = value.strip().rstrip(",").strip()
+        if val.lower() == "true":
+            return True
+        if val.lower() == "false":
+            return False
+        if val.lower() == "none":
+            return None
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            return val[1:-1]
+        try:
+            return int(val)
+        except ValueError:
+            pass
+        try:
+            return float(val)
+        except ValueError:
+            pass
+        return val
+
+    @classmethod
     def parse_experiment_code(cls, code: str) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
         """
         解析实验代码
@@ -88,6 +140,13 @@ class ExperimentSimulator:
         类方法：不依赖实例状态，因此没有离线数据（``_offline_provider is None``、
         ``_simulator`` 未创建）的机器上也能用 —— qiskit 后端就是靠它把
         ``sq.t1(q0)`` 这种代码翻译成实验名 + 比特名的。
+
+        **括号要配平**（2026-11-19 修）：早先用 ``sq\\.\\w+\\s*\\([^)]+\\)`` 截参数表，
+        一遇到值里带括号（``delay=range(0, 2000, 100)``）就提前截断，
+        后面的 kwargs 直接丢失；而且截下来的值带着尾随的逗号/右括号，
+        ``int()``/``float()`` 解析失败 → 参数变成字符串 → qiskit 侧的
+        数值钳位（``_clamp``）又静默退回默认值。
+        症状：qwf 里写 ``points 21``，qiskit 实际按默认 51 点跑，且不报错。
 
         Args:
             code: 实验代码，如 "sq.spectroscopy(q1, do_plot=True)"
@@ -103,26 +162,38 @@ class ExperimentSimulator:
         exp_name = match.group(1)
         qubit_name = match.group(2).strip()
 
-        # 解析参数
-        params = {}
-        param_match = re.search(r'sq\.\w+\s*\([^)]+\)', code)
-        if param_match:
-            param_str = param_match.group()
-            # 提取 do_plot 等参数
-            for param in re.findall(r'(\w+)\s*=\s*(\S+)', param_str):
-                key, value = param
-                if value.lower() == 'true':
-                    params[key] = True
-                elif value.lower() == 'false':
-                    params[key] = False
-                else:
-                    try:
-                        params[key] = int(value)
-                    except ValueError:
-                        try:
-                            params[key] = float(value)
-                        except ValueError:
-                            params[key] = value.strip()
+        # 解析参数：先定位这次调用的括号范围，再按顶层逗号切
+        params: Dict[str, Any] = {}
+        open_idx = code.find("(", match.start())
+        if open_idx >= 0:
+            depth = 0
+            quote = ""
+            end_idx = -1
+            for i in range(open_idx, len(code)):
+                ch = code[i]
+                if quote:
+                    if ch == quote:
+                        quote = ""
+                    continue
+                if ch in "\"'":
+                    quote = ch
+                    continue
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0:
+                        end_idx = i
+                        break
+            body = code[open_idx + 1:end_idx] if end_idx > open_idx else ""
+            for part in cls._split_call_args(body)[1:]:
+                if "=" not in part:
+                    continue
+                key, _, value = part.partition("=")
+                key = key.strip()
+                if not key or not key.isidentifier():
+                    continue
+                params[key] = cls._parse_kwarg(value)
 
         # 标准化实验名称
         exp_type = cls.EXP_FUNC_MAP.get(exp_name, exp_name)

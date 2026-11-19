@@ -1,0 +1,46 @@
+# qiskit 后端专用的一次测控实验（T1）
+#
+# 为什么单独一份：
+#   真机路径的 `read` / `analyze` 节点要读 LabRAD DataVault 的数据集，
+#   而 qiskit 是纯本地模拟，不产生 DataVault 数据集。
+#   所以 qiskit 演示流只保留 `measure`，结果直接看节点指标。
+
+workflow ex_qiskit_t1 {
+  meta {
+    name        "ex_qiskit_t1"
+    description "用 qwf 跑一次 T1 模拟（后端：qiskit/Aer）"
+    tags        ["t1", "qiskit"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     5m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.t1
+    qubit   $env.qubit
+    timeout 300
+    note    "qiskit/Aer：振幅衰减通道扫 T1，21 个点"
+    args {
+      # 参数顺序有讲究：quantum_service 的 parse_experiment_code 用
+      # `sq\.\w+\s*\([^)]+\)` 截参数，一旦某个值里带括号（这里是 delay 的
+      # range(...)）后面的 kwargs 就被截断。所以把 qiskit 真正认的
+      # `points` 放在最前面。
+      points 21
+      # zpa 固定 + 显式 delay 扫描：让**真机口径**的点位估算（默认会把
+      # delay×zpa 展开成 3216 点）落在合理范围，否则下发前的耗时闸门
+      # 会按真机速度判"要跑 40 分钟"而直接拦下。
+      # qiskit 侧只认 points（t1_us / t_max_us / points），delay/zpa 会被过滤掉。
+      zpa   0.0
+      delay range 0 2000 100
+    }
+  }
+
+  say "T1 模拟完成"
+}

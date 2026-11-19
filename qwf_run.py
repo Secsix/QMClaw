@@ -44,8 +44,23 @@ def post(base, path, payload, timeout=120):
 
 
 def get(base, path, timeout=30):
-    with urllib.request.urlopen(base + path, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    """GET 一个 JSON 接口。
+
+    **非 2xx 也要能读到 body**：quantum_service 在没有 LabRAD 时
+    `/health` 会返回 503 + 一份完整的降级报告（`backend_active: qiskit` 等），
+    那是**有用信息**，不是故障。让 urllib 抛 HTTPError 会让整个 qwf_run
+    在打印状态那一步就崩掉，压根走不到干跑/真跑。
+    """
+    req = urllib.request.Request(base + path, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return {"ok": False, "status": exc.code, "error": raw[:400]}
 
 
 def nodes_of(status):
@@ -172,7 +187,8 @@ def main() -> int:
     # 3) 硬件闸门
     qh = get(Q_BASE, "/health")
     print(f"  quantum: connected={qh.get('connected')} stuck={qh.get('stuck')} "
-          f"actuation_allowed={qh.get('actuation_allowed')}")
+          f"actuation_allowed={qh.get('actuation_allowed')} "
+          f"backend={qh.get('backend_active') or qh.get('backend')}")
 
     if args.dry:
         print("\n[干跑] 不碰硬件")

@@ -306,3 +306,38 @@ curl -X POST http://localhost:3002/api/quantum/qiskit/run `
 5. **qiskit 装不装得进 `lqcs` 环境未验证**。qiskit 可能要求更高的 numpy/scipy，
    而 `lqcs` 里 numpy 是 2.2.5、且有真机依赖 —— 所以本机默认走独立环境 + 子进程，
    **不动生产环境**。
+
+---
+
+## 10. 用 `.qwf`（工作流 DSL）跑 qiskit 实验
+
+不经过 `/qiskit/run` 直接调，也能走完整的 qwf 链路：
+`.qwf` → `parse_qwf` → `validate` → `run_ir` → 队列 → `quantum_service /execute`
+→ **后端策略判定当前是 qiskit** → `_execute_with_qiskit()` 拦下 `sq.xxx(...)`
+代码 → Aer 真跑一遍。
+
+```powershell
+python qwf_run.py qwf_examples\06_qiskit_t1.qwf --dry     # 干跑（不碰硬件）
+python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 模拟）
+```
+
+`06_qiskit_t1.qwf` 是给 qiskit 准备的最小样例（measure + say）。
+
+### 三个必须知道的坑
+
+1. **`read` / `analyze` 节点在 qiskit 下必然失败**。它们要读 LabRAD DataVault 的
+   数据集，而 qiskit 是纯本地模拟，**不产生 DataVault 数据集**（`dataset_id` 为
+   `null`）。所以 qiskit 演示流只保留 `measure`，结果直接看节点指标。
+   直接跑 `qwf_examples/01_iqraw_contrast.qwf` 会看到：`c1`（measure）completed，
+   `r1`（read）failed，报"实验模拟器未初始化…离线数据未就绪"。
+2. **下发前的耗时闸门按真机速度算**。`dsl/backends/lqcs.py` 的耗时表是给真机的
+   （`sq.t1` 不给 `zpa`/`delay` 会按厂商默认展开成 3216 点 → 估 40 分钟 →
+   直接 `Halt`）。跑 qiskit 时也要显式给 `zpa` 和 `delay`，让估算落在 timeout 内。
+3. **参数顺序有讲究**（历史 bug，已修）。`offline_simulator.parse_experiment_code`
+   早先用 `sq\.\w+\s*\([^)]+\)` 截参数表，遇到值里带括号（`delay=range(...)`）
+   就提前截断，后面的 kwargs 丢失；截下来的值还带着尾随逗号/右括号，
+   `int()`/`float()` 失败 → 参数退化成字符串 → qiskit 的数值钳位又静默退回默认值。
+   症状：qwf 里写 `points 21`，qiskit 实际按默认 51 点跑，**且不报错**。
+   2026-11-19 已改成括号配平 + 顶层逗号切分（见 `offline_simulator.py`）。
+   **服务重启后生效**（约定 3：服务启停由人控制）。
+
