@@ -424,6 +424,39 @@ export const api = {
   /**
    * qiskit 后端可用性 / 版本 / 执行方式（进程内 or 子进程）
    */
+  /**
+   * 实验后端状态（lqcs 真机 / qiskit 模拟 / 离线回放）
+   *
+   * 唯一配置在 qmclaw-server/config/fallback_config.json 的
+   * `quantum_service.backends`；mode(online/offline/auto) 只是兼容别名。
+   *
+   * 返回：{ active, hardware, order, backends: [{name, kind, available, reason}] }
+   * 后端不可用是**状态**不是错误，所以不 throw；拿不到就返回 available=false。
+   */
+  quantumBackends: async () => {
+    const res = await fetch(`${API_BASE}/api/quantum/backends`);
+    if (!res.ok) {
+      return { active: null, hardware: false, order: [], backends: [], error: `HTTP ${res.status}` };
+    }
+    return res.json();
+  },
+
+  /**
+   * 设置实验后端的运行期偏好（只影响进程内 auto 顺序，不写回配置文件）
+   *
+   * @param name 后端名（"lqcs" / "qiskit" / "offline_sim"），传 "auto" 清除偏好
+   */
+  quantumPreferBackend: async (name: string) => {
+    const res = await fetch(`${API_BASE}/api/quantum/backends`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefer: name }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload?.error || `HTTP ${res.status}`);
+    return payload;
+  },
+
   qiskitHealth: async () => {
     const res = await fetch(`${API_BASE}/api/quantum/qiskit/health`);
     if (!res.ok) {

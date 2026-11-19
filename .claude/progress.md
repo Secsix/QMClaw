@@ -2019,3 +2019,81 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
   已写进 ``CLAUDE.md`` 防再踩。
 - **待人工（约定 3）**：起服务后肉眼验证前端 ⚛️ Qiskit 面板与图；本机未装
   ``react-markdown`` 等 4 个前端依赖（既有缺口，与本改动无关）。
+
+---
+
+## 2026-11-19 —— 实验后端统一策略：没有 lqcs 的机器也能用 qiskit 演示测控实验
+
+**目标**：开发机 / 外出笔记本（**没有部署 lqcs 真机栈**）也能把 QMClaw 跑起来，
+用 qiskit/Aer 模拟测控实验，支撑演示与使用。真机机器行为**一字不改**。
+
+**用户明确的设计要求**：
+> 需要有统一的配置设计，让 qiskit 和 lqcs 之间灵活的切换，
+> 并且这两个后端任意一个连接不上都不影响其他项目的正常运行。
+
+### 做了什么
+
+- **P0 `services/quantum_service/backend_policy.py`（新增，~560 行）**
+  把「用不用真机」从 ``_is_offline_mode`` 里的**实时连接试探**，
+  收敛成一份**有序后端策略**：``lqcs``（真机）→ ``qiskit``（Aer 模拟）→ ``offline_sim``（历史回放）。
+  - 唯一配置：``config/fallback_config.json`` → ``quantum_service.backends.order``
+  - ``mode``(online/offline/auto) **降级为兼容别名**，映射关系与改造前行为完全一致：
+    ``online``→``["lqcs"]``、``offline``→``["offline_sim"]``、``auto``→配置 ``order``
+  - 探测纪律：**毫秒级、TTL 缓存、永不抛异常、永不阻塞请求**。
+    先 ``find_spec("lqms")`` 快筛再谈 TCP；``lqcs`` 探测 TTL 30s（TCP 超时 2s），
+    ``qiskit`` 探测 TTL 300s（可能要起子进程，≈1.5s）
+  - 运行期偏好 ``prefer`` 只对 ``auto`` 生效（``online``/``offline`` 是硬指定）
+  - 自愈：策略重探到真机可达 → ``FallbackManager.reset()`` 清永久降级态
+- **P1 `server.py` 接线**
+  - 新增 ``GET/POST /backends``：报告各后端可用性与原因，支持 ``prefer`` 与 ``refresh``
+  - ``/health`` 增加 ``backends`` / ``backend_active`` / ``execution_available``
+    （**只读缓存不触发探测**，避免高频轮询打起子进程）
+  - ``_is_offline_mode`` 重定义为「不会碰真机」，不再触发真实连接
+- **P2 `/execute` 接 qiskit**
+  策略判定生效后端是 qiskit 时，用 Aer 真跑 ``sq.xxx(qN)``；
+  解析不出实验名 / 不在 13 个词表 / qiskit 异常 → 自动回落离线回放。
+  别名表：``ramsey_df``→``ramsey``、``spectroscopy_iq``→``pulsed_spec``。
+  ``ExperimentSimulator.parse_experiment_code`` 改成 ``classmethod``（无离线数据也能用）。
+- **P3 演示比特 q0–q4**
+  新增 ``config/demo_qubits.json``。``/qubits`` 在「既没真机也没离线数据」时返回它们
+  （``source=demo`` + ``note`` 说明是占位值），解决前端比特下拉为空、**所有实验按钮置灰**的问题。
+- **P4 降噪**
+  启动日志从「5 次重试 + 每次一段 traceback」降到 **9 行、零 traceback**。
+  探测只在**状态变化**时打一行。
+- **P5 演示配套**
+  ``python/requirements-demo.txt``（无 lqms/lqcs/labrad/ray）、
+  ``docs/DEMO_NO_LQCS.md``（完整演示手册）、
+  网关 ``GET/POST /api/quantum/backends``、前端后端徽标（🔌 真机 / ⚙️ qiskit）。
+
+### 关键设计决策
+
+- **真机掉线时不许拿模拟数据冒充实测**：``mode=online`` 连不上只返回 ``degraded`` 报错；
+  ``/qubits`` 在真机掉线时返回空列表 + 原因，**不返回演示比特**。
+  演示比特只在「当前靠 qiskit 模拟」时发。
+- **任一后端连不上不影响其他部分**：
+  ``analysis_service`` 本就不依赖 ``quantum_service``（只 import ``services.common``）；
+  qiskit 侧任何异常就地吞掉转成「不可用 + 原因」，不冒泡。
+- **不用异常做控制流**：qiskit 挂了只影响它自己，服务其它部分照常。
+
+### 验证
+
+- ``python -m unittest tests.test_backend_policy tests.test_qiskit_backend`` → **60 通过 / 0 失败**（约 43s）
+  （新增 ``tests/test_backend_policy.py`` 28 例：顺序解析 / 探测异常隔离 / TTL 缓存 /
+  peek 不探测 / 服务层 ``/backends``、``/qubits``、``/execute`` 行为）
+- 演示机（无 lqms）实测：
+  ``/qubits`` → ``source=demo`` 5 个比特；``/experiments`` → 13；
+  ``/execute sq.t1(q0)`` → ``qiskit_completed``，T1=4.96e-5，出图 ``/plots/qiskit_sim_t1_*.png``
+- mode 三态回归：``online`` 不碰 qiskit（返回 degraded）、``offline`` 不碰 qiskit、``auto`` 走 qiskit
+- ``tsc --noEmit``：服务端 **38→38**（无新增）、前端 **0**
+- 启动噪音实测：9 行、零 traceback、无 ``No module named 'lqms'`` 刷屏
+
+### 提交
+
+- ``fe1ce6f`` feat(quantum): 实验后端统一策略 —— lqcs / qiskit / 离线回放可切换
+  （6 文件，+1237/-41）
+
+### 待人工（约定 3：服务启停由人控制）
+
+- 起服务后肉眼验证前端 ⚛️ Qiskit 面板、演示比特下拉、🔌/⚙️ 后端徽标
+- 重启 ``next dev``（之前 ``npm install`` 装了 4 个前端依赖，热更新不覆盖新包）
+- ``.env`` 的 ``PYTHON_BIN`` 已指向 ``D:\anaconda3\envs\lqcs\python.exe``（本地未提交，被 gitignore）

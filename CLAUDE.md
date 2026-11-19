@@ -85,6 +85,28 @@ quantum_service 和 analysis_service 支持离线模式，可在 LabRAD 不可�
 - **离线数据**：存放在 `qmclaw-server/data/offline_data/` 目录
 - **索引生成**：运行 `python -m services.common.offline_data_provider --generate-index`
 
+## 实验后端策略（lqcs / qiskit / 离线回放）
+
+「用不用真机」是**一份有序策略**，不是布尔开关。唯一配置在
+`fallback_config.json` → `quantum_service.backends.order`，默认
+`["lqcs", "qiskit", "offline_sim"]`：
+
+- `lqcs` 真机 → `qiskit` Aer 模拟 → `offline_sim` 历史回放
+- **没有部署 lqcs 的机器自动落到 qiskit**（演示/开发用），真机机器行为不变
+- `mode`(online/offline/auto) 现在只是这份策略的**兼容别名**：
+  `online`→`["lqcs"]`、`offline`→`["offline_sim"]`、`auto`→配置 `order`
+- 运行期偏好 `POST /backends {"prefer":"qiskit"}` **只对 `auto` 生效**
+- 状态报告：`GET /backends`（网关 `/api/quantum/backends`）、`/health` 的 `backends` 字段
+
+**三条不许越界的红线**（改这个模块时必须守住）：
+
+1. `mode=online` 连不上真机时**只报错**，不许拿模拟数据冒充实测
+2. 真机掉线时 `/qubits` 返回空 + 原因，**不返回演示比特**（演示比特只在 qiskit 生效时给）
+3. 任一后端的探测/执行异常都要**就地转成「不可用 + 原因」**，不许冒泡影响别的服务
+
+演示比特在 `config/demo_qubits.json`（q0–q4），演示机依赖清单在
+`python/requirements-demo.txt`，完整演示手册见 `docs/DEMO_NO_LQCS.md`。
+
 ## 约定
 
 1. **开发任务用 sub-session 隔离**：不污染主 session 的日常对话
