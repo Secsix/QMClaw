@@ -2172,3 +2172,38 @@ Python 的 warning 也走 stderr。实测抓到的量子服务真实 stderr 9 �
 **顺带记一笔（未修，超出本次范围）**：若所有服务端口都被占用，脚本走
 "No services started" 早退分支就退出了 —— 而此时服务其实都在跑，
 提示语容易让人误解。
+### 补充：网关端口 8080 vs 前端 3002 —— 前端所有请求全断（77dddf1）
+
+**现象**：浏览器控制台刷满
+`GET http://localhost:3002/api/tasks/lane net::ERR_CONNECTION_REFUSED`、
+`/api/quantum/qiskit/health`、`/api/quantum/qiskit/experiments` 同样。
+
+**根因**：**网关活着，但监听 8080；前端打 3002。**
+
+    netstat → 8080 LISTENING (node tsx src/index.ts)   3002 无监听
+    src/index.ts:184          const PORT = process.env.PORT || 8080;
+    qmclaw-web/src/lib/api.ts:17  API_BASE = NEXT_PUBLIC_API_URL || "http://localhost:3002"
+
+服务端 `.env` 里 `PORT` 是注释掉的，web 端没有任何 `.env` → 两边各取各的默认值，
+必然对不上。
+
+**历史**：`4524ac0`（微服务重构）把 `|| 3002` 改成 `|| 8080`，**只改了这一行**，
+以下全部没跟着改：web 端 6 处 3002、`.env.example:44`、文件头注释、
+AGENTS.md / CLAUDE.md 的「Express :3002」。
+网关日志只说 "Listening on http://localhost:8080"，端口错位在日志里完全看不出来。
+
+**修**：
+1. 默认端口改回 `3002`（与前端/.env.example/文件头注释/两份约定文档一致；`PORT=` 仍可覆盖）
+2. 端口 ≠ 3002 时启动时**大声告警**（实际端口 + 前端会连不上 + 两条修法）
+3. 前端清掉最后一处写死 3002：`AgentToolsPanel.tsx` 的
+   `fetch("http://localhost:3002/api/mcp-tools/.../test")` 绕开了
+   `NEXT_PUBLIC_API_URL` → 改成 api.ts 新增的 `api.testMcpTool(id)`
+
+**验证**：在网关**实际的 8080** 上逐条打前端点名的路由，全部 200 ——
+/health、/api/tasks/lane、/api/quantum/qiskit/health（available=true, qiskit 2.x）、
+/api/quantum/qiskit/experiments、/api/quantum/backends（active=qiskit）、
+/api/quantum/qubits（演示比特 q0-q4）→ 证实唯一问题就是端口。
+tsc：web 0 错误，server 38 = 既有基线未新增。
+
+**需人工（约定 3）**：重启 Express 网关（PID 37624，监听 8080 的那个 tsx 进程），
+端口才会从 8080 变成 3002。改完前端刷新即可。
