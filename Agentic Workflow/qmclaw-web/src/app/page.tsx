@@ -288,6 +288,30 @@ export default function Dashboard() {
     }
   }, [serverOk, loadQubits]);
 
+  // 当前生效的实验后端（lqcs 真机 / qiskit 模拟 / 离线回放）
+  // 演示机上没有真机，靠这个徽标让看的人知道"跑的是 qiskit 模拟"。
+  const [backendInfo, setBackendInfo] = useState<{
+    active?: string | null;
+    hardware?: boolean;
+    order?: string[];
+    backends?: Array<{ name: string; kind: string; available: boolean; reason?: string | null }>;
+  } | null>(null);
+
+  const loadBackends = useCallback(async () => {
+    try {
+      const result = await api.quantumBackends();
+      setBackendInfo(result as any);
+    } catch {
+      /* 后端状态拿不到不影响主流程 */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (serverOk) {
+      loadBackends();
+    }
+  }, [serverOk, loadBackends]);
+
   // Listen for session changes from SessionManager
   useEffect(() => {
     const handleSessionChange = () => {
@@ -952,6 +976,29 @@ export default function Dashboard() {
           >
             ⚛️ Qiskit
           </button>
+          {/* 当前生效的实验后端徽标：真机 / qiskit 模拟 / 离线回放。
+              演示机上没有真机，靠这个让看的人一眼知道跑的是模拟。 */}
+          {backendInfo?.active && (
+            <span
+              title={
+                backendInfo.hardware
+                  ? "当前使用真机（LabRAD）通道"
+                  : `当前使用 ${backendInfo.active} 后端（不是真机）`
+              }
+              style={{
+                padding: "0.25rem 0.5rem",
+                background: backendInfo.hardware ? "#064e3b" : "#78350f",
+                border: "1px solid #334155",
+                borderRadius: "0.375rem",
+                color: backendInfo.hardware ? "#6ee7b7" : "#fcd34d",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {backendInfo.hardware ? "🔌 真机" : `⚙️ ${backendInfo.active}`}
+            </span>
+          )}
           {/* Model Registry button */}
           <button
             onClick={() => setShowModelRegistry(true)}

@@ -3931,6 +3931,43 @@ app.post("/api/quantum/qiskit/run", async (req, res) => {
   res.status(httpStatus).json(payload);
 });
 
+/** GET/POST /api/quantum/backends — 实验后端状态与运行期偏好（microservice）
+ *
+ * 唯一配置在 qmclaw-server/config/fallback_config.json 的
+ * `quantum_service.backends`；mode(online/offline/auto) 只是它的兼容别名。
+ *
+ * GET  → 报告各后端可用性、当前生效的是哪个、为什么不可用
+ * POST → { prefer: "qiskit" | "auto" } 设置/清除进程内偏好
+ *        { refresh: true } 忽略 TTL 缓存立即重探
+ *
+ * 永远返回 200 + 结构化信息：后端不可用是**状态**，不是请求错误。
+ */
+app.get("/api/quantum/backends", async (_req, res) => {
+  if (!USE_MICROSERVICES) {
+    res.status(501).json({ error: "backend policy requires microservice mode" });
+    return;
+  }
+  const result = await proxyToService('quantum', '/backends', 'GET');
+  res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+});
+
+app.post("/api/quantum/backends", async (req, res) => {
+  if (!USE_MICROSERVICES) {
+    res.status(501).json({ error: "backend policy requires microservice mode" });
+    return;
+  }
+  const result = await proxyToService('quantum', '/backends', 'POST', req.body ?? {});
+  if (!result.ok) {
+    res.status(502).json({ error: result.error });
+    return;
+  }
+  const payload: any = result.data ?? {};
+  // 非法 prefer 这类**请求错误**带 http_status，按它回码（400）；
+  // 正常报告永远是 200 —— 后端不可用是**状态**，不是请求错误。
+  const httpStatus = typeof payload.http_status === "number" ? payload.http_status : 200;
+  res.status(httpStatus).json(payload);
+});
+
 /** GET /datasets — get detailed hardware connection status (microservice) */
 app.get("/hardware/status", async (_req, res) => {
   if (USE_MICROSERVICES) {

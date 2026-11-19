@@ -1665,6 +1665,7 @@ class QuantumService(BaseService):
                 except ValueError as exc:
                     return {
                         **error_envelope("validation_error", str(exc)),
+                        "success": False,
                         "order": self._policy.order,
                         "choosable": list(ALL_BACKENDS),
                     }
