@@ -1127,15 +1127,30 @@ class WorkflowService(BaseService):
                 with urllib.request.urlopen(req, timeout=120) as resp:
                     return json.loads(resp.read().decode("utf-8"))
 
+            # VLM 后端（qubitclient :3010）不可用时**不能报 completed**：
+            # 以前两个请求都抛异常也被吞成 {"error": ...} 塞进 raw_params，
+            # 节点依旧是 completed / outcome=achieved，整条流程假装看懂了图。
             params, desc = {}, {}
+            vlm_errors: List[str] = []
             try:
                 params = (_post_vlm("/extract_params") or {}).get("result", {}) or {}
             except Exception as e:
                 params = {"error": str(e)}
+                vlm_errors.append(f"/extract_params: {e}")
             try:
                 desc = (_post_vlm("/describe") or {}).get("result", {}) or {}
             except Exception as e:
                 desc = {"error": str(e)}
+                vlm_errors.append(f"/describe: {e}")
+            if len(vlm_errors) == 2:
+                return {
+                    "status": "failed",
+                    "error": "VLM 后端不可用（" + "; ".join(vlm_errors) + "）",
+                    "imagePath": image_path,
+                    "raw_params": params,
+                    "raw_description": desc,
+                    "vlm_errors": vlm_errors,
+                }
 
             t1_us = params.get("T1_us")
             features = desc.get("main_features", "") if isinstance(desc, dict) else ""
@@ -1163,8 +1178,13 @@ class WorkflowService(BaseService):
                 stdout_lines.append(f"Decay visible: {params.get('decay_visible')}")
             if features:
                 stdout_lines.append(f"Description: {features}")
+            if vlm_errors:
+                # 只挂了一条：图看了个半懂，标 degraded 让上层知道别全信
+                stdout_lines.append("Partial: " + "; ".join(vlm_errors))
             return {
                 "status": "completed",
+                "degraded": bool(vlm_errors),
+                "vlm_errors": vlm_errors,
                 "t1_us": t1_us,
                 "decay_visible": params.get("decay_visible") if isinstance(params, dict) else None,
                 "description": features,

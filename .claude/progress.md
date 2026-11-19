@@ -2666,4 +2666,61 @@ selftest 258/259、reliability 117/130、usability 10/10、rules 48/48、e1verif
 `.github/workflows/checks.yml`、`docs/qiskit_backend.md`、`CLAUDE.md`、
 `vendor/openqwf/`（lint.py / lexer.py / UPSTREAM.json）、`.claude/progress.md`
 
+## 2026-11-19 23:30 — `.qwf` 非实验节点实测（vlm/ask/decide/analyze/classify/notify）+ 修 vlm 假成功
+
+用户要求：测试 `measure` 之外的节点（vlm、ask、decide、analyze 等）是否正常。
+
+### 方法
+`.claude/tmp/qwf_nodes/` 下 8 个探针 `.qwf`（gitignored），全部走
+`python qwf_run.py <file> --if yes`（:3008 → :3009 → :3003 qiskit 全链路）。
+另有静态探针 `.claude/tmp/probe_nodes.py`：15 种语句经 `build_node/validate` 全解析+校验通过。
+
+### 结果矩阵
+| 探针 | 结果 |
+|------|------|
+| `p_ask_human` | 终态 **`needs_human`**（5.0s），`q1` 带问题与 A/B 选项，后续 say skipped ✓ 设计行为 |
+| `p_ask_llm`（model minimax） | completed 10.0s，`l1`+`s1` ✓（deepseek 缺 key 会报错） |
+| `p_control` | completed 35.1s：`c1/ap1/g1` + 达标分支 `s2`、`s3` skipped、`repeat` 第二轮 `c2/s5` ✓ |
+| `p_notify`（新增） | completed：`say channel notify` → notify 节点，普通 say → print ✓ |
+| `p_measure_decide` | **修复后 completed**，`d1` 返回 `choice="sq.ramsey_df"`（MiniMax-M2.7，19.8s），`if` 据此走 `s3` ✓ |
+| `p_measure_vlm` | **修复前假 completed**（两个子请求 HTTP 500 被吞）；修复后 `failed` |
+| `p_measure_classify` | failed：`Model not loaded`（image_service 没加载模型）✓ 失败语义正确 |
+| `p_measure_read_analyze` | failed：`实验模拟器未初始化…`——contrast 走 lqcs 代码片段，qiskit 无 DataVault 数据集 |
+
+### 修掉的真问题：vlm 假成功
+`services/workflow_service/server.py` 的 `image_analysis` 分支原来把 `/extract_params`、
+`/describe` 的异常塞进 `params`/`desc`（`{"error": "HTTP Error 500..."}`），
+随后无条件 `return {"status": "completed"}` → 整条流程 `outcome=achieved`，
+等于"看不懂图也算跑完"。现在：
+- 两个子请求都失败 → `status=failed` + `error="VLM 后端不可用（...）"` + `vlm_errors`
+- 只有一个失败 → completed 但 `degraded=true` + `vlm_errors` 非空（stdout 也打 `Partial:`）
+- 都成功 → `degraded=false`
+
+新增回归 `Agentic Workflow/qmclaw-server/tests/test_workflow_vlm_node.py`（3 passed）。
+
+### 补的配置模板 + 本机配置
+- 新增入库模板 `Agentic Workflow/qmclaw-server/config/qubitclient.example.json`：
+  说明 **`llm`（qubitclient_service :3010 VLM，只在启动读）** 与
+  **`llm_decision`（workflow_service decide 节点，每次调用重读）** 是两个不同的消费者。
+- 本机 `config/qubitclient.json`（gitignored）填 `llm_decision` = anthropic 协议 +
+  `https://api.minimaxi.com/anthropic` + `MiniMax-M2.7` + `api_key_env: MINIMAX_API_KEY`。
+  **decide 因此从"not configured"变成实跑通**（无需重启 :3008）。
+- `llm` 段故意留空：`vendor/QubitClient/qubitclient/llm/llm.py` 的 `QubitLLM` 用 OpenAI 客户端、
+  且 `api_key` 传空串不会回退环境变量 → 与「key 走环境变量」约定冲突，VLM 仍未启用。
+
+### 结论（给用户的口径）
+- **能用**：let / measure / assert / apply / if / repeat / say(print+notify) / ask→人 / ask→LLM / decide
+- **要外部件**：vlm（qubitclient 需 key+重启）、classify（image_service 需加载模型）
+- **qiskit 下不可用**：read / analyze（无 DataVault 数据集，contrast 片段属 lqcs）——属能力边界不是 bug
+- **未实现**：`call`（v1 P4）
+
+### 新增/改动
+- `docs/QWF_NODES.md`（新）：节点全景表 + 实测证据 + qiskit 三个限制 + 本轮修复 + 待办
+- `qwf_scripts/README.md`：新增「非实验节点：哪些能跑」小节，链到上面
+- `Agentic Workflow/qmclaw-server/services/workflow_service/server.py`（image_analysis 失败语义）
+- `Agentic Workflow/qmclaw-server/tests/test_workflow_vlm_node.py`（新，3 passed）
+- `Agentic Workflow/qmclaw-server/config/qubitclient.example.json`（新，入库模板）
+- 验证：`pytest tests` **139 passed / 1 skipped**；`_syntax_check.py` PASS=392 FAIL=0；
+  `_docs_paths_check.py` PASS=6 FAIL=0
+
 

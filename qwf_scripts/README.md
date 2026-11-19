@@ -111,6 +111,16 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 | `W_WRITE_FN` / `W_UPDATE_DEFAULT_ON` | 该实验会自动回写寄存器（校准类），真机跑要写清单 + 票据 |
 | `W_PROFILE_HARDCODED_QUBIT` | 双比特脚本写死了 `q0`/`q1`（见上） |
 
+## 非实验节点：哪些能跑
+
+工作流里除了 `measure`，还能写 `let/assert/if/repeat/say/apply/ask/decide/read/analyze/vlm/classify`。
+哪些在本机（qiskit 后端）真能跑、哪些要真机或外部服务，逐条实测见
+[`docs/QWF_NODES.md`](../docs/QWF_NODES.md)。三条最容易踩的：
+
+- `ask "问题"` → 终态 **`needs_human`**（等人拍板，不是失败）；`ask { prompt }` 才是调 LLM
+- `decide` 要 `config/qubitclient.json` 的 `llm_decision` 段（模板见 `config/qubitclient.example.json`）
+- `read` / `analyze` 在 qiskit 后端拿不到 `dataset_id`，会失败 —— 用 `onError continue` 跳过
+
 ## 和 `qwf_examples/` 的区别
 
 - `qwf_examples/` —— **教学用范例**：带注释、讲 DSL 语法，`06/07` 是 qiskit 与双比特的例子
