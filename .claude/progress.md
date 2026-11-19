@@ -2246,3 +2246,25 @@ qiskit 的 `_clamp` 静默退回默认值。**症状：qwf 写 `points 21`，qis
 
 **改动文件**：`qwf_run.py`、`services/quantum_service/offline_simulator.py`、
 `qwf_examples/06_qiskit_t1.qwf`（新增）、`docs/qiskit_backend.md`（§10）
+
+### 补充：qiskit 后端 13 个实验全跑（2026-11-19）
+**新增工具**：`qwf_sweep.py`（仓库根，和 qwf_run.py / qwf_lint.py 并列）——
+把 qiskit 支持的 13 个实验逐个生成独立 `.qwf`，走 qwf_run.py 真跑，回读节点指标。
+一个实验一份 .qwf（一条 measure 失败会 Halt 掉整条流程，合成一份会连坐）。
+
+**结果：13/13 completed，outcome 全 achieved**，shots=2000 seed=42，unit_system=qiskit_normalized。
+单比特 exact：t1(T1=4.957e-05, 先验50µs→拟合49.57µs)、ramsey_df(T2=2.066e-05)、
+piamp(pi_amplitude=0.2753)、xeb(gate_fidelity=0.9953, error_per_cycle=6.5e-4)、
+single_shot(readout_fidelity=0.9695)；
+单比特 model：spectroscopy(f10=0 相对零点)、spectroscopy_iq/pulsed_spec(freq=0)、
+s21(fread=0 代理)、s21_dis(dispersive_shift=2MHz, 两曲线中心±1MHz)、
+iqraw(SNR=4.0, separation=1.414)、allxy(avg_fidelity=0.9805, leakage=0.0195)；
+双比特 exact：swap(swap_fidelity=0.992, counts 01:1984/2000)；
+双比特代理 model：drag_calibrate(optimal_drag=0.45, leakage_at_opt=0)。
+
+**新发现的缺口**：`.qwf` 的 `measure` 只有**一个** `qubit` 字段，
+所以双比特实验（swap / drag_calibrate）只能标一个比特名，
+**真正的两比特是 qiskit 侧固定的 q0/q1** —— .qwf 表达不了"哪两个比特"。
+真机跑双比特实验这条是缺口（本次只记录，未改 IR 结构）。
+
+**改动文件**：`qwf_sweep.py`（新增）、`docs/qiskit_backend.md`（§10 加全跑表 + 双比特说明）
