@@ -16,6 +16,7 @@ Usage:
 import subprocess
 import sys
 import os
+import re
 import signal
 import time
 import json
@@ -124,14 +125,105 @@ def load_config():
     return {}
 
 
+# ── 子进程输出的三级分类 ────────────────────────────────────────────────────
+# 「这行走的是 stderr」**不等于**「这里出错了」。
+#
+# 这个代码库**故意把服务日志写到 stderr**（services/base/base_service.py 的
+# _log_writer 注释写得很清楚："日志消费线程：唯一允许写 stderr 的地方"），
+# 而 Python 的 warning 也一律走 stderr。于是量子服务启动时的
+# "[quantum_service] Initializing ..." / "Mode: auto" / "Started on localhost:3003"
+# 这些**正常运行日志**全在 stderr 上。
+#
+# 原来这里对 stderr 的每一行都贴 [ERR]，结果满屏 [ERR]、一条真错误都没有，
+# 真正出问题时反而被淹没。改成三级：
+#   error —— 崩溃级输出（traceback / 未捕获异常 / ERROR·CRITICAL 级日志）
+#   warn  —— warning 类输出（DeprecationWarning 等）
+#   log   —— 其余（绝大多数是服务自己的正常运行日志）
+
+_ERROR_PATTERNS = (
+    "Traceback (most recent call last)",
+    '  File "',                    # traceback 的栈帧行
+    "Exception:",                  # 未捕获异常的末行
+    "Error:",                      # AttributeError: / ModuleNotFoundError: ...
+    "Fatal Python error",
+    "Fatal error",
+    "[ERROR]",
+    "[CRITICAL]",
+    "[FATAL]",
+    "ERROR:",                      # logging 的 ERROR 级别
+    "CRITICAL:",
+)
+
+#: 服务**自己**的结构化日志行（`[quantum_service] ...`）里，只有显式的错误级别
+#: 才算错误。这类行经常把异常名写进说明文字里（"连不上（TimeoutError: timed out）"），
+#: 那是**描述**而不是崩溃 —— 所以结构化行不能用内容里的 "Error:" 来判。
+_LOGGED_ERROR_PATTERNS = (
+    "[ERROR]",
+    "[CRITICAL]",
+    "[FATAL]",
+    "ERROR:",
+    "CRITICAL:",
+    "FATAL:",
+    "Traceback (most recent call last)",
+)
+
+_WARN_PATTERNS = (
+    "Warning:",
+    "DeprecationWarning",
+    "FutureWarning",
+    "PendingDeprecationWarning",
+    "ResourceWarning",
+    "RuntimeWarning",
+)
+
+#: 结构化日志行的前缀，例如 `[quantum_service] `、`[Config] `、`[LANE] `
+_TAG_RE = re.compile(r"^\[[A-Za-z0-9_.\-]+\]\s*")
+
+
+def classify_output_line(line: str) -> str:
+    """把一行子进程输出归类为 'error' / 'warn' / 'log'。"""
+    if _TAG_RE.match(line):
+        # 服务自己的日志行：只看显式的错误级别
+        if any(p in line for p in _LOGGED_ERROR_PATTERNS):
+            return "error"
+        if any(p in line for p in _WARN_PATTERNS):
+            return "warn"
+        return "log"
+    # 原始 Python 输出（traceback / 未捕获异常）
+    if any(p in line for p in _ERROR_PATTERNS):
+        return "error"
+    if any(p in line for p in _WARN_PATTERNS):
+        return "warn"
+    return "log"
+
+
+def format_output_line(msg_name: str, is_error: bool, line: str, prefix_chars: int = 14) -> str:
+    """把一行子进程输出渲染成终端上的一行。
+
+    只有崩溃级输出带 [ERR]，warning 带 [WARN]，其余原样打印（不加标签）。
+    """
+    prefix = f"[{msg_name[:prefix_chars]:<{prefix_chars}}]"
+    kind = classify_output_line(line) if is_error else "log"
+    if kind == "error":
+        return f"{prefix} [ERR] {line}"
+    if kind == "warn":
+        return f"{prefix} [WARN] {line}"
+    return f"{prefix} {line}"
+
+
 def read_output(name: str, pipe, output_queue: queue.Queue, is_error: bool = False):
     """读取子进程输出的线程函数"""
     try:
         for line in iter(pipe.readline, ""):
             if line:
                 output_queue.put((name, is_error, line.rstrip("\n\r")))
-    except Exception:
-        pass  # 进程退出时会触发
+    except (ValueError, OSError):
+        pass  # 进程退出时管道被关闭，属正常收尾
+    except Exception as exc:
+        # 以前这里是 `except Exception: pass` —— 一旦解码出错（编码不一致），
+        # **整个 stderr 流会被静默吞掉**，日志从那行起就没了，而且毫无提示。
+        # 所以这里必须喊一声：否则"日志没了"会变成查不出原因的问题。
+        print(f"[start_all] ⚠️  {name} 输出读取异常：{exc!r}（该服务后续日志会缺失）")
 
 
 def print_output_loop(name: str, output_queue: queue.Queue):
@@ -194,6 +286,14 @@ def start_service(name: str, config: dict, output_queue: queue.Queue) -> subproc
     # 否则实验函数里的 do_plot=True 会在工作线程拉起 Qt 窗口，把服务卡死。
     env.setdefault("MPLBACKEND", "Agg")
 
+    # **子进程一律用 UTF-8 写 stdout/stderr，父进程也一律按 UTF-8 读**。
+    # 不锁死编码会踩一个很隐蔽的坑：Windows 中文环境下父进程按 locale(cp936/GBK)
+    # 解码，而子进程若用 UTF-8（PYTHONIOENCODING / PYTHONUTF8 / 读 UTF-8 文件后
+    # 再打印）就会触发 UnicodeDecodeError —— read_output 里那个 `except: pass`
+    # 会把**整个 stderr 流静默吞掉**，于是日志从第一行中文开始就没了。
+    # 服务日志里恰恰全是中文（"[backend] lqcs 不可用：…"），所以必须锁死。
+    env["PYTHONIOENCODING"] = "utf-8"
+
     # 调试：打印相关环境变量
     if name == "llm":
         print(f"[start_all]   MINIMAX_API_KEY: {'***' if env.get('MINIMAX_API_KEY') else '(not set)'}")
@@ -215,6 +315,8 @@ def start_service(name: str, config: dict, output_queue: queue.Queue) -> subproc
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,  # 使用文本模式
+        encoding="utf-8",   # 与子进程的 PYTHONIOENCODING=utf-8 对齐
+        errors="replace",   # 兜底：任何非法字节都不许把整条日志流打没
         bufsize=1,  # 行缓冲
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if sys.platform == 'win32' else 0,
     )
@@ -499,22 +601,42 @@ def main():
     print("=" * 60)
 
     # 启动输出打印线程
+    error_counts: dict[str, int] = {}   # 每个服务的**真错误**条数
+    warn_counts: dict[str, int] = {}
+
     def output_printer():
-        """定期从队列中取出输出并打印"""
-        prefix_chars = 14
+        """定期从队列中取出输出并打印。
+
+        只有崩溃级的输出才标 [ERR]；warning 标 [WARN]；其余（绝大多数是服务
+        自己的正常运行日志，因为本项目把日志写在 stderr）原样打印，不加标签。
+        """
         while True:
             try:
                 msg_name, is_error, line = output_queue.get(timeout=0.1)
-                prefix = f"[{msg_name[:prefix_chars]:<{prefix_chars}}]"
-                if is_error:
-                    print(f"{prefix} [ERR] {line}")
-                else:
-                    print(f"{prefix} {line}")
+                kind = classify_output_line(line) if is_error else "log"
+                if kind == "error":
+                    error_counts[msg_name] = error_counts.get(msg_name, 0) + 1
+                elif kind == "warn":
+                    warn_counts[msg_name] = warn_counts.get(msg_name, 0) + 1
+                print(format_output_line(msg_name, is_error, line))
             except queue.Empty:
                 continue
 
     printer_thread = threading.Thread(target=output_printer, daemon=True)
     printer_thread.start()
+
+    def print_error_summary(when: str = ""):
+        """汇总**真错误**条数——终端上一眼能看出到底有没有出问题。"""
+        total = sum(error_counts.values())
+        if total == 0:
+            print(f"[start_all] 📋 真错误：0 条{when}（[ERR] 只在崩溃时出现；"
+                  f"服务自己的日志走 stderr，但那都是正常的）")
+            return
+        detail = "、".join(f"{k}={v}" for k, v in sorted(error_counts.items()) if v)
+        print(f"[start_all] 📋 真错误：{total} 条{when}（{detail}）—— 上面带 [ERR] 的就是")
+
+    # 注意：打印线程是在 wait_for_services 之后才起的（启动期间的输出都堆在队列里），
+    # 所以汇总必须等队列排空后再打 —— 也就是退出时、或某个进程异常退出时。
 
     # 保持运行，监控进程状态
     reported_exits = set()
@@ -528,6 +650,7 @@ def main():
                     returncode = proc.returncode
                     print(f"\n[start_all] ⚠️  Process {proc.pid} exited with code {returncode}")
                     print(f"[start_all] Please check the output above for errors")
+                    print_error_summary("（截至此刻）")
 
             # 检查是否所有进程都退出了
             if all(p.poll() is not None for p in processes if p):
@@ -540,6 +663,9 @@ def main():
         print("\n[start_all] Interrupted")
     finally:
         stop_all()
+        # 给打印线程一点时间把队列排空，再汇总
+        time.sleep(0.5)
+        print_error_summary("（本次运行）")
 
 
 if __name__ == "__main__":
