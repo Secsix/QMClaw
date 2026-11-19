@@ -1,0 +1,43 @@
+# 双比特测控实验（SWAP）—— `.qwf` 的 `qubits` 写法
+#
+# 多比特的写法（2026-11-19 起）：
+#   measure { fn sq.swap  qubits ["q0", "q1"] }
+# `qubit`（单数）是历史写法，等价于 `qubits ["q2ld3"]`；两者**不能同时写**。
+#
+# 元数由 `config/experiment_configs.json` 的 `qubits` 字段决定：
+#   swap / drag_calibrate → 2 个比特，其余实验 → 1 个。
+# 数量对不上会在**下发前**报 E_QUBIT_ARITY（不会白烧额度、不会静默跑错）。
+#
+# 注意：真机（lqcs）的 sq_nodes 目前**只有单比特函数**（见词表里
+# swap.available=false），所以这份流在真机上会失败 —— 它演示的是
+# qiskit/Aer 后端的双比特路径。
+
+workflow ex_two_qubit_swap {
+  meta {
+    name        "ex_two_qubit_swap"
+    description "双比特 SWAP 表征（后端：qiskit/Aer）"
+    tags        ["swap", "two-qubit", "qiskit"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     5m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.swap
+    qubits  ["q0", "q1"]
+    timeout 300
+    note    "两个比特的顺序 = 线路里的物理比特顺序（q0 → 线路 qubit 0）"
+    args {
+      error_rate 0.01
+    }
+  }
+
+  say "SWAP 模拟完成"
+}

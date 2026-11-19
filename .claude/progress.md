@@ -2268,3 +2268,49 @@ iqraw(SNR=4.0, separation=1.414)、allxy(avg_fidelity=0.9805, leakage=0.0195)；
 真机跑双比特实验这条是缺口（本次只记录，未改 IR 结构）。
 
 **改动文件**：`qwf_sweep.py`（新增）、`docs/qiskit_backend.md`（§10 加全跑表 + 双比特说明）
+
+## 2026-11-19: `.qwf` IR 支持多比特测量（qubits 字段）
+
+### 需求
+用户要求："修改IR结构，qwf设计肯定要支持多个比特的测量的"。
+上一条留的缺口（`.qwf` 的 measure 只有一个 `qubit`，表达不了"哪两个比特"）本次解决。
+
+### 方案（用户确认的四个选择）
+1. 语法：`qubits ["q0", "q1"]`（新增列表字段；`qubit` 单数保留）
+2. 版本：**IR v1 纯增量**（老 .qwf 一个字不改）
+3. 元数不符 → **error**，在下发前拦住（`E_QUBIT_ARITY`）
+4. 范围：DSL + 后端全链路 + 画布 IR 往返（前端画布 UI 不做）
+
+### 完成内容
+- **词表**：`config/experiment_configs.json` 每条实验加 `qubits` 字段
+  （swap / drag_calibrate = 2，其余 = 1）。这是真机/qiskit **共用的唯一真源**。
+- **新模块** `dsl/experiments.py`：按 mtime 缓存读词表，暴露 `qubit_arity()` /
+  `vocabulary_fns()`；两个微服务都读同一份配置，谁也不 import 谁。
+- **DSL**：文本列表字面量（parser 零改动）→ IR `OP_MEASURE.qubits` →
+  `validate`（E_QUBIT_ARITY / E_BAD_QUBIT / qubit 与 qubits 互斥 E_SCHEMA）→
+  `compile`（节点 config 带 qubits，qubit 保留为第一个供下游兼容）→
+  `printer`（往返不丢）→ `canvas_ir`（字段表加 qubits）→ `manifest`（写清单按比特开票）。
+- **lint**：画像检查遍历整个 qubits 列表；词表里 `available=false` 的函数
+  （如 sq.swap，真机 sq_nodes 没有双比特函数）从 E_UNKNOWN_FN **降级**为
+  W_FN_NOT_ON_HARDWARE（真机没这函数 ≠ 写错）。
+- **后端**：`RunRequest.qubits`；`build_experiment_code` 拼 `sq.swap(q0, q1, do_plot=False)`；
+  workflow_service 的实验节点分支透传 qubits。
+- **quantum_service**：`parse_experiment_code_multi` 解析出比特列表
+  （位置参数 = 比特名），旧 `parse_experiment_code` 保留为兼容入口（返回第一个比特）。
+- **qiskit**：`QiskitRequest.qubits` + `qubit_list`；swap / drag_calibrate 把两个名字
+  映射到线路 qubit 0/1，结果 `extra.qubits` 记录实际用到的比特。
+
+### 验证
+- `tests/test_multiqubit_ir.py`（新增，17 项）：解析 / 校验 / 元数 / 编译 / 代码拼接 /
+  词表一致性 / quantum 侧解析 —— **全过**
+- `tests/test_qiskit_backend.py`（30 项，含新增的 swap/drag 双比特用例）—— **全过**
+- `tests.test_backend_policy` + `tests.test_model_config_env`（36 项）—— 全过
+- `qwf_lint.py` 全部 7 个示例 **error=0**（新增 07_two_qubit_swap.qwf）
+- qiskit 实跑：`qiskit_backend.run({"experiment":"swap","qubits":["q0","q1"]})`
+  → status=qiskit_completed，swap_fidelity=0.992，xlabel 显示 `[q0 | q1]`
+- **未做端到端**：workflow/quantum 服务是旧进程（无 --reload），
+  端到端要**服务重启后**跑 `qwf_sweep.py --only swap drag_calibrate`（约定 3：服务启停由人控制）
+
+### 遗留
+- 前端画布 UI 没有多比特输入框（只有 IR 往返映射）
+- 真机 sq_nodes 仍**没有**双比特函数：多比特流目前只能跑在 qiskit 等模拟后端

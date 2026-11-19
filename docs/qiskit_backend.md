@@ -367,9 +367,68 @@ python qwf_sweep.py --only t1 ramsey     # 只跑指定的
 | AllXY | `sq.allxy` | 1 | model | average_fidelity = 0.9805，leakage = 0.0195 |
 | **DRAG 标定** | `sq.drag_calibrate` | **2**（代理） | model | optimal_drag = 0.45，leakage_at_opt = 0 |
 
-**双比特的表达方式**：`.qwf` 的 `measure` 只有**一个** `qubit` 字段，
-所以 `swap` / `drag_calibrate` 在 qwf 里写成单比特名（`q2ld3`），
-**双比特线路由 qiskit 侧自己固定成 q0/q1**。也就是说 `.qwf` 目前还不能
-表达"这两比特具体的哪两个" —— 要真机跑双比特实验，这条是缺口。
+**双比特的表达方式**：2026-11-19 起 `.qwf` 的 `measure` 支持 `qubits` 列表
+（见 §11），`swap` / `drag_calibrate` 写成 `qubits ["q0", "q1"]`，
+**两个比特的顺序 = 线路里物理比特的顺序**（第 1 个 → 线路 qubit 0）。
+真机上目前**没有**双比特实验函数（`sq_nodes` 只有单比特），
+所以这份写法在 qiskit 后端可跑、在真机上会失败。
+
+---
+
+## 11. `.qwf` 多比特：`qubits ["q0", "q1"]`（2026-11-19）
+
+### 写法
+
+```
+measure as c1 {
+  fn      sq.swap
+  qubits  ["q0", "q1"]     # 双比特
+  timeout 300
+}
+```
+
+* `qubit`（单数）是历史写法，等价于 `qubits ["q2ld3"]`；**两者不能同时写**
+  （同时写 → `E_SCHEMA`）。
+* 老 `.qwf` 一个字都不用改 —— IR v1 纯增量，旧文件照跑。
+
+### 元数从哪来
+
+`config/experiment_configs.json` 每条实验多了一个 `qubits` 字段
+（**真机/qiskit 共用的词表**，是唯一真源）：
+
+| 实验 | qubits |
+|------|--------|
+| `sq.swap` / `sq.drag_calibrate` | 2 |
+| 其余 11 个 | 1 |
+
+`dsl/experiments.py` 读这份表，`validate` 阶段比对：
+
+* `sq.swap` 只给 1 个比特 → `E_QUBIT_ARITY`（**error**，下发前就拦下）
+* `sq.t1` 给 2 个比特 → `E_QUBIT_ARITY`
+* 词表里没有的厂商函数 → 不拦（不认识 ≠ 非法）
+
+### 全链路都改了哪些地方
+
+| 层 | 改动 |
+|----|------|
+| 文本 DSL | `qubits [...]` 列表字面量（词法/语法零改动，`parse_value` 本来就支持列表） |
+| IR | `OP_MEASURE` 字段表加 `qubits`；`ir_version` 仍是 1 |
+| 校验 | `E_QUBIT_ARITY` + `E_BAD_QUBIT`（列表元素也查） |
+| 编译 | 节点 config 带 `qubits` 列表，`qubit` 保留为第一个（下游兼容） |
+| 打印 | `.qwf` → IR → `.qwf` 往返不丢 `qubits` |
+| 画布 | `canvas_ir` 字段表加 `qubits`（往返映射；**画布 UI 本次没做**） |
+| lint | 画像检查遍历整个列表；词表里 `available=false` 的函数（如 `sq.swap`）从 `E_UNKNOWN_FN` 降级为 `W_FN_NOT_ON_HARDWARE`（真机没这函数 ≠ 写错） |
+| 后端适配器 | `build_experiment_code` 拼成 `sq.swap(q0, q1, do_plot=False)` |
+| quantum_service | `parse_experiment_code_multi` 解析出比特列表；请求体带 `qubits` |
+| qiskit | `QiskitRequest.qubits`；双比特实验把名字映射到线路的 qubit 0/1，并写进结果 `extra.qubits` |
+
+### 验证
+
+```powershell
+cd "Agentic Workflow\qmclaw-server"
+D:\anaconda3\python.exe -m unittest tests.test_multiqubit_ir -v      # 17 项
+D:\anaconda3\python.exe -m unittest tests.test_qiskit_backend -v     # 30 项
+python qwf_lint.py qwf_examples\07_two_qubit_swap.qwf                # error=0
+```
 
 

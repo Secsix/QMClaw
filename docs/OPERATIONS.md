@@ -78,6 +78,27 @@ python qwf_run.py llm_multi_exp.qwf --create-task --experiments 5 `
 `--sign-scope` 语法：`auto`（用写清单自带幅度上界）或 `f10:0.05,PiGate.amp:0.1`。
 只有派生键（`discriminator.*`）时不需要票据，会自动跳过签票。
 
+### 3.2.1 多比特实验：`qubits ["q0", "q1"]`（2026-11-19）
+
+`measure` 节点现在能声明**多个比特**：
+
+```text
+measure as c1 {
+  fn      sq.swap
+  qubits  ["q0", "q1"]     # 顺序 = 线路里物理比特的顺序
+  timeout 300
+}
+```
+
+* `qubit`（单数）是老写法，等价于 `qubits ["q2ld3"]`；**两者不能同时写**。
+* 比特个数必须与实验元数相符，元数来自 `config/experiment_configs.json` 的
+  `qubits` 字段（`swap` / `drag_calibrate` 是 2，其余是 1）。
+  对不上 → `E_QUBIT_ARITY`（**下发前**就拦下，不会白烧额度）。
+* 真机的 `sq_nodes` 目前只有单比特函数，所以多比特流只能跑在 qiskit 等模拟后端；
+  lint 会给 `W_FN_NOT_ON_HARDWARE` 提醒（不是 error）。
+
+详见 `docs/qiskit_backend.md` §11。
+
 ### 3.3 把实验数据集里的寄存器快照写回比特（`/qubit/apply_dataset`）
 
 厂商实验（`s21_zpa2d` / `iqraw` / `pidf` …）会**静默改寄存器**（s21 的 auto-update 回写

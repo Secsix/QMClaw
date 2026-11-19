@@ -53,13 +53,17 @@ EXPS = [
     ("drag_calibrate", "sq.drag_calibrate", "points 41\n      alpha_min -1.0\n      alpha_max 1.0", 300, "10m"),
 ]
 
-# 双比特线路（qiskit 内部固定用 q0/q1 两比特；.qwf 的 measure 只有一个
-# `qubit` 字段，所以这里只能标一个比特名，线路本身仍是双比特）
+# 双比特线路（2026-11-19 起 `.qwf` 用 `qubits ["q0","q1"]` 显式声明两个比特；
+# 之前的 `qubit` 只有一个字段，双比特实验只能标一个名字，线路内部固定 q0/q1）
 TWO_QUBIT = {"swap", "drag_calibrate"}
 
 
 def qwf_text(name, fn, args, timeout, wall) -> str:
     args_block = "\n".join("      " + a for a in args.splitlines())
+    # 双比特实验写 `qubits`，单比特写 `qubit`（元数由 config/experiment_configs.json
+    # 的 qubits 字段决定，校验阶段就会拦错）
+    qubit_line = ('    qubits  ["q0", "q1"]' if name in TWO_QUBIT
+                  else "    qubit   $env.qubit")
     return f"""workflow ex_{name} {{
   meta {{
     name        "ex_{name}"
@@ -79,7 +83,7 @@ def qwf_text(name, fn, args, timeout, wall) -> str:
 
   measure as c1 {{
     fn      {fn}
-    qubit   $env.qubit
+{qubit_line}
     timeout {timeout}
     args {{
 {args_block}
