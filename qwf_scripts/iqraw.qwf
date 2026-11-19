@@ -1,0 +1,41 @@
+# 实测脚本：裸 IQ 采集（对比度 / SNR）（sq.iqraw）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py iqraw            # 只打印计划，不跑
+#   python qwf_exp.py iqraw --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python qwf_exp.py iqraw --dry      # 干跑，不碰硬件
+#
+# 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
+# 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，
+#           参考 qwf_examples/03_t1_fixed_zpa.qwf 与 qwf_scripts/README.md。
+
+workflow ex_iqraw {
+  meta {
+    name        "ex_iqraw"
+    description "裸 IQ 采集"
+    tags        ["iqraw", "snr"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     10m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.iqraw
+    qubit   $env.qubit
+    timeout 300
+    note    "裸 IQ 采集 300 条"
+    args {
+      samples 300
+      p_readout 0.03
+    }
+  }
+
+  say "裸 IQ 采集（对比度 / SNR） 测完"
+}

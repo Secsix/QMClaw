@@ -1,0 +1,41 @@
+# 实测脚本：S21 色散（频移）（sq.s21_dis）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py s21_dis            # 只打印计划，不跑
+#   python qwf_exp.py s21_dis --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python qwf_exp.py s21_dis --dry      # 干跑，不碰硬件
+#
+# 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
+# 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，
+#           参考 qwf_examples/03_t1_fixed_zpa.qwf 与 qwf_scripts/README.md。
+
+workflow ex_s21_dis {
+  meta {
+    name        "ex_s21_dis"
+    description "S21 色散"
+    tags        ["s21", "dispersion"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     10m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.s21_dis
+    qubit   $env.qubit
+    timeout 300
+    note    "两曲线中心差 → 色散频移"
+    args {
+      points 51
+      df_hz 5000000
+    }
+  }
+
+  say "S21 色散（频移） 测完"
+}
