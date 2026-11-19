@@ -2101,3 +2101,34 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 
 - ``23132ec`` feat(demo): 演示机配套 —— 后端状态网关/前端徽标、依赖清单、演示手册
   （7 文件，+511）
+### 补充：启动脚本把 503 误判成"服务没启动"（241e290）
+
+**现象**：`python start_all_services.py --all` 报 quantum 起不来；单独启动 quantum 正常。
+
+**其实服务一直活着** —— ps/netstat 显示 3003 从 9:28:25 起就在监听
+（同一批 --all 起的：llm 9:28:24、quantum 9:28:25、analysis 9:28:25、hermes 9:28:36），
+直接请求 http://localhost:3003/health 返回 **503**（降级但活着）。
+
+**根因**：`wait_for_services()` 用 `urllib.request.urlopen()` 探 `/health`，
+而 **urlopen 对非 2xx 抛 HTTPError，HTTPError 又是 URLError 的子类**。
+量子/分析/比特这几个真机链路服务在没有设备时 `/health` 正常返回 503，
+于是 503 落进 `except URLError` 分支被判成"连不上"，
+`service_status` 永远停在 waiting → 跑满 60s 超时 → 报"服务没启动"。
+脚本注释本来写着"接受 200 或 503 作为就绪"，但 503 根本走不到那个判断。
+
+**三处一起修**：
+1. 单独接住 `HTTPError`，取 `e.code` 走同一套就绪判断（200/503 都算 ready）
+2. 熔断器判断改大小写不敏感（reason phrase 是 `Service Unavailable`，
+   原来写的 `"Service unavailable" in reason` 永远匹配不上）
+3. 等待提示不再刷屏（`service_status != "error"` 永远为真 → 每秒打一行 ×60；
+   改用 `error_printed` 只打一次）
+
+**验证**（对当前在跑的服务跑修复后的 wait_for_services）：
+llm/agent/image/workflow/task_queue/qca/hermes → ✅ Ready；
+quantum/analysis/qubitclient → ⚠️ Running in degraded mode；函数返回 True。
+
+**定性**：既有缺陷，不是后端策略改动引入的。演示机（无真机、无离线数据）
+正好踩满 —— 离线数据在场时 availability 判成 ok → 200，脚本反而没事。
+
+**顺带确认未改动**：前端读网关 /health 与 /api/quantum/mode（恒 200），
+不受 503 影响；网关 proxyToService 用 fetch，不会因 503 抛异常。
