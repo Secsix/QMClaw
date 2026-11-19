@@ -301,41 +301,55 @@ def wait_for_services(timeout: int = 60):
             port = svc_config.get("port", SERVICES[name]["port"] if name in SERVICES else 0)
             url = f"http://localhost:{port}/health"
 
+            status_code = None
+            transport_error = None
             try:
                 req = urllib.request.Request(url)
                 with urllib.request.urlopen(req, timeout=2) as response:
                     status_code = response.status
-                    # 接受 200 (healthy) 或 503 (degraded/running) 作为"就绪"
-                    if status_code in (200, 503):
-                        if service_status[name] != "ready":
-                            # 根据状态码显示不同信息
-                            if status_code == 200:
-                                print(f"[start_all] ✅ {name}: Ready (port {port})")
-                            else:
-                                print(f"[start_all] ⚠️  {name}: Running in degraded mode (port {port})")
-                            service_status[name] = "ready"
-                    else:
-                        all_ready = False
+            except urllib.error.HTTPError as e:
+                # **503 不是"连不上"**。
+                # urlopen 对非 2xx 响应会抛 HTTPError，而 HTTPError 是 URLError 的
+                # 子类 —— 于是以前 503 落进了下面的 URLError 分支，被判成 "waiting"。
+                # 量子/分析/比特这几个真机链路服务在没有设备时 /health 正常就返回
+                # 503（降级但活着），结果脚本一直等到 60s 超时，报"服务没启动"，
+                # 而服务其实好好地跑着。
+                # 所以必须单独接住 HTTPError，拿它的 code 走同一套"就绪"判断。
+                status_code = e.code
             except urllib.error.URLError as e:
+                transport_error = str(e.reason)
+            except Exception as e:
+                transport_error = f"{type(e).__name__}: {e}"
+
+            if status_code is not None:
+                # 接受 200 (healthy) 或 503 (degraded/running) 作为"就绪"
+                if status_code in (200, 503):
+                    if service_status[name] != "ready":
+                        # 根据状态码显示不同信息
+                        if status_code == 200:
+                            print(f"[start_all] ✅ {name}: Ready (port {port})")
+                        else:
+                            print(f"[start_all] ⚠️  {name}: Running in degraded mode (port {port})")
+                        service_status[name] = "ready"
+                else:
+                    all_ready = False
+                    if not error_printed[name]:
+                        print(f"[start_all] ⏳ {name}: HTTP {status_code} (port {port})")
+                        error_printed[name] = True
+            else:
                 all_ready = False
-                reason = str(e.reason)
-                # 检测是否是熔断器导致的错误
-                if "Service unavailable" in reason or "Circuit open" in reason:
+                reason = transport_error or ""
+                # 检测是否是熔断器导致的错误（HTTP reason phrase 大小写不固定）
+                if "service unavailable" in reason.lower() or "circuit open" in reason.lower():
                     if not error_printed[name]:
                         print(f"[start_all] ⏳ {name}: Circuit breaker open (Express gateway cannot reach service)")
                         error_printed[name] = True
                     service_status[name] = "circuit_open"
                 else:
-                    if service_status[name] != "error":
+                    if not error_printed[name]:
                         print(f"[start_all] ⏳ {name}: Waiting... ({reason})")
                         error_printed[name] = True
                     service_status[name] = "waiting"
-            except Exception as e:
-                all_ready = False
-                if service_status[name] != "error":
-                    print(f"[start_all] ⏳ {name}: Waiting... ({type(e).__name__})")
-                    error_printed[name] = True
-                service_status[name] = "waiting"
 
         # 检查是否可以认为服务已就绪
         # 如果所有服务要么已就绪，要么被熔断器阻止（服务本身在运行），则认为成功
