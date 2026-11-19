@@ -341,3 +341,35 @@ python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 
    2026-11-19 已改成括号配平 + 顶层逗号切分（见 `offline_simulator.py`）。
    **服务重启后生效**（约定 3：服务启停由人控制）。
 
+### 13 个实验全跑（2026-11-19 实测，13/13 completed）
+
+```powershell
+python qwf_sweep.py                      # 全部 13 个
+python qwf_sweep.py --only t1 ramsey     # 只跑指定的
+```
+
+每个实验生成一份独立 `.qwf` 走 `qwf_run.py`（一个失败不拖累其它实验）。
+实测结果（shots=2000，seed=42，`unit_system=qiskit_normalized`）：
+
+| 实验 | `.qwf` 里的 fn | 比特 | 类型 | 关键指标 |
+|------|----------------|------|------|----------|
+| T1 | `sq.t1` | 1 | exact | T1 = 4.957e-05（先验 50 µs → 拟合 49.57 µs） |
+| Ramsey | `sq.ramsey_df` | 1 | exact | T2 = 2.066e-05（先验 20 µs → 拟合 20.66 µs） |
+| π 幅度 | `sq.piamp` | 1 | exact | pi_amplitude = 0.2753 |
+| XEB | `sq.xeb` | 1 | exact | gate_fidelity = 0.9953，error_per_cycle = 6.5e-4 |
+| 单发读出 | `sq.single_shot` | 1 | exact | readout_fidelity = 0.9695（F0 0.9675 / F1 0.9715） |
+| **SWAP** | `sq.swap` | **2** | exact | swap_fidelity = 0.992（counts 01:1984/2000） |
+| 长脉冲谱学 | `sq.spectroscopy` | 1 | model | f10 = 0（相对驱动频率的失谐零点） |
+| 脉冲谱学 | `sq.spectroscopy_iq` | 1 | model | qubit_frequency = 0（同上，相对值） |
+| 腔透射 | `sq.s21` | 1 | model | fread = 0（代理，非真实腔模型） |
+| 色散位移 | `sq.s21_dis` | 1 | model | dispersive_shift = 2 MHz，两条曲线中心 ±1 MHz |
+| iQraw | `sq.iqraw` | 1 | model | SNR = 4.0，separation = 1.414 |
+| AllXY | `sq.allxy` | 1 | model | average_fidelity = 0.9805，leakage = 0.0195 |
+| **DRAG 标定** | `sq.drag_calibrate` | **2**（代理） | model | optimal_drag = 0.45，leakage_at_opt = 0 |
+
+**双比特的表达方式**：`.qwf` 的 `measure` 只有**一个** `qubit` 字段，
+所以 `swap` / `drag_calibrate` 在 qwf 里写成单比特名（`q2ld3`），
+**双比特线路由 qiskit 侧自己固定成 q0/q1**。也就是说 `.qwf` 目前还不能
+表达"这两比特具体的哪两个" —— 要真机跑双比特实验，这条是缺口。
+
+
