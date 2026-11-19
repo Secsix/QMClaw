@@ -2097,3 +2097,7 @@ Browser → Express (:3002) → Python subprocess → Hermes AIAgent
 - 起服务后肉眼验证前端 ⚛️ Qiskit 面板、演示比特下拉、🔌/⚙️ 后端徽标
 - 重启 ``next dev``（之前 ``npm install`` 装了 4 个前端依赖，热更新不覆盖新包）
 - ``.env`` 的 ``PYTHON_BIN`` 已指向 ``D:\anaconda3\envs\lqcs\python.exe``（本地未提交，被 gitignore）
+### 补充：P5 提交
+
+- ``23132ec`` feat(demo): 演示机配套 —— 后端状态网关/前端徽标、依赖清单、演示手册
+  （7 文件，+511）
