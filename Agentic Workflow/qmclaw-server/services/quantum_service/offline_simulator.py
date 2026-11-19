@@ -80,9 +80,14 @@ class ExperimentSimulator:
         self._provider = offline_provider
         self._last_simulation_result: Optional[Dict[str, Any]] = None
 
-    def parse_experiment_code(self, code: str) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+    @classmethod
+    def parse_experiment_code(cls, code: str) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
         """
         解析实验代码
+
+        类方法：不依赖实例状态，因此没有离线数据（``_offline_provider is None``、
+        ``_simulator`` 未创建）的机器上也能用 —— qiskit 后端就是靠它把
+        ``sq.t1(q0)`` 这种代码翻译成实验名 + 比特名的。
 
         Args:
             code: 实验代码，如 "sq.spectroscopy(q1, do_plot=True)"
@@ -120,7 +125,7 @@ class ExperimentSimulator:
                             params[key] = value.strip()
 
         # 标准化实验名称
-        exp_type = self.EXP_FUNC_MAP.get(exp_name, exp_name)
+        exp_type = cls.EXP_FUNC_MAP.get(exp_name, exp_name)
 
         return exp_type, qubit_name, params
 

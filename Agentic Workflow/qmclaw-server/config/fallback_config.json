@@ -8,6 +8,12 @@
       "auto_switch_on_disconnect": true,
       "default_mode": "auto"
     },
+    "backends": {
+      "order": ["lqcs", "qiskit", "offline_sim"],
+      "disabled": [],
+      "probe_ttl_s": 30,
+      "qiskit_probe_ttl_s": 300
+    },
     "actuation": {
       "allow_execute": true,
       "allow_set_params": true,

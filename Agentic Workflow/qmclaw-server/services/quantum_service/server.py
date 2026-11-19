@@ -31,6 +31,17 @@ from ..common.availability import build_availability, derive_legacy_status
 from ..common.offline_data_provider import OfflineDataProvider
 from ..common.plotting import serialized_plot
 from .offline_simulator import ExperimentSimulator
+from .backend_policy import (
+    ALL_BACKENDS,
+    BACKEND_LQCS,
+    BACKEND_OFFLINE,
+    BACKEND_QISKIT,
+    BackendPolicy,
+    BackendState,
+    probe_lqcs as policy_probe_lqcs,
+    probe_offline_sim as policy_probe_offline_sim,
+    probe_qiskit as policy_probe_qiskit,
+)
 
 
 def _log(msg: str):
@@ -54,6 +65,13 @@ class QuantumService(BaseService):
         ONLINE = "online"      # 强制使用 LabRAD
         OFFLINE = "offline"    # 强制使用离线数据
         AUTO = "auto"          # 自动切换（LabRAD断开时自动离线）
+
+    #: ``sq.xxx()`` 解析出的实验名 → qiskit 实验目录里的名字。
+    #: 多数同名；少数是历史命名差异（离线侧把 ramsey 归一成 ramsey_df）。
+    QISKIT_EXPERIMENT_ALIASES = {
+        "ramsey_df": "ramsey",
+        "spectroscopy_iq": "pulsed_spec",
+    }
 
     def __init__(self, port: int = 3003):
         cfg = ServiceConfig(
@@ -104,6 +122,12 @@ class QuantumService(BaseService):
         self._fallback_qubits: List[Dict[str, Any]] = []
         self._fallback_experiments: List[Dict[str, Any]] = []
 
+        # 演示比特（config/demo_qubits.json）：既没有真机也没有离线数据时兜底，
+        # 否则 /qubits 返回空列表会让前端的比特下拉框空掉、所有实验按钮置灰。
+        self._demo_qubits: List[Dict[str, Any]] = []
+        self._demo_qubits_note: str = ""
+        self._load_demo_qubits()
+
         # 离线模式管理
         offline_config = fb_config.get("offline_mode", {})
         self._offline_mode_enabled = offline_config.get("enabled", True)
@@ -120,6 +144,21 @@ class QuantumService(BaseService):
 
         # 实验模拟器（离线模式使用）
         self._simulator: Optional[ExperimentSimulator] = None
+
+        # 实验后端选择策略：lqcs 真机 → qiskit 模拟 → 离线回放，按 order 依次尝试。
+        # 配置只有一份（fallback_config.json → quantum_service.backends），
+        # mode(online/offline/auto) 是它的兼容别名。见 backend_policy.py。
+        # 探测带 TTL 缓存且是毫秒级快筛，绝不会每次请求都去连 LabRAD。
+        self._backend_config: Dict[str, Any] = fb_config.get("backends", {}) or {}
+        self._policy = BackendPolicy.from_config(
+            self._backend_config,
+            probes={
+                BACKEND_LQCS: self._probe_lqcs_backend,
+                BACKEND_QISKIT: policy_probe_qiskit,
+                BACKEND_OFFLINE: self._probe_offline_backend,
+            },
+            logger=_log,
+        )
 
         # 异步执行任务（job）：/execute 带 async=true 时立即返回 job_id
         self._jobs: Dict[str, Dict[str, Any]] = {}
@@ -177,10 +216,22 @@ class QuantumService(BaseService):
         # 打印当前模式
         _log(f"Mode: {self._get_mode()}")
 
-        # 离线模式下跳过 LabRAD 连接尝试
+        # 不走真机（显式 offline，或 AUTO 下探测不到真机 / 已落到 qiskit）时跳过连接
         if self._is_offline_mode:
-            _log("Offline mode: skipping LabRAD connection")
-            self._fallback.set_state(ConnectionState.DEGRADED_PERMANENT)
+            if self._get_mode() == self.Mode.OFFLINE:
+                # 用户显式要求离线：不碰硬件，也不重连
+                _log("Offline mode (explicit): skipping LabRAD connection")
+                self._fallback.set_state(ConnectionState.DEGRADED_PERMANENT)
+            else:
+                # AUTO 但真机探测不可用：**不能**设 DEGRADED_PERMANENT —— 那会让
+                # _ensure_connected 永久返回 False，真机恢复后（LabRAD 重启/网线插回）
+                # 就再也连不上了。留 DEGRADED，由策略 TTL 重新探测 + 懒连接自愈。
+                active = self._policy.active(self._get_mode())
+                _log(
+                    "Hardware backend unavailable, skipping LabRAD connection "
+                    f"(active backend: {active}); will retry when policy re-probes"
+                )
+                self._fallback.set_state(ConnectionState.DEGRADED)
             return
 
         # 延迟导入避免启动时卡住
@@ -261,6 +312,28 @@ class QuantumService(BaseService):
         except Exception as e:
             _log(f"Failed to load fallback data: {e}")
 
+    def _load_demo_qubits(self):
+        """加载 ``config/demo_qubits.json``（演示比特）。
+
+        这不是"造假数据"的隐式行为：只有 ``/qubits`` 既拿不到真机、也拿不到
+        离线数据时才会用到，且返回的 ``source`` 是 ``demo``、``note`` 里写明
+        是占位值。改这个文件就能换掉演示比特，``enabled=false`` 则彻底关掉。
+        """
+        path = Path(__file__).parent.parent.parent / "config" / "demo_qubits.json"
+        try:
+            if not path.exists():
+                return
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if not raw.get("enabled", True):
+                return
+            qubits = raw.get("qubits") or []
+            self._demo_qubits = [q for q in qubits if isinstance(q, dict) and q.get("name")]
+            self._demo_qubits_note = str(raw.get("note") or "")
+            if self._demo_qubits:
+                _log(f"Loaded {len(self._demo_qubits)} demo qubits (config/demo_qubits.json)")
+        except Exception as exc:  # 演示数据坏了不该影响服务启动
+            _log(f"Failed to load demo qubits: {exc}")
+
     def _init_offline_provider(self):
         """初始化离线数据提供器和实验模拟器"""
         if not self._offline_mode_enabled:
@@ -286,16 +359,63 @@ class QuantumService(BaseService):
             _log(f"Failed to initialize offline provider: {e}")
             self._offline_provider = None
 
+    def _probe_lqcs_backend(self) -> BackendState:
+        """真机后端探测。
+
+        已经连上就直接判定可用 —— 不要再做一次 TCP 探测：既浪费，也可能在
+        LabRAD 正忙时把一条健康的连接误判成不可用。
+        """
+        client = getattr(self, "_labrad", None)
+        if client is not None and getattr(client, "connected", False):
+            return BackendState(
+                name=BACKEND_LQCS,
+                kind="hardware",
+                available=True,
+                detail={
+                    "labrad_connected": True,
+                    "session_path": getattr(client, "session_path", None),
+                },
+            )
+        return policy_probe_lqcs()
+
+    def _probe_offline_backend(self) -> BackendState:
+        """离线回放后端探测：拿到 OfflineDataProvider 才算可用。
+
+        走探测而不是直接读属性，是为了让"为什么不可用"能在 /backends 里
+        说清楚（目录为空 / 索引没生成 / 配置里关了离线模式）。
+        """
+        ready = self._offline_provider is not None
+        reason = None
+        if not ready:
+            if not self._offline_mode_enabled:
+                reason = "离线模式已在 fallback_config.json 中关闭"
+            else:
+                reason = (
+                    f"离线数据未就绪（{self._offline_data_path} 为空或未生成索引，"
+                    "可运行 python -m services.common.offline_data_provider --generate-index）"
+                )
+        return policy_probe_offline_sim(
+            ready, data_path=self._offline_data_path, reason=reason
+        )
+
     @property
     def _is_offline_mode(self) -> bool:
-        """检查是否处于离线模式"""
-        with self._mode_lock:
-            if self._mode == self.Mode.OFFLINE:
-                return True
-            if self._mode == self.Mode.ONLINE:
-                return False
-            # AUTO 模式：LabRAD 不可用时自动离线
-            return not self._ensure_connected()
+        """是否**不走真机**。
+
+        改造前这里在 AUTO 下直接调 ``_ensure_connected()``——那是一次真实连接
+        尝试：没装 lqms 的机器上会连试多次、每次打一大段 traceback，而且是在
+        持有 ``_mode_lock`` 时做的，连接期间所有请求排队，服务看起来像卡死。
+
+        现在改成问策略模块："当前生效的后端是不是真机？"。探测是毫秒级快筛
+        且带 TTL 缓存，所以这个属性可以放心被大量 handler 调用。
+        """
+        mode = self._get_mode()
+        if mode == self.Mode.OFFLINE:
+            return True
+        if mode == self.Mode.ONLINE:
+            return False
+        # AUTO：按 order 找到的第一个可用后端如果不是真机，就走非真机分支
+        return self._policy.active(mode) != BACKEND_LQCS
 
     def _set_mode(self, mode: str) -> bool:
         """设置运行模式
@@ -372,24 +492,118 @@ class QuantumService(BaseService):
             return obj.item()
         return obj
 
+    def _qiskit_params_from_code(self, name: str, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """把 ``sq.xxx(...)`` 里的关键字参数过滤成 qiskit 侧认识的参数。
+
+        代码里常见的 ``do_plot`` / ``plot`` 之类对模拟没有意义，直接丢掉；
+        只保留该实验 spec 声明过的参数名，免得把未知键塞给运行时。
+        """
+        if not params:
+            return {}
+        try:
+            from services.quantum_service.qiskit_experiments import get_spec
+
+            spec = get_spec(name)
+            allowed = set((spec.params or {}).keys()) if spec else set()
+        except Exception:
+            allowed = set()
+        if not allowed:
+            return {}
+        return {k: v for k, v in params.items() if k in allowed}
+
+    def _execute_with_qiskit(
+        self, code: str, task_id: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """用 qiskit/Aer 跑 ``sq.xxx(qN)`` 形式的实验代码。
+
+        返回 ``None`` 表示"这次不归 qiskit 管"，调用方继续走原有的离线回放：
+
+        * 代码里解析不出 ``sq.<exp>(<qubit>)``
+        * 实验名不在 qiskit 覆盖的 13 个词表里
+        * qiskit 不可用 / 执行失败 / 状态不是 ``qiskit_completed``
+
+        **刻意不用异常做控制流**：qiskit 挂了只影响它自己，服务其它部分照常
+        （这是"任一后端连不上都不影响其他部分"的具体落地）。
+        """
+        from services.quantum_service import qiskit_backend
+        from services.quantum_service.qiskit_experiments import supported_experiments
+
+        if not code:
+            return None
+        exp_type, qubit, code_params = ExperimentSimulator.parse_experiment_code(code)
+        if not exp_type:
+            return None
+
+        name = self.QISKIT_EXPERIMENT_ALIASES.get(exp_type, exp_type)
+        if name not in supported_experiments():
+            _log(f"[QISKIT] 实验 {exp_type!r} 不在 qiskit 词表里，回落到离线回放")
+            return None
+
+        payload: Dict[str, Any] = {
+            "experiment": name,
+            "qubit": qubit or data.get("qubit") or "",
+            "params": self._qiskit_params_from_code(name, code_params),
+            "shots": data.get("shots"),
+            "seed": data.get("seed"),
+        }
+        try:
+            result = qiskit_backend.run(payload)
+        except Exception as exc:  # noqa: BLE001 —— 任何 qiskit 异常都不该冒泡
+            _log(f"[QISKIT] 执行异常，回落到离线回放：{type(exc).__name__}: {exc}")
+            return None
+
+        if result.get("status") != "qiskit_completed":
+            _log(
+                f"[QISKIT] 状态 {result.get('status')}，回落到离线回放："
+                f"{result.get('error')}"
+            )
+            return None
+
+        result["task_id"] = task_id
+        result["exp_type"] = name
+        result["simulated"] = True
+        result["qubit"] = qubit or result.get("qubit")
+        if not result.get("stdout"):
+            result["stdout"] = f"[QISKIT] {name} on {result.get('qubit') or 'unknown'}"
+
+        if result.get("data"):
+            plot_path = self._generate_simulation_plot(result)
+            if plot_path:
+                result["plotPath"] = plot_path
+
+        _log(
+            f"[QISKIT] /execute 命中 qiskit：{name} on {result.get('qubit')} "
+            f"({result.get('elapsed_ms')}ms)"
+        )
+        return self._json_safe(result)
+
     def _execute_offline_simulation(self, code: str, task_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         离线模式模拟执行
 
         策略:
+        0. 若策略判定当前生效后端是 qiskit —— 先用 Aer 真跑一遍（见
+           ``_execute_with_qiskit``），失败/不适用再往下走历史数据回放
         1. 检查模拟器是否可用
         2. 解析实验类型和 qubit
         3. 查找匹配的离线数据
         4. 生成模拟输出
         """
-        # 检查模拟器是否可用
+        # 0. qiskit 优先：这是"没有 lqcs 的机器也能演示测控实验"的主路径
+        if self._policy.active(self._get_mode()) == BACKEND_QISKIT:
+            qiskit_result = self._execute_with_qiskit(code, task_id, data)
+            if qiskit_result is not None:
+                return qiskit_result
+
+        # 1. 检查模拟器是否可用
         if self._simulator is None:
             return {
                 "task_id": task_id,
                 "status": "offline_no_simulator",
                 "stdout": "[OFFLINE] Simulator not available",
                 "stderr": "",
-                "error": "实验模拟器未初始化",
+                "error": "实验模拟器未初始化，且当前没有可用的模拟后端"
+                         "（qiskit 未安装 / 离线数据未就绪）",
             }
 
         _log(f"[OFFLINE SIM] Task: {task_id}")
@@ -505,12 +719,20 @@ class QuantumService(BaseService):
         """确保 LabRAD 已连接
 
         离线模式或永久降级时返回 False；客户端未创建时懒创建后再连。
+
+        **自愈**：``DEGRADED_PERMANENT`` 是"重试次数用尽"的产物。如果策略模块
+        重新探测到真机可达（LabRAD 重启、网线插回、设备上电），就清除它再试一次
+        —— 否则一次开机时序问题会让整个进程永久停在降级态，只能重启服务。
         """
-        if self._mode == self.Mode.OFFLINE:
+        if self._get_mode() == self.Mode.OFFLINE:
             return False
 
         if self._fallback.is_permanently_degraded:
-            return False
+            if self._policy.state(BACKEND_LQCS).available:
+                _log("[backend] 策略探测到真机已恢复，清除永久降级状态并重试连接")
+                self._fallback.reset()
+            else:
+                return False
 
         if self._labrad is None:
             try:
@@ -604,6 +826,8 @@ class QuantumService(BaseService):
             return self._handle_qubit_replay(data)
         elif path == "/mode":
             return self._handle_mode(data)
+        elif path == "/backends":
+            return self._handle_backends(data)
         elif path == "/datasets":
             return self._handle_datasets(data)
         elif path == "/qiskit/run":
@@ -1197,6 +1421,70 @@ class QuantumService(BaseService):
             **extra,
         }
 
+    def _demo_backend_active(self) -> bool:
+        """当前是否靠 qiskit 模拟撑着。
+
+        演示比特 / 演示实验词表**只在这种情况**下给。真机掉线时（online 模式连不上、
+        或 auto 下真机可达但握手失败）必须如实报"没有比特"，不能拿假数据糊弄
+        现场人员 —— 那比报错危险得多。
+        """
+        return self._policy.active(self._get_mode()) == BACKEND_QISKIT
+
+    def _qubits_fallback_payload(self) -> Dict[str, Any]:
+        """拿不到真机时的比特列表：离线数据 → 演示比特 → 空。
+
+        顺序有讲究：真实离线数据永远优先于演示比特，演示比特只是最后的兜底，
+        而且只在"这台机器本来就没有真机栈、当前靠 qiskit 模拟"时才用。
+        """
+        if self._fallback_qubits:
+            return {
+                "qubits": self._fallback_qubits,
+                "count": len(self._fallback_qubits),
+                "source": "fallback",
+                "fallback_message": self._get_fallback_message(),
+            }
+        if self._demo_backend_active() and self._demo_qubits:
+            return {
+                "qubits": self._demo_qubits,
+                "count": len(self._demo_qubits),
+                "source": "demo",
+                "fallback_message": "本机没有真机与离线数据，返回演示比特（模拟后端）",
+                "note": self._demo_qubits_note,
+            }
+        return {
+            "qubits": [],
+            "count": 0,
+            "source": "fallback",
+            "fallback_message": self._get_fallback_message(),
+        }
+
+    def _demo_experiments(self) -> List[Dict[str, Any]]:
+        """从 ``config/experiment_configs.json`` 派生实验列表（演示用）。
+
+        前端用的是硬编码的 13 个按钮，不依赖这个接口；但返回空列表会让人
+        以为"没有实验可跑"，所以模拟后端生效时才用配置里的词表顶上。
+        """
+        if self._fallback_experiments:
+            return self._fallback_experiments
+        if not self._demo_backend_active():
+            return []
+        path = Path(__file__).parent.parent.parent / "config" / "experiment_configs.json"
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            experiments = raw.get("experiments") or {}
+            if isinstance(experiments, dict):
+                return [
+                    {
+                        "name": name,
+                        "description": (meta or {}).get("description", ""),
+                        "function": (meta or {}).get("function", f"sq.{name}"),
+                    }
+                    for name, meta in experiments.items()
+                ]
+        except Exception as exc:
+            _log(f"Failed to derive demo experiments: {exc}")
+        return []
+
     def _handle_qubits(self) -> Dict[str, Any]:
         """获取量子比特列表"""
         # 离线模式优先返回离线数据
@@ -1209,23 +1497,17 @@ class QuantumService(BaseService):
                 "mode": self._get_mode(),
             }
 
-        if self._fallback.is_degraded:
-            # 降级模式返回本地数据
-            return {
-                "qubits": self._fallback_qubits,
-                "count": len(self._fallback_qubits),
-                "source": "fallback",
-                "fallback_message": self._get_fallback_message(),
-            }
+        # 不走真机（显式 offline / AUTO 落到 qiskit / 已降级）：
+        # 直接给兜底列表，**不要**再去试探连接 —— 试了也是白试，还刷日志。
+        if self._is_offline_mode or self._fallback.is_degraded:
+            payload = self._qubits_fallback_payload()
+            payload.setdefault("mode", self._get_mode())
+            return payload
 
         if not self._ensure_connected():
-            # 未连接也返回降级数据
-            return {
-                "qubits": self._fallback_qubits,
-                "count": len(self._fallback_qubits),
-                "source": "fallback",
-                "fallback_message": self._get_fallback_message(),
-            }
+            payload = self._qubits_fallback_payload()
+            payload.setdefault("mode", self._get_mode())
+            return payload
 
         with self._labrad_lock:
             qubits = self._labrad.get_qubits()
@@ -1244,21 +1526,22 @@ class QuantumService(BaseService):
                 "mode": self._get_mode(),
             }
 
-        if self._fallback.is_degraded:
-            # 降级模式返回本地数据
+        if self._is_offline_mode or self._fallback.is_degraded:
+            experiments = self._demo_experiments()
             return {
-                "experiments": self._fallback_experiments,
-                "count": len(self._fallback_experiments),
-                "source": "fallback",
+                "experiments": experiments,
+                "count": len(experiments),
+                "source": "demo" if experiments and not self._fallback_experiments else "fallback",
+                "mode": self._get_mode(),
                 "fallback_message": self._get_fallback_message(),
             }
 
         if not self._ensure_connected():
-            # 未连接也返回降级数据
+            experiments = self._demo_experiments()
             return {
-                "experiments": self._fallback_experiments,
-                "count": len(self._fallback_experiments),
-                "source": "fallback",
+                "experiments": experiments,
+                "count": len(experiments),
+                "source": "demo" if experiments and not self._fallback_experiments else "fallback",
                 "fallback_message": self._get_fallback_message(),
             }
 
@@ -1354,6 +1637,47 @@ class QuantumService(BaseService):
         _log(f"[QISKIT] health: available={status.get('available')} "
              f"execution={status.get('execution')}")
         return self._json_safe(status)
+
+    def _handle_backends(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """GET/POST /backends —— 实验后端状态与运行期偏好。
+
+        唯一配置在 ``fallback_config.json`` → ``quantum_service.backends``；
+        ``mode``(online/offline/auto) 只是它的兼容别名，不再有第二套开关。
+
+        用法：
+
+        * 不带参数 —— 返回 report（order / active / 每个后端的可用性与原因）
+        * ``prefer=qiskit`` —— 把 qiskit 提到 auto 顺序最前（演示机常用）
+        * ``prefer=auto``（或空）—— 清除偏好
+        * ``refresh=true`` —— 忽略 TTL 缓存，立即重新探测
+
+        ``prefer`` 只改**进程内**顺序，不写回配置文件，重启即回到 order；
+        要永久生效请改配置。``online`` / ``offline`` 是硬指定，不受 prefer 影响。
+        """
+        prefer = data.get("prefer", None)
+        if prefer is not None:
+            name = str(prefer).strip().lower()
+            if name in ("", "auto", "clear", "none", "null"):
+                self._policy.clear_preference()
+            else:
+                try:
+                    self._policy.prefer(name)
+                except ValueError as exc:
+                    return {
+                        **error_envelope("validation_error", str(exc)),
+                        "order": self._policy.order,
+                        "choosable": list(ALL_BACKENDS),
+                    }
+
+        refresh = str(data.get("refresh", "")).strip().lower() in ("1", "true", "yes", "on")
+        report = self._policy.report(self._get_mode(), force=refresh)
+        report["success"] = True
+        report["config_source"] = "config/fallback_config.json → quantum_service.backends"
+        report["note"] = (
+            "prefer 只影响进程内 auto 顺序，不写回配置文件；"
+            "online/offline 是硬指定，不受 prefer 影响"
+        )
+        return self._json_safe(report)
 
     def _handle_datasets(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """获取数据集列表"""
@@ -3266,6 +3590,21 @@ class QuantumService(BaseService):
 
             return result
 
+    def _backend_summary(self) -> Dict[str, Any]:
+        """``/health`` 用的后端摘要：**只看缓存，不探测**。
+
+        ``/health`` 会被网关和其它服务高频轮询，而 qiskit 探测可能要起子进程、
+        lqcs 探测可能吃一次 TCP 超时。完整（含实时探测）的信息走 ``GET /backends``。
+        """
+        mode = self._get_mode()
+        return {
+            "order": self._policy.resolve(mode),
+            "active": self._policy.peek_active(mode),
+            "preferred": self._policy.preferred,
+            "cached": self._policy.cache_snapshot(),
+            "detail_endpoint": "/backends",
+        }
+
     def get_health(self) -> Dict[str, Any]:
         """获取健康状态
 
@@ -3294,6 +3633,10 @@ class QuantumService(BaseService):
             "status": derive_legacy_status(availability),
             "availability": availability,
             "service": "quantum_service",
+            # 后端层面的"能不能干活"：没有真机但 qiskit 可用时，
+            # status 仍是 degraded（没连上设备，语义正确），但实验是可执行的。
+            "backend_active": self._policy.peek_active(self._get_mode()),
+            "execution_available": self._policy.peek_active(self._get_mode()) is not None,
             "labrad_connected": labrad_ok,
             "fallback_mode": self._fallback.is_degraded,
             "fallback_state": fallback_info["state"],
@@ -3305,6 +3648,7 @@ class QuantumService(BaseService):
             "session_path": self._labrad.session_path if self._labrad else None,
             "fallback_message": self._get_fallback_message(),
             "mode": self._get_mode(),
+            "backends": self._backend_summary(),
             "lane": self._lane_snapshot(),
             "stuck": stuck,
             "stuck_reason": self._exec_stuck,
