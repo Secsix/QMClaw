@@ -181,7 +181,19 @@ function shouldPrintLog(line: string): boolean {
   return false;
 }
 
-const PORT = process.env.PORT || 8080;
+// Express 网关端口。
+//
+// **默认必须是 3002**：前端 qmclaw-web 的 API_BASE 默认就写死 "http://localhost:3002"
+// （api.ts / page.tsx / AgentChatPanel / QueueStatusBadge / ServiceControlPanel
+// 全都是 3002），.env.example 与 AGENTS.md / CLAUDE.md 的约定也写着 Express :3002。
+//
+// 历史上这里被改成过 8080（微服务重构那次提交），结果前端一个请求都打不通 ——
+// 浏览器里全是 ERR_CONNECTION_REFUSED，而网关自己却"好好地"跑在 8080 上，
+// 排查起来极费劲（网关日志只说 "Listening on http://localhost:8080"）。
+// 所以：**要改端口就改前端，或者设 NEXT_PUBLIC_API_URL 显式对齐**，
+// 不要只改这一边。
+const PORT = process.env.PORT || 3002;
+
 const PLOTS_DIR = process.env.PLOTS_DIR || path.join(__dirname, "..", "..", "qmclaw-web", "public", "plots");
 const PYTHON_BIN = process.env.PYTHON_BIN || "python";
 const SESSION_CONFIG_FILE = path.join(__dirname, "..", "config", "session.json");
@@ -4210,6 +4222,17 @@ server.listen(PORT, () => {
   console.log(`[Server] Listening on http://localhost:${PORT}`);
   console.log(`[Server] WebSocket available at ws://localhost:${PORT}/api/hermes/ws`);
   console.log(`[Server] Integrated: experiments, sessions, datasets, plots (no backend needed)`);
+
+  // 端口与前端默认值对不上时必须喊出来 —— 否则前端会毫无提示地全量
+  // ERR_CONNECTION_REFUSED（浏览器控制台里看是"前端坏了"，其实是网关换了个端口）。
+  if (PORT !== 3002) {
+    console.warn("");
+    console.warn(`[Server] ⚠️  端口警告：当前监听 ${PORT}，但 qmclaw-web 的 API_BASE 默认是 3002。`);
+    console.warn(`[Server]    前端会连不上（浏览器控制台全是 ERR_CONNECTION_REFUSED）。`);
+    console.warn(`[Server]    要么把 PORT 改回 3002，要么在 qmclaw-web 里设`);
+    console.warn(`[Server]    NEXT_PUBLIC_API_URL=http://localhost:${PORT} 后重启前端。`);
+    console.warn("");
+  }
 
   // Debug: list all registered routes
   const routes: string[] = [];

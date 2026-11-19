@@ -1834,6 +1834,15 @@ print(f"readout_fidelity=0.95 t1=2500.0 gate_fidelity=0.992")
     return res.json();
   },
 
+  /** 测试调用某个 MCP 工具（原先在 AgentToolsPanel 里写死了 http://localhost:3002，
+   *  会绕开 NEXT_PUBLIC_API_URL —— 网关换端口时这一个按钮就废了）。 */
+  testMcpTool: async (id: string) => {
+    const res = await fetch(`${API_BASE}/api/mcp-tools/${encodeURIComponent(id)}/test`, {
+      method: "POST",
+    });
+    return res.json();
+  },
+
   // ── Skills ──────────────────────────────────────────────────────────────
 
   getSkills: async () => {

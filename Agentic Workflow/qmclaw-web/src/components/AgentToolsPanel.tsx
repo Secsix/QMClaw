@@ -114,8 +114,7 @@ function McpToolsPanel() {
     setTesting(true);
     setTestResult("Calling...");
     try {
-      const res = await fetch(`http://localhost:3002/api/mcp-tools/${tool.id}/test`, { method: "POST" });
-      const data = await res.json();
+      const data = await api.testMcpTool(tool.id);
       setTestResult(JSON.stringify(data, null, 2));
     } catch (e: any) {
       setTestResult(`Error: ${e.message}`);
