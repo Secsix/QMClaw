@@ -1,0 +1,85 @@
+{
+  "schema": "qwf.rules/1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "contrast-low-boost-pigate",
+      "version": 1,
+      "description": "IQraw 对比度低于 0.85 且读入功率还没顶到上限时，先按 5% 步长抬 PiGate.amp —— 最常见的欠驱动。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "iqraw"},
+          {"field": "metrics.contrast", "op": "<", "value": 0.85},
+          {"field": "metrics.readin_power_dbm", "op": "<", "value": -30}
+        ]
+      },
+      "action": {
+        "type": "set",
+        "path": "PiGate.amp",
+        "deltaPercent": 5,
+        "reason": "contrast 偏低，按 5% 步长抬脉冲幅度"
+      },
+      "priority": 55,
+      "confidence": 0.65,
+      "tags": ["contrast", "pipulse"],
+      "scope": {"experiments": ["iqraw"]},
+      "provenance": {
+        "source": "session",
+        "session": "2026-11-10-iqraw-contrast",
+        "evidence": ["run_wf_iqraw_1794300000: contrast 0.79 → 0.91 after +5% amp"],
+        "promoted_from": "L3",
+        "created": "2026-11-10"
+      }
+    },
+    {
+      "id": "readin-power-clamp",
+      "version": 1,
+      "description": "读入功率已到 -30 dBm 及以上还想要更高对比度时不该继续加功率（会加热腔/压缩 SNR）：改成记一笔，交给功率扫描重新定位工作点。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "in", "value": ["iqraw", "power_rabi"]},
+          {"field": "metrics.readin_power_dbm", "op": ">=", "value": -30}
+        ]
+      },
+      "action": {
+        "type": "set",
+        "path": "ReadIn.power",
+        "delta": -2,
+        "reason": "读入功率触顶，回退 2 dB 走功率扫描确认工作点"
+      },
+      "priority": 50,
+      "confidence": 0.7,
+      "tags": ["readin", "power"],
+      "scope": {"experiments": ["iqraw", "power_rabi"]},
+      "provenance": {
+        "source": "manual",
+        "created": "2026-11-14"
+      }
+    },
+    {
+      "id": "xeb-fidelity-halt",
+      "version": 1,
+      "description": "XEB 保真度跌破 0.90 说明这一轮标定已经跑偏：停下来，别再把错参数写进注册表。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "xeb"},
+          {"field": "metrics.fidelity", "op": "<", "value": 0.9}
+        ]
+      },
+      "action": {
+        "type": "halt",
+        "reason": "XEB fidelity < 0.90，停止本轮标定并保留现场"
+      },
+      "priority": 90,
+      "confidence": 0.6,
+      "tags": ["xeb", "gate"],
+      "scope": {"experiments": ["xeb"]},
+      "provenance": {
+        "source": "paper",
+        "session": "docs/DSL_DESIGN.md#quality-gate",
+        "evidence": ["quality_gate 节点的既有语义：不达标即中止而非回写"],
+        "created": "2026-11-14"
+      }
+    }
+  ]
+}

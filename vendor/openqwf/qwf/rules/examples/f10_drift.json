@@ -1,0 +1,56 @@
+{
+  "schema": "qwf.rules/1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "f10-drift-rerun-spectroscopy",
+      "version": 1,
+      "description": "f10 漂移超过半线宽时，后续脉冲都是按错的频率打的：先重跑 spectroscopy 再继续，别在旧 f10 上硬撑。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "spectroscopy"},
+          {"field": "metrics.f10_drift_mhz", "op": ">", "value": 0.5}
+        ]
+      },
+      "action": {
+        "type": "retry",
+        "experiment": "spectroscopy",
+        "maxAttempts": 1,
+        "params": {"span_mhz": 40}
+      },
+      "priority": 70,
+      "confidence": 0.8,
+      "tags": ["f10", "drift"],
+      "scope": {"experiments": ["spectroscopy"]},
+      "provenance": {
+        "source": "paper",
+        "session": "docs/DSL_EXPERIMENTS.md#drift",
+        "evidence": ["docs/DSL_DESIGN.md: drift_watch 表把 f10 列为漂移观测项"],
+        "created": "2026-11-14"
+      }
+    },
+    {
+      "id": "f10-drift-large-ask-human",
+      "version": 1,
+      "description": "f10 一次漂了 5 MHz 以上（远超线宽）基本是硬件事件：记一笔交人，不要自动重跑把时间烧掉。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "spectroscopy"},
+          {"field": "metrics.f10_drift_mhz", "op": ">", "value": 5}
+        ]
+      },
+      "action": {
+        "type": "note",
+        "text": "f10 漂移 >5 MHz，先查磁通源/线缆，再决定是否重跑 spectroscopy"
+      },
+      "priority": 40,
+      "confidence": 0.6,
+      "tags": ["f10", "drift", "human"],
+      "scope": {"experiments": ["spectroscopy"]},
+      "provenance": {
+        "source": "expert",
+        "created": "2026-11-14"
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qwf"
+version = "1.0.0"
+description = "Quantum Workflow DSL — 厂商中立的量子实验工作流 IR、校验与执行器"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["qwf", "qwf.textdsl", "qwf.rules", "adapters"]
+
+[tool.setuptools.package-data]
+qwf = ["py.typed"]
+qwf.rules = ["schema.json"]

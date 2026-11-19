@@ -161,7 +161,13 @@ tools/s21_photo_reader/_tmp_test/
 /.tmp_*/
 /.deploy-logs/
 /.dsh-orders/
-/vendor/
+# vendor/ 下只跟踪上游 OpenQWF（QWF DSL 真源）逐字 vendor 的副本：
+# 随仓分发，保证离线可用、且本机改动能追溯到上游 commit。
+# 同步方式见 tools/sync_openqwf.py。
+/vendor/*
+!/vendor/openqwf/
+/vendor/openqwf/**/__pycache__/
+/vendor/openqwf/**/*.pyc
 /_qp*/
 
 # ---------------------------------------------------------------------------

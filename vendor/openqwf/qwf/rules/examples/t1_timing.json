@@ -1,0 +1,60 @@
+{
+  "schema": "qwf.rules/1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "t1-short-extend-delay",
+      "version": 1,
+      "description": "T1 明显短于该比特历史值时，多半是 delay 上限太短把衰减尾巴截断了：把 delay 上限拉长后重跑一次 t1。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "t1"},
+          {"field": "metrics.t1_us", "op": "<", "value": 20},
+          {"field": "history.t1_us", "op": ">=", "value": 40}
+        ]
+      },
+      "action": {
+        "type": "retry",
+        "experiment": "t1",
+        "maxAttempts": 2,
+        "params": {"delay_max_us": 300}
+      },
+      "priority": 60,
+      "confidence": 0.7,
+      "tags": ["t1", "timing"],
+      "scope": {"experiments": ["t1"]},
+      "provenance": {
+        "source": "session",
+        "session": "2026-11-12-t1-short",
+        "evidence": ["run_wf_t1_1794451200", "stdout: T1=12.4us vs history 61.0us"],
+        "promoted_from": "L3",
+        "created": "2026-11-12"
+      }
+    },
+    {
+      "id": "t1-too-long-check-thermal",
+      "version": 1,
+      "description": "T1 异常变长（超过历史 1.8 倍）先别动参数，记一笔让人看热负载 —— 常见于稀释制冷机温度漂移。",
+      "trigger": {
+        "all": [
+          {"field": "experiment", "op": "==", "value": "t1"},
+          {"field": "metrics.t1_us", "op": ">", "value": 90},
+          {"field": "history.t1_us", "op": ">", "value": 30},
+          {"field": "metrics.t1_ratio", "op": ">", "value": 1.8, "note": "t1_ratio = 本轮 T1 / 历史 T1"}
+        ]
+      },
+      "action": {
+        "type": "note",
+        "text": "T1 异常偏长，先确认稀释制冷机温度与线缆热负载，不要急着改参数"
+      },
+      "priority": 45,
+      "confidence": 0.55,
+      "tags": ["t1", "thermal"],
+      "scope": {"experiments": ["t1"]},
+      "provenance": {
+        "source": "manual",
+        "created": "2026-11-13"
+      }
+    }
+  ]
+}

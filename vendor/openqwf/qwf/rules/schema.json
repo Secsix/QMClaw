@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://qmclaw.local/qwf/rules/schema.json",
+  "title": "QWF learned rule",
+  "description": "L2「学到的规则」单条形态：trigger → action，带 priority / confidence / provenance。规则包（pack）是一个 JSON 数组或含 rules 数组的对象。",
+  "definitions": {
+    "condition": {
+      "type": "object",
+      "required": ["field", "op"],
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)*$",
+          "description": "事实名，允许点路径（如 metrics.t1_us）"
+        },
+        "op": {
+          "enum": ["==", "!=", "<", "<=", ">", ">=", "in", "not_in", "contains", "exists", "matches"]
+        },
+        "value": {
+          "description": "比较值；`in`/`not_in` 需数组，`matches` 需正则字符串，`exists` 忽略此字段"
+        },
+        "note": {"type": "string"}
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "all 为合取、any 为析取、none 为排除；三者可组合，语义是 all ∧ (any) ∧ ¬none。空 trigger = 恒真（只在显式 `always: true` 时允许）。",
+      "properties": {
+        "always": {"type": "boolean", "default": false},
+        "all": {"type": "array", "items": {"$ref": "#/definitions/condition"}},
+        "any": {"type": "array", "items": {"$ref": "#/definitions/condition"}},
+        "none": {"type": "array", "items": {"$ref": "#/definitions/condition"}}
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["set", "retry", "halt", "note", "branch"],
+          "description": "set=写参数；retry=重跑某实验；halt=终止；note=只记录；branch=选分支"
+        },
+        "path": {"type": "string", "description": "type=set 的目标参数路径"},
+        "value": {"description": "type=set 的绝对值；与 delta/deltaPercent 三选一"},
+        "delta": {"type": "number", "description": "type=set 的绝对增量（如 -2 dB）；与 value/deltaPercent 三选一"},
+        "deltaPercent": {"type": "number", "description": "type=set 的相对增量（如 5 表示 +5%）；与 value/delta 三选一"},
+        "experiment": {"type": "string", "description": "type=retry 的实验名"},
+        "params": {"type": "object", "description": "type=set/retry 的附加参数"},
+        "maxAttempts": {"type": "integer", "minimum": 1, "maximum": 10},
+        "reason": {"type": "string", "description": "type=set/halt/retry 的理由（写进决策日志）"},
+        "text": {"type": "string", "description": "type=note 的正文"},
+        "choice": {"type": "string", "description": "type=branch 的选择"},
+        "options": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  },
+  "type": "object",
+  "required": ["id", "trigger", "action", "priority", "confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$",
+      "description": "全局唯一（小写字母数字与 -_，3–64 字符）"
+    },
+    "version": {"type": "integer", "minimum": 1, "default": 1},
+    "description": {"type": "string", "maxLength": 500},
+    "trigger": {"$ref": "#/definitions/trigger"},
+    "action": {"$ref": "#/definitions/action"},
+    "priority": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "越高越优先；同优先级且动作冲突 ⇒ 需要 confidence 决胜，否则判冲突"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "这条规则有多可信（L2 由 L3 成功案例提升而来，初始一般 0.5–0.8）"
+    },
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "可选的粗过滤，等价于往 trigger.all 里塞条件；便于人在目录层面按比特/实验分组",
+      "properties": {
+        "qubits": {"type": "array", "items": {"type": "string"}},
+        "experiments": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "来源追溯：哪次会话/哪个 run 提升来的，L3 → L2 提升必须留证据",
+      "properties": {
+        "source": {"enum": ["session", "paper", "manual", "expert"]},
+        "session": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "promoted_from": {"type": "string"},
+        "created": {"type": "string"}
+      }
+    }
+  }
+}
