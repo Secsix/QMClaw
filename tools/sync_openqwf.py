@@ -75,11 +75,25 @@ FORBIDDEN_PARTS = ("config", "data", ".env", "secrets", "device_profile.json",
 
 
 # ── 工具 ────────────────────────────────────────────────────────────────────
+#: 参与 vendor 的文件都是文本（.py/.json/.toml/.md）。统一按 **LF** 归一化：
+#: 上游仓的 `core.autocrlf=true` 会让它的**工作区**是 CRLF，而 git 仓库里
+#: 存的其实是 LF。不归一化的话，两边工作区的字节不同 → 漂移检查全是假警报。
+#: 归一化后比对的是**仓库内容**（与上游 commit 里的字节一致）。
+TEXT_SUFFIX = (".py", ".json", ".toml", ".md", ".txt", ".cfg", ".ini", ".yml", ".yaml")
+
+
+def normalize_bytes(data: bytes, name: str) -> bytes:
+    """文本文件统一成 LF（CRLF → LF）；二进制原样返回。"""
+    if not name.lower().endswith(TEXT_SUFFIX):
+        return data
+    if b"\r\n" not in data:
+        return data
+    return data.replace(b"\r\n", b"\n")
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
+    h.update(normalize_bytes(path.read_bytes(), path.name))
     return h.hexdigest()
 
 
@@ -133,7 +147,8 @@ def _copy_tree(src: Path, dst: Path) -> List[str]:
         _check_safe(rel_str)
         target = dst / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
+        # 逐字拷贝，但文本文件统一成 LF（见 normalize_bytes 的说明）
+        target.write_bytes(normalize_bytes(path.read_bytes(), rel.name))
         copied.append(rel_str)
     return copied
 
@@ -199,7 +214,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
         src_extra = source / extra
         if src_extra.is_file():
             _check_safe(extra)
-            shutil.copy2(src_extra, VENDOR_DIR / extra)
+            (VENDOR_DIR / extra).write_bytes(
+                normalize_bytes(src_extra.read_bytes(), extra))
             copied.append(extra)
 
     meta = _write_meta(source, commit, branch, sorted(copied),

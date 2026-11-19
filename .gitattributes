@@ -1,0 +1,9 @@
+# ── 上游 OpenQWF 逐字副本：禁止任何换行/编码转换 ──────────────────────────
+# `vendor/openqwf/` 必须与上游仓**逐字节一致**（漂移检查按 sha256 比对），
+# 所以这里显式关掉 CRLF 转换：仓库里存的是 LF，签出时也保持 LF。
+# 不用 `-text`（= binary）而用 `text eol=lf`：文本文件仍走 git 的行尾规范化，
+# 但工作区一律用 LF，不会被 autocrlf 改写。
+vendor/openqwf/** text eol=lf
+
+# ── Python 源码：仓库内统一 LF ──────────────────────────────────────────
+*.py text eol=lf
