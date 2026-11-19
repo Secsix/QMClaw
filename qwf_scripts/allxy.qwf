@@ -1,0 +1,40 @@
+# 实测脚本：AllXY 门保真度 / 泄漏（sq.allxy）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py allxy            # 只打印计划，不跑
+#   python qwf_exp.py allxy --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python qwf_exp.py allxy --dry      # 干跑，不碰硬件
+#
+# 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
+# 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，
+#           参考 qwf_examples/03_t1_fixed_zpa.qwf 与 qwf_scripts/README.md。
+
+workflow ex_allxy {
+  meta {
+    name        "ex_allxy"
+    description "AllXY 门保真度"
+    tags        ["allxy", "leakage"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     10m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.allxy
+    qubit   $env.qubit
+    timeout 300
+    note    "AllXY 序列测门误差与泄漏"
+    args {
+      error_rate 0.02
+    }
+  }
+
+  say "AllXY 门保真度 / 泄漏 测完"
+}

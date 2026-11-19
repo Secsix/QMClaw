@@ -343,12 +343,25 @@ python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 
 
 ### 13 个实验全跑（2026-11-19 实测，13/13 completed）
 
+**脚本本体在 `qwf_scripts/`**（每份 `.qwf` 一个实验，参数已调好），
+统一入口是 `qwf_exp.py`：
+
 ```powershell
-python qwf_sweep.py                      # 全部 13 个
-python qwf_sweep.py --only t1 ramsey     # 只跑指定的
+python qwf_exp.py --list                 # 看有哪些实验
+python qwf_exp.py t1                     # 只打印计划（默认不跑）
+python qwf_exp.py t1 --if yes            # 真跑一个
+python qwf_exp.py --all --if yes         # 全跑 13 个
+python qwf_exp.py t1 swap --if yes       # 一次跑多个
 ```
 
-每个实验生成一份独立 `.qwf` 走 `qwf_run.py`（一个失败不拖累其它实验）。
+`qwf_sweep.py` 现在是它的薄壳（同一批脚本、同一套后端）：
+
+```powershell
+python qwf_sweep.py --if yes             # 全部 13 个
+python qwf_sweep.py --if yes --only t1 ramsey   # 只跑指定的
+```
+
+每个实验一份独立 `.qwf` 走 `qwf_run.py`（一个失败不拖累其它实验）。
 实测结果（shots=2000，seed=42，`unit_system=qiskit_normalized`）：
 
 | 实验 | `.qwf` 里的 fn | 比特 | 类型 | 关键指标 |

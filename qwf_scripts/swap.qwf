@@ -1,0 +1,42 @@
+# 实测脚本：两比特 SWAP 保真度（sq.swap）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py swap            # 只打印计划，不跑
+#   python qwf_exp.py swap --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python qwf_exp.py swap --dry      # 干跑，不碰硬件
+#
+# 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
+# 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，
+#           参考 qwf_examples/03_t1_fixed_zpa.qwf 与 qwf_scripts/README.md。
+
+workflow ex_swap {
+  meta {
+    name        "ex_swap"
+    description "两比特 SWAP 保真度"
+    tags        ["swap", "two-qubit"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     10m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.swap
+    # 双比特：元数校验只看个数（config/experiment_configs.json 里 swap/drag_calibrate 都是 2）。
+    # qiskit 路径固定用 q0/q1；上真机请改成两个物理比特名。
+    qubits  ["q0", "q1"]
+    timeout 300
+    note    "两比特 SWAP（q0/q1）"
+    args {
+      error_rate 0.01
+    }
+  }
+
+  say "两比特 SWAP 保真度 测完"
+}

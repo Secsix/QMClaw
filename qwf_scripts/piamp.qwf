@@ -1,0 +1,41 @@
+# 实测脚本：π 脉冲幅度标定（sq.piamp）
+#
+# 跑法（仓库根目录）：
+#   python qwf_exp.py piamp            # 只打印计划，不跑
+#   python qwf_exp.py piamp --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python qwf_exp.py piamp --dry      # 干跑，不碰硬件
+#
+# 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
+# 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，
+#           参考 qwf_examples/03_t1_fixed_zpa.qwf 与 qwf_scripts/README.md。
+
+workflow ex_piamp {
+  meta {
+    name        "ex_piamp"
+    description "π 脉冲幅度标定"
+    tags        ["piamp", "calibration"]
+  }
+
+  env {
+    qubit   "q2ld3"
+  }
+
+  budget {
+    max_wall     10m
+    max_writes   1
+    max_datasets 2
+  }
+
+  measure as c1 {
+    fn      sq.piamp
+    qubit   $env.qubit
+    timeout 300
+    note    "扫幅度找 π 脉冲（41 点）"
+    args {
+      points 41
+      amp_max 1.0
+    }
+  }
+
+  say "π 脉冲幅度标定 测完"
+}
