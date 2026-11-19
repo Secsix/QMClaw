@@ -2432,3 +2432,50 @@ lint 的 `W_FN_NOT_ON_HARDWARE` 提示里直接给出真机方法
 `tests/test_openqwf_drift.py`、`.github/workflows/checks.yml`、
 `docs/OPENQWF_SYNC.md`、`docs/BACKLOG.md`
 
+---
+
+## 2026-11-19 19:30 ★ 门面化之后用**当前版本**实测 qiskit 测控实验（13/13 通过）
+
+### 为什么这么测
+:3008 上那个 workflow_service 是 **10:17 起的旧进程**，内存里还是门面化之前的本地 DSL；
+只打 HTTP 验的不是"当前版本"。于是改成：**在本进程里起一个 workflow_service 宿主**
+（加载新门面 → 上游 vendor 副本的 DSL），再经 HTTP 打到**正在跑的** quantum_service（:3003）→ qiskit/Aer。
+（:3003 不经过 dsl 门面，无需重启；路由 `/workflows/run_ir` 就是 `_handle_run_ir` 一行封装，
+进程内测的正是同一段代码。）
+
+### 结果：13/13 completed，backend=qiskit，shots=2000 seed=42
+
+| 实验 | fn | 比特 | 近似 | 指标 |
+|---|---|---|---|---|
+| t1 | sq.t1 | 1 | exact | T1=4.9569e-05 |
+| ramsey | sq.ramsey_df | 1 | exact | T2=2.0656e-05, detuning=0 |
+| piamp | sq.piamp | 1 | exact | pi_amplitude=0.2753 |
+| xeb | sq.xeb | 1 | exact | gate_fidelity=0.9953, error_per_cycle=6.47e-04 |
+| single_shot | sq.single_shot | 1 | exact | readout_fidelity=0.9695 |
+| swap | sq.swap | **2** | exact | swap_fidelity=0.992 |
+| spectroscopy | sq.spectroscopy | 1 | model | f10=0 |
+| pulsed_spec | sq.spectroscopy_iq | 1 | model | qubit_frequency=0 |
+| s21 | sq.s21 | 1 | model | fread=0 |
+| s21_dis | sq.s21_dis | 1 | model | dispersive_shift=2e6 |
+| iqraw | sq.iqraw | 1 | model | SNR=4.0, separation=1.414 |
+| allxy | sq.allxy | 1 | model | average_fidelity=0.9805, leakage=0.0195 |
+| drag_calibrate | sq.drag_calibrate | **2** | model | optimal_drag=0.45, fidelity_at_opt=1.0 |
+
+**与迁移前基线逐项一致**（上一条记录的同一组数字）；两个**双比特**实验
+（swap / drag_calibrate，走上游 A1 的 `measure.qubits`）也照样过。
+
+### 另外三道兼容性检查
+- **全仓 import 审计**：扫 384 个 `.py`，142 个 `from dsl... import X` 的名字**全部还能取到**
+  （薄壳没有漏名；`from 包 import 子模块` 的场景也覆盖了）
+- **manifest 契约**：13 个实验的写清单 + `services/task_queue/ledger.manifest_hash`
+  **门面化前后逐字节一致**（0 处不一致）——这是 DSL↔qiskit 契约红线
+- **调用点签名**：上游 `validate(ir, require_writes=True, manifest=None, ...)`
+  与本地 `server.py` 的调用方式一致（不会 TypeError）
+
+### 遗留
+- :3008 那个进程**仍是旧代码**：要走 HTTP 入口（`qwf_run.py` / `qwf_sweep.py`）用新版本，
+  得**人工重启 workflow_service**（约定 3：服务启停由人控制）→ 已登记 BACKLOG N9
+
+### 改动文件
+`.claude/progress.md`、`docs/BACKLOG.md`（N8 结项 + 新增 N9）
+

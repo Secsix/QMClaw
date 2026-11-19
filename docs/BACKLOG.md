@@ -978,7 +978,20 @@ DSL 的实现从本仓搬到**私有独立仓** `Secsix/OpenQWF`（`qwf/` 核心
 本仓本地另有 `services/workflow_service/qwf_store.py`（走 `dsl` 的旧 API），
 两者需要先定一个**单一真源**，否则会出现两套 run 索引。
 
-### N8 ⬜ `qwf_sweep.py` 的 13 个实验需要**人工**跑一遍（起服务后）
+### N8 ✅ `qwf_sweep.py` 的 13 个实验已用**当前版本**跑通（2026-11-19 19:30）
 
-离线只能验到"IR 能跑通"，`qiskit` 后端那 13 个实验的真实数值口径仍要人工确认
-（约定 3：服务启停由人控制）。
+在进程内起 workflow_service 宿主（加载新门面 → 上游 vendor 的 DSL），
+再经 HTTP 打到正在跑的 quantum_service（:3003）→ qiskit/Aer：
+**13/13 completed**，backend=qiskit，shots=2000 seed=42，
+指标与迁移前基线**逐项一致**（T1=4.9569e-05、swap_fidelity=0.992、
+optimal_drag=0.45、readout_fidelity=0.9695 …），
+双比特实验（swap / drag_calibrate）走上游 A1 的 `measure.qubits` 也照样过。
+另外：全仓 142 个 `from dsl... import X` 全部可取到；
+13 个实验的 `ledger.manifest_hash` 门面化前后**逐字节一致**。
+
+### N9 ⬜ 走 HTTP 入口验新版本需要**人工重启 workflow_service**
+
+:3008 上那个 workflow_service 是门面化**之前**起的旧进程，内存里还是老 DSL。
+要跑 `qwf_run.py` / `qwf_sweep.py` 这条 HTTP 链用新版本，
+得由人重启 `python -m services.workflow_service.server`（约定 3）。
+重启后建议再跑一次 `python qwf_sweep.py` 复核 13/13。
