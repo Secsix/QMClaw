@@ -1,4 +1,4 @@
-﻿# 待办总表（BACKLOG）
+# 待办总表（BACKLOG）
 
 > **本文档是唯一的待办入口。** 所有「日后待做 / 已知局限 / 已接受的现状」都登记在这里，
 > 不再散落在多份文档里。详细设计放在关联文档中，这里只登记条目、证据、影响与前置条件。
@@ -938,3 +938,47 @@ lowering 出来的 `repeat / if / assert` 语句因此**没有** `effect` 键。
 `docs/DSL_FACTS.md` 是本轮**新发现**的缺口（此前清单只有 `DSL_DESIGN`）。
 ⇒ agent 照 skill 指引会去读一个不存在的路径。已请上游要么补文档、要么改引用。
 `docs/deploy_diff_tools/iqraw_contrast_tune.py` 这类实际存在的引用已核对通过。
+
+---
+
+## N 组 — DSL 实现迁到独立仓 OpenQWF（登记日期：2026-11-19）
+
+DSL 的实现从本仓搬到**私有独立仓** `Secsix/OpenQWF`（`qwf/` 核心 + `adapters/` 适配器），
+本仓保留一份**逐字 vendor 副本** `vendor/openqwf/` + 一层兼容门面。
+完整规则见 `docs/OPENQWF_SYNC.md`。
+
+**已做**：
+
+| 编号 | 内容 | 状态 |
+|---|---|---|
+| N1 | vendor 副本 + `tools/sync_openqwf.py`（同步）+ `tools/check_openqwf_drift.py`（漂移） | ✅ `f3930fe` / `5060a37` |
+| N2 | `services/workflow_service/dsl/` 全部退化成**薄壳门面**（`sys.modules` 整体替换，零 DSL 实现） | ✅ |
+| N3 | 上游 A1–A5 回流：多比特 IR（`measure.qubits`） / `paths`+`vocabulary` / qiskit **转发**适配器 / canvas `bounds` + printer `from` | ✅ 上游 `a11778b` |
+| N4 | 回归网：`tests/test_openqwf_drift.py`（薄壳纯度 / 同一性 / 双表一致）+ CI `openqwf-drift` 任务 | ✅ |
+| N5 | 路径桥接：`_upstream.py` 注入 `QWF_CONFIG_DIR` / `QWF_VOCAB_PATH` / `QWF_DATA_DIR` | ✅ |
+
+**验证**（离线）：`pytest` 95 passed / 1 skipped；`qwf_lint.py` 7 个范例 **0 error**；
+`06_qiskit_t1.qwf` 离线 dry-run `ir_version==1` 且 status=completed；
+旧实现 vs 新门面对 7 个范例的 validate/lint 输出**逐条一致**（仅一条提示文案里的路径变了）。
+
+### N6 ⬜ `services/common/replay.py` 里的厂商语义表仍是**第二份**
+
+上游 `qwf/vendor_semantics.py` 已被定为唯一真源（R4 迁仓时的约定），
+本仓 `services/common/replay.py` 里还留着一份同源表（离线回放在用）。
+目前靠 `tests/test_openqwf_drift.py` 的逐字段断言盯着（不一致就红），
+但**还没改成代理**。改成代理前要确认：所有 import `services.common.replay` 的进程
+（analysis_service / quantum_service / task_queue）都能拿到 vendor 目录
+—— 它们目前**不经过 `dsl` 门面**，没有桥接。
+
+### N7 ⬜ 上游的 `rules/` `resume.py` `migrate.py` `store.py` 尚未接线
+
+上游已有 IR v2 的迁移、规则引擎、断点续跑与 run 索引；本轮按约定**只做骨架闭环**，
+这些模块 vendor 过来了但没有接进本仓的执行链。
+接的时候要注意：`qwf/store.py` 的落档根目录来自 `QWF_DATA_DIR`，
+本仓本地另有 `services/workflow_service/qwf_store.py`（走 `dsl` 的旧 API），
+两者需要先定一个**单一真源**，否则会出现两套 run 索引。
+
+### N8 ⬜ `qwf_sweep.py` 的 13 个实验需要**人工**跑一遍（起服务后）
+
+离线只能验到"IR 能跑通"，`qiskit` 后端那 13 个实验的真实数值口径仍要人工确认
+（约定 3：服务启停由人控制）。

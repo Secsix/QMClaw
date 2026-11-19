@@ -2365,3 +2365,70 @@ lint 的 `W_FN_NOT_ON_HARDWARE` 提示里直接给出真机方法
 `config/lab_criteria.json`、`tests/test_multiqubit_ir.py`、`_phase2_check.py`、
 `docs/REAL_MACHINE.md`（新增第七节）、`docs/qiskit_backend.md`、`docs/OPERATIONS.md`、
 `docs/DEPLOY_LOCAL.md`
+
+---
+
+## 2026-11-19  ★ DSL 实现迁到独立仓 OpenQWF（门面化收尾）
+
+### 需求
+用户要求："OpenQWF 是从 QMClaw 独立出去的，但本机的 QMClaw 还没完全适配。
+研究一下怎么把两者有机地融合起来 —— 既适配本机刚调通的 qiskit 后端，
+又保持 OpenQWF 的相对独立性。"（四个选择已确认：vendor 副本 + 同步脚本 + CI 漂移；
+本地专属功能回流上游；qiskit 走**转发**；本轮只做骨架闭环。）
+
+### 上游做了什么（`Secsix/OpenQWF`，私有仓，分支 `feat/qwf-multiqubit-vocab`）
+| 提交 | 内容 |
+|---|---|
+| `85f422b` (A1) | 多比特 IR：`measure.qubits` / `E_QUBIT_ARITY` / `qubit`↔`qubits` 互斥；`RunRequest.qubits` |
+| `91829fe`+`514d938` (A2) | `qwf/paths.py`（`QWF_CONFIG_DIR`/`QWF_VOCAB_PATH`/`QWF_DATA_DIR`）+ `qwf/vocabulary.py`（词表 → 元数/可用性） |
+| `df0bb64`+`4953e38` (A3) | `adapters/qiskit.py`：**纯 HTTP 转发**到宿主 `quantum_service` 的 `/qiskit/*`（不复刻实现） |
+| `b479a04` (A4) | 上游修复：核心层不 import 适配器（R2）、`qwf/registry.py` 惰性解析、`pyproject.toml` 打包范围 |
+| `a11778b` (A5) | `canvas_ir` 往返保留 `bounds`；printer 补 `decide` 的 `from` 字段 |
+
+> 上游 `main` **未推**（本轮全部落在特性分支）；私有仓靠 git credential helper 拉取。
+
+### 本仓做了什么
+1. **vendor 副本**（B1，已提交 `f3930fe` / `5060a37`）：`vendor/openqwf/`（53 个文件，逐字）+
+   `tools/sync_openqwf.py`（同步）+ `tools/check_openqwf_drift.py`（漂移）+ `.gitattributes`（统一 LF）。
+2. **门面化**（B2/B3）：`services/workflow_service/dsl/` 下 25 个模块**全部退化成薄壳** ——
+   `sys.modules[__name__] = upstream("qwf.<mod>")`，于是 `dsl.const is qwf.const`
+   （模块对象、私有名字、类型身份只有一份）。新增桥接层 `dsl/_upstream.py`：
+   找 vendor 目录 → 挂 `sys.path` → 注入 `QWF_CONFIG_DIR` / `QWF_VOCAB_PATH` / `QWF_DATA_DIR`
+   （`setdefault`，用户显式设置优先；**不设环境变量时上游行为与迁移前完全一致**）。
+   例外表（7 个文件，各有理由）：`__init__` / `_upstream` / `validate`（补回公开 `qubit_arity`）/
+   `llm`（`server_root()` 覆写成本地仓根）/ `vendor_semantics`（惰性代理）/
+   `backends/__init__` / `textdsl/__init__`（子模块预登记，避免 `DSLSyntaxError` 分裂）。
+3. **回归网**（B4）：`tests/test_openqwf_drift.py`（7 项：vendor 在位 / 门面无实体实现 /
+   模块同一性 / 注册表含 lqcs+qiskit / 两份厂商语义表逐字段一致 / vendor 全 LF /
+   与上游逐文件比对）+ CI 任务 `openqwf-drift`（`secrets.OPENQWF_TOKEN`，无 token 则跳过）。
+4. **文档**（B5）：`docs/OPENQWF_SYNC.md`（同步流程 + 门面规则 + 三张环境变量表 +
+   qiskit 转发红线 + 故障排查）、`docs/BACKLOG.md` N 组（含 3 条遗留）。
+
+### 验证（离线，未起任何服务）
+- `pytest`：**95 passed / 1 skipped**（skip 的是"需要上游副本"那条，设 `OPENQWF_UPSTREAM_DIR` 后 7/7 全过）
+- `qwf_lint.py` 7 个范例：**error=0**
+- 离线 dry-run `06_qiskit_t1.qwf`：`ir_version==1`、status=completed（落档进 `data/workflow-runs` ✓）
+- **旧实现 vs 新门面对拍**（`git worktree` 拉出 HEAD 旧树逐条跑 validate+lint）：
+  输出**逐条一致**，唯一差异是一条提示文案里的路径（`dsl/backends/lqcs.py` → `adapters/lqcs.py`）
+- 漂移检查：`[OK] vendor 与上游`（commit `a11778b`）
+- 门面同一性：`dsl.const is qwf.const`、`dsl.textdsl.parser is qwf.textdsl.parser`、
+  `DSLSyntaxError` 只有一个类、`list_backends() == ['lqcs','qiskit']`
+
+### 两条红线（守住）
+1. **qiskit 只转发**：上游 `adapters/qiskit.py` 走 HTTP 打到本仓 `quantum_service`（:3003），
+   实现不许在两处各来一份；`backends.qiskit` 插件槽位仍必须 `enabled=false`。
+2. **DSL↔qiskit 契约是文本 + `config/experiment_configs.json`**（不是 import）：
+   `manifest_hash` 必须逐字节一致，否则 arity 校验 / `_execute_with_qiskit` /
+   `qiskit_experiments.get_spec` / `qwf_sweep.py` 会一起坏。
+
+### 遗留（已登记 BACKLOG N6–N8）
+- `services/common/replay.py` 里的厂商语义表仍是第二份（已加漂移断言，未改成代理）
+- 上游 `rules/` / `resume.py` / `migrate.py` / `store.py` vendor 过来了但未接线
+- `qwf_sweep.py` 13 个实验的**人工**验证（需起服务）
+
+### 改动文件
+`vendor/openqwf/**`（53）、`services/workflow_service/dsl/**`（25+3）、
+`tools/sync_openqwf.py`、`tools/check_openqwf_drift.py`、`.gitattributes`、
+`tests/test_openqwf_drift.py`、`.github/workflows/checks.yml`、
+`docs/OPENQWF_SYNC.md`、`docs/BACKLOG.md`
+

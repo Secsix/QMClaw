@@ -1,5 +1,30 @@
 # CLAUDE.md — QmClaw 开发约定
 
+## DSL 独立仓：OpenQWF（✅ **已融合** 2026-11-19）
+
+DSL 的**实现**住在私有独立仓 `Secsix/OpenQWF`（`qwf/` 核心 + `adapters/` 适配器）；
+本仓保留一份**逐字 vendor 副本** `vendor/openqwf/` + 一层兼容门面
+`Agentic Workflow/qmclaw-server/services/workflow_service/dsl/`。
+
+| 项 | 值 |
+|----|-----|
+| 上游仓 | `https://github.com/Secsix/OpenQWF.git`（**私有**，靠 git credential helper 拉） |
+| 上游分支 | `feat/qwf-multiqubit-vocab`（`main` 未推） |
+| vendor 副本 | `vendor/openqwf/`（53 个文件）+ `UPSTREAM.json`（commit / 每文件 sha256） |
+| 门面 | `dsl/*.py` 全部是薄壳：`sys.modules[__name__] = upstream("qwf.<mod>")` |
+| 桥接 | `dsl/_upstream.py`：挂 `sys.path` + 注入 `QWF_CONFIG_DIR`/`QWF_VOCAB_PATH`/`QWF_DATA_DIR` |
+| 同步 | `python tools/sync_openqwf.py --from <上游 clone> --note "<说明>"` |
+| 查漂移 | `python tools/check_openqwf_drift.py --from <上游 clone>`（CI 任务 `openqwf-drift`） |
+| 细则 | **`docs/OPENQWF_SYNC.md`**（门面规则 / 路径表 / qiskit 转发红线 / 故障排查） |
+
+**两条不许越界的红线**：
+
+1. **qiskit 只转发，不复刻** —— 上游 `adapters/qiskit.py` 走 HTTP 打到本仓
+   `quantum_service`（:3003 `/qiskit/*`）；实现在本仓，上游不复制第二份。
+   `config/system.json` 的 `backends.qiskit.enabled` 仍必须保持 `false`。
+2. **门面里不许有 DSL 语义实现** —— 改 DSL 一律改上游仓，再同步 vendor；
+   本仓只改门面（薄壳）。`tests/test_openqwf_drift.py` 会盯着这条。
+
 ## 导师上游融合（✅ **已合并完成** 2026-10-08）
 
 导师上游 `Secsix/QMClaw`（main `03d838d`）已合入 `feat/c-real-machine`。
