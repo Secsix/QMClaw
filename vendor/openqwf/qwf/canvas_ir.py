@@ -212,9 +212,11 @@ def ir_to_canvas(ir: Dict[str, Any]) -> Dict[str, Any]:
         prev_id = node_id
 
     workflow = {
-        # `goal` 是顶层语义块（不参与 pipeline 节点图）：画布没有对应节点，
-        # 但必须原样带在信封里，否则"画布 → .qwf"会丢掉目标契约。
+        # `goal` / `bounds` 是顶层语义块（不参与 pipeline 节点图）：画布没有
+        # 对应节点，但必须原样带在信封里，否则"画布 → .qwf"会丢掉目标契约
+        # （goal）或写幅度上界（bounds）。
         "goal": copy.deepcopy(ir.get("goal") or {}),
+        "bounds": copy.deepcopy(ir.get("bounds") or {}),
         "meta": copy.deepcopy(ir.get("meta") or {}),
         "env": copy.deepcopy(ir.get("env") or {}),
         "budget": copy.deepcopy(ir.get("budget") or {}),
@@ -437,6 +439,9 @@ def canvas_to_ir(doc: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     goal = workflow.get("goal") or doc.get("goal")
     if isinstance(goal, dict) and goal:
         ir["goal"] = copy.deepcopy(goal)
+    bounds = workflow.get("bounds") or doc.get("bounds")
+    if isinstance(bounds, dict) and bounds:
+        ir["bounds"] = copy.deepcopy(bounds)
     for key in ("meta", "env", "context", "defaults", "budget"):
         if not ir[key]:
             ir.pop(key)

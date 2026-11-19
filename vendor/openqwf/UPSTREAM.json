@@ -1,8 +1,8 @@
 {
   "repo": "https://github.com/Secsix/OpenQWF.git",
   "branch": "feat/qwf-multiqubit-vocab",
-  "commit": "b479a04907e32dd52c427be0b5f80dd302f2bbfe",
-  "synced_at": "2026-11-19T16:05:36+08:00",
+  "commit": "a11778becbb529385b99e84a45c32a7f08ed6b8c",
+  "synced_at": "2026-11-19T17:14:11+08:00",
   "source": "C:\\Users\\f6756\\AppData\\Local\\Temp\\OpenQWF3",
   "pending_upstream": false,
   "vendored_packages": [
@@ -19,7 +19,7 @@
     "qwf/autorevert.py": "9a208505e80b1bfed039672d2035860f8902fad4d4c832ad3a1c1ea459ae425e",
     "qwf/backend_base.py": "9173dec1305680bd2bcddee6ee3f7084691726c6631396d9feec271b02775651",
     "qwf/budget.py": "36b6f7b11265285c750be671c0642ee05d146bafd55a8ffa81cebe8266eea03e",
-    "qwf/canvas_ir.py": "18169dbdfebde8ff4f38b52a44f081cdf730ceb9e3788ff2183e0a61097abbe2",
+    "qwf/canvas_ir.py": "4e5feb0a877a91e587eb234a3dec6e471ce3755b043f34a9aef3116e74b9b649",
     "qwf/capabilities.py": "c8ae7de7f8e331084798f7e7e3b4ce849b8b5518a91ee620a8218512dd7aa802",
     "qwf/compile.py": "de9f34afa201ac8cf23a9dfa3376a9c222df7b9c8f2a376b6fec25338e6bf0c4",
     "qwf/const.py": "0691981a8cef132f7b7040e75d8e785cb7151eb3b4740678ccc335bbf09298dc",
@@ -59,10 +59,10 @@
     "qwf/textdsl/__init__.py": "b1c84200f643fe8971d4254f2a04b687add83c5ef9eb6404845282c5209336da",
     "qwf/textdsl/lexer.py": "df31e16bb0a5aacaebf3b9870a100cc2f080faf376b7851d4d3aff494819d2e8",
     "qwf/textdsl/parser.py": "72b6642a583e974ac9f3a3efbea760139adfb4850bc7f407273f7a8b35132a10",
-    "qwf/textdsl/printer.py": "f032d7f9bb0f8d8b5d7f89898438bcd237a40861a97b4754fce85d53d4421f16",
+    "qwf/textdsl/printer.py": "c96baf9bfe35e06a64d27b628e0e48a17acf71410bdc2c3405b54d12cb8b22e7",
     "qwf/validate.py": "6028cfa3e029dff45f2003b3ddfd61a54f45ec20bad51389b67f69f2d1ca1c62",
     "qwf/vendor_semantics.py": "ec9dfbb2eff8ac5bf722a4b764ab413b4d451708159b85a169dd2b4ea9f6d37b",
     "qwf/vocabulary.py": "3c43396dbea0c03e18a55cffc695d7f5e13f6df35de7c40f2063f2c8787612de"
   },
-  "note": "A1 multi-qubit IR + A2 paths/vocab + A3 qiskit forwarding + A4 fixes"
+  "note": "A1 multi-qubit IR + A2 paths/vocab + A3 qiskit forwarding + A4 fixes + A5 canvas bounds/from 修复"
 }
