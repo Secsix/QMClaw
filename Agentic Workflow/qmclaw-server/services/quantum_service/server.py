@@ -530,7 +530,7 @@ class QuantumService(BaseService):
 
         if not code:
             return None
-        exp_type, qubit, code_params = ExperimentSimulator.parse_experiment_code(code)
+        exp_type, qubits, code_params = ExperimentSimulator.parse_experiment_code_multi(code)
         if not exp_type:
             return None
 
@@ -539,9 +539,17 @@ class QuantumService(BaseService):
             _log(f"[QISKIT] 实验 {exp_type!r} 不在 qiskit 词表里，回落到离线回放")
             return None
 
+        # 比特列表（2026-11-19 多比特）：代码里的位置参数优先，其次用请求里的 qubit
+        names = [q for q in (qubits or []) if q]
+        if not names:
+            fallback = data.get("qubit") or data.get("qubits") or ""
+            names = [fallback] if isinstance(fallback, str) and fallback else []
+            if isinstance(data.get("qubits"), list):
+                names = [q for q in data["qubits"] if q] or names
         payload: Dict[str, Any] = {
             "experiment": name,
-            "qubit": qubit or data.get("qubit") or "",
+            "qubit": (names[0] if names else ""),
+            "qubits": names,
             "params": self._qiskit_params_from_code(name, code_params),
             "shots": data.get("shots"),
             "seed": data.get("seed"),
@@ -562,7 +570,9 @@ class QuantumService(BaseService):
         result["task_id"] = task_id
         result["exp_type"] = name
         result["simulated"] = True
-        result["qubit"] = qubit or result.get("qubit")
+        result["qubit"] = (names[0] if names else "") or result.get("qubit")
+        if names:
+            result["qubits"] = names
         if not result.get("stdout"):
             result["stdout"] = f"[QISKIT] {name} on {result.get('qubit') or 'unknown'}"
 

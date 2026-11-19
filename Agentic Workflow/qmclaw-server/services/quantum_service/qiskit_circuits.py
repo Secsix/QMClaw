@@ -717,15 +717,23 @@ def _build_single_shot(req: QiskitRequest) -> ExperimentOutcome:
 
 
 def _build_swap(req: QiskitRequest) -> ExperimentOutcome:
-    """SWAP 门表征 —— **原生等价**（两比特 swap 门 + Bell 基测量）。"""
+    """SWAP 门表征 —— **原生等价**（两比特 swap 门 + Bell 基测量）。
+
+    多比特（2026-11-19）：`req.qubit_list` 的**顺序**就是线路里两个物理比特的
+    顺序 —— names[0] → 线路 qubit 0，names[1] → 线路 qubit 1。
+    只给一个名字时第二个用默认 `q1`（与旧行为一致）。
+    """
     error_rate = req.pf("error_rate", 0.01)
+    names = req.qubit_list
+    qa = names[0] if names else "q0"
+    qb = names[1] if len(names) > 1 else "q1"
 
     nm = NoiseModel()
     if error_rate > 0:
         nm.add_all_qubit_quantum_error(depolarizing_error(error_rate, 2), ["cx", "swap"])
 
     qc = QuantumCircuit(2, 2)
-    qc.x(1)            # 制备 |10⟩
+    qc.x(1)            # 制备 |10⟩（线路 qubit 1 = 名字 qb）
     qc.swap(0, 1)      # 期望交换成 |01⟩
     qc.measure([0, 1], [0, 1])
 
@@ -737,11 +745,12 @@ def _build_swap(req: QiskitRequest) -> ExperimentOutcome:
     return ExperimentOutcome(
         x=[0, 1],
         y=[1.0 - fidelity, fidelity],
-        xlabel="Outcome (|10> |01>)",
+        xlabel=f"Outcome (|10> |01>)  [{qa} | {qb}]",
         ylabel="Probability",
         plot_type="bar",
         metrics={"swap_fidelity": fidelity},
-        extra={"counts": counts, "error_rate": error_rate},
+        extra={"counts": counts, "error_rate": error_rate,
+               "qubits": [qa, qb], "qubit_a": qa, "qubit_b": qb},
     )
 
 
@@ -920,6 +929,8 @@ def _build_drag_calibrate(req: QiskitRequest) -> ExperimentOutcome:
     - 泄漏概率 p_leak(α) = k·(α − α_opt)²
     - 相位误差 φ(α) = c·α（DRAG 的正交分量带来的相干误差）
     扫 α，取保真度最高处作为 optimal_drag。
+
+    多比特（2026-11-19）：`req.qubit_list[0]` 是计算比特，`[1]` 是泄漏旗标。
     """
     alpha_min = req.pf("alpha_min", -1.0)
     alpha_max = req.pf("alpha_max", 1.0)
@@ -927,6 +938,9 @@ def _build_drag_calibrate(req: QiskitRequest) -> ExperimentOutcome:
     alpha_opt = req.pf("alpha_opt", 0.5)
     leak_k = req.pf("leak_k", 0.08)
     phase_c = req.pf("phase_c", 0.35)
+    names = req.qubit_list
+    qa = names[0] if names else "q0"
+    qb = names[1] if len(names) > 1 else "q1"
 
     alphas = list(np.linspace(alpha_min, alpha_max, points))
     xs: List[float] = []
@@ -971,6 +985,9 @@ def _build_drag_calibrate(req: QiskitRequest) -> ExperimentOutcome:
             "leak_k": leak_k,
             "phase_c": phase_c,
             "leakage": leaks,
+            "qubits": [qa, qb],
+            "qubit_compute": qa,
+            "qubit_leak_flag": qb,
             "unit_note": "qiskit 无三能级支持，泄漏用第二个比特的旗标代理。",
         },
     )

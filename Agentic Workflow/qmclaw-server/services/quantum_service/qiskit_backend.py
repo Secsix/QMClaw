@@ -218,6 +218,16 @@ def _build_request(data: Dict[str, Any]) -> QiskitRequest:
 
     experiment = str(data.get("experiment") or data.get("exp_type") or "").strip()
     qubit = str(data.get("qubit") or data.get("name") or "").strip()
+    # 多比特（2026-11-19）：请求体可以带 qubits 列表（顺序 = 线路里的物理比特顺序）
+    raw_qubits = data.get("qubits")
+    if isinstance(raw_qubits, list):
+        qubits = [str(q).strip() for q in raw_qubits if str(q).strip()]
+    elif isinstance(raw_qubits, str) and raw_qubits.strip():
+        qubits = [raw_qubits.strip()]
+    else:
+        qubits = []
+    if not qubits and qubit:
+        qubits = [qubit]
 
     params = data.get("params")
     if not isinstance(params, dict):
@@ -242,7 +252,8 @@ def _build_request(data: Dict[str, Any]) -> QiskitRequest:
 
     return QiskitRequest(
         experiment=experiment,
-        qubit=qubit,
+        qubit=qubit or (qubits[0] if qubits else ""),
+        qubits=qubits,
         params=params,
         shots=shots,
         seed=seed,

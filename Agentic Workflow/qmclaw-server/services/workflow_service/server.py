@@ -642,13 +642,32 @@ class WorkflowService(BaseService):
                     "error": f"invalid qubit {qubit!r}: allowed [A-Za-z0-9_%-]",
                     "status": "failed",
                 }
+            # ── 多比特（2026-11-19）：`qubits ["q0","q1"]` ────────────────────
+            # 有 qubits 就以它为准（qubit 字段只是它的第一个，兼容旧前端）；
+            # 没有就退回单比特（qubit / $env.qubit）。
+            raw_qubits = config.get("qubits")
+            qubits: List[str] = []
+            if isinstance(raw_qubits, list):
+                for item in raw_qubits:
+                    name = str(self._resolve_vars(str(item), context or {})).strip()
+                    if not name:
+                        return {"error": f"unresolved qubit in {item!r}", "status": "failed"}
+                    if not _SAFE_QUBIT_RE.match(name):
+                        return {
+                            "error": f"invalid qubit {name!r}: allowed [A-Za-z0-9_%-]",
+                            "status": "failed",
+                        }
+                    qubits.append(name)
+            if not qubits and qubit:
+                qubits = [qubit]
             params = {k: self._resolve_vars(v, context or {}) for k, v in (config.get("params") or {}).items()}
             # 服务端执行一律不在工作线程里画图：do_plot=True 会拉起 GUI 把微服务卡死
             params.setdefault("do_plot", False)
             try:
                 # 拼代码（含数据集探针）已下沉到 lqcs 适配器：S7 起 server 只做节点包装
                 code = _build_experiment_code(
-                    fn, qubit, params, bool(config.get("reportDataset", True))
+                    fn, qubit, params, bool(config.get("reportDataset", True)),
+                    qubits=qubits,
                 )
             except ValueError as exc:
                 return {"error": str(exc), "status": "failed"}
@@ -2322,11 +2341,18 @@ class WorkflowService(BaseService):
         for _st in normalized.get("pipeline") or []:
             if not isinstance(_st, dict):
                 continue
-            _q = _st.get("qubit")
-            if isinstance(_q, str) and _q.startswith("$env."):
-                _q = _ir_env.get(_q[len("$env."):])
-            if isinstance(_q, str) and _q and not _q.startswith("$"):
-                _qubits.add(_q)
+            # 多比特（2026-11-19）：qubits 列表里的每个都要登记进租约元数据
+            _raw_qs = _st.get("qubits")
+            _names = ([_raw_qs] if isinstance(_raw_qs, str)
+                      else list(_raw_qs) if isinstance(_raw_qs, list)
+                      else [_st.get("qubit")])
+            for _q in _names:
+                if not isinstance(_q, str) or not _q:
+                    continue
+                if _q.startswith("$env."):
+                    _q = _ir_env.get(_q[len("$env."):])
+                if isinstance(_q, str) and _q and not _q.startswith("$"):
+                    _qubits.add(_q)
         _lease_meta = {
             "workflowName": (getattr(workflow, "name", "") or "") if workflow is not None else "",
             "workflowId": executor.workflow_id,
