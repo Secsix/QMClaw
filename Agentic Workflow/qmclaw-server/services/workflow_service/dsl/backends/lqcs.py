@@ -480,18 +480,25 @@ def _strip_unsupported_do_plot(fn: str, params: Dict[str, Any]) -> Dict[str, Any
 
 
 def build_experiment_code(fn: str, qubit: str, params: Dict[str, Any],
-                          report_dataset: bool = True) -> str:
-    """按 `fn + qubit + params` 拼出可执行代码（含数据集探针）。
+                          report_dataset: bool = True,
+                          qubits: Optional[List[str]] = None) -> str:
+    """按 `fn + qubit(s) + params` 拼出可执行代码（含数据集探针）。
 
     校验仍然在调用方（server 的 experiment 分支）做，这里只负责拼接，
     遇到非法参数名直接抛 `ValueError`（与搬迁前的行为一致）。
+
+    多比特（2026-11-19）：`qubits` 给了就按 `fn(q0, q1, ...)` 拼，
+    没给就退回单比特的 `fn(qubit, ...)`（老行为不变）。
     """
     arg_strs = []
     params = _strip_unsupported_do_plot(fn, params or {})
-    if qubit:
+    names = [q for q in (qubits or []) if q]
+    if not names and qubit:
+        names = [qubit]
+    for name in names:
         # 裸标识符 → 命中 quantum_service 注入的全局比特对象；
         # 名字含 %/-(如 DataVault 目录名) 时退回字符串，交给实验函数自己处理。
-        arg_strs.append(qubit if SAFE_IDENT_RE.match(qubit) else repr(qubit))
+        arg_strs.append(name if SAFE_IDENT_RE.match(name) else repr(name))
     for k, v in (params or {}).items():
         if not SAFE_ARGNAME_RE.match(str(k)):
             raise ValueError(f"invalid parameter name {k!r}")
@@ -862,12 +869,16 @@ class LqcsAdapter(BackendAdapter):
             return RawResult(ok=False, status="failed", error=f"invalid experiment fn {fn!r}")
         if req.qubit and not SAFE_QUBIT_RE.match(req.qubit):
             return RawResult(ok=False, status="failed", error=f"invalid qubit {req.qubit!r}")
+        for name in (req.qubits or []):
+            if name and not SAFE_QUBIT_RE.match(name):
+                return RawResult(ok=False, status="failed", error=f"invalid qubit {name!r}")
         params = {}
         for key, value in (req.params or {}).items():
             # v2 的 params 是"规范名 → 数量"；这里把数量拆成裸值，单位换算留给上层
             params[key] = value.get("value") if isinstance(value, dict) and "value" in value else value
         try:
-            code = build_experiment_code(fn, req.qubit, params, report_dataset=True)
+            code = build_experiment_code(fn, req.qubit, params, report_dataset=True,
+                                         qubits=list(req.qubits or []))
         except ValueError as exc:
             return RawResult(ok=False, status="failed", error=str(exc))
         raw = self.submit_and_wait(code, req.timeout or self.default_timeout, token,

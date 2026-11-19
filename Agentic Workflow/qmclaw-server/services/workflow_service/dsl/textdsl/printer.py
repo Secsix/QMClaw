@@ -259,7 +259,7 @@ def _stmt_lines(stmt: Dict[str, Any], indent: str) -> List[str]:
         return out
 
     if op == "measure":
-        fields = ["fn", "qubit", "args", "params"]
+        fields = ["fn", "qubit", "qubits", "args", "params"]
         fields += _common_fields(stmt, skip=("timeout", "note"))
         fields.append("note")
         line = f"{indent}measure"

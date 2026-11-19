@@ -49,6 +49,7 @@ class RunRequest:
     experiment: str                      # 受控词表，如 "t1" / "iqraw"
     device: str = ""                     # 设备 id，如 "LQHL"
     qubit: str = ""                      # 设备内的比特，如 "q2ld3"
+    qubits: List[str] = field(default_factory=list)   # 多比特（2026-11-19）；qubit 仍是第一个
     sweep: Dict[str, AxisSpec] = field(default_factory=dict)
     params: Dict[str, Any] = field(default_factory=dict)   # 规范参数名 → 数量/字面量
     shots: Optional[int] = None

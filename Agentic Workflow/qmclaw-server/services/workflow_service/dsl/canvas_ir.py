@@ -44,7 +44,7 @@ _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 # IR 字段 ← 画布 config 键（双向一致的字段表；两处都用它，避免各写各的）
 _OP_CONFIG_FIELDS: Dict[str, List[Tuple[str, str]]] = {
-    "measure": [("fn", "fn"), ("qubit", "qubit"), ("args", "args"),
+    "measure": [("fn", "fn"), ("qubit", "qubit"), ("qubits", "qubits"), ("args", "args"),
                 ("params", "params"), ("timeout", "timeout"),
                 ("retries", "retries"), ("reportDataset", "reportDataset")],
     "read": [("kind", "kind"), ("dataset", "datasetId"), ("threshold", "threshold"),

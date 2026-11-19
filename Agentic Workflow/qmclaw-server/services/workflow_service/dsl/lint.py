@@ -37,6 +37,18 @@ SQ_NODE_FNS: Set[str] = {
 # 对 Ramsey / T1 数据集用 read → 运行期报 "unexpected dataset shape"。
 READ_KINDS: Set[str] = {"IQraw"}
 
+
+def _vocab_available(fn: str) -> Optional[bool]:
+    """这个词表里的实验，真机上是不是**直接可做**。
+
+    返回 `True`（真机可做）、`False`（词表里标了 available=false，
+    只能跑模拟后端）、`None`（词表里根本没有这个函数）。
+    """
+    try:
+        from .experiments import vocabulary_fns
+        return vocabulary_fns().get(fn)
+    except Exception:  # noqa: BLE001 —— 词表读不到就当"不知道"
+        return None
 # 数据形状分类（D5-①「按数据形状自动选节点」）：
 # sq.iqraw 产出 IQraw 形状（shape (N,5)），read/contrast 能直接处理；
 # 其余实验（Ramsey / T1 / XEB / S21 / 扫频…）产出的是别的形状，
@@ -287,15 +299,19 @@ def _profile_checks(rep: "_Report", env: Dict[str, Any],
     for st, _in_branch in _walk(pipeline):
         if st.get("op") not in ("measure", "read"):
             continue
-        q = str(st.get("qubit") or "")
-        if not q or q.startswith("$"):
-            continue
-        if env_qubit and q != env_qubit:
-            rep.warn("W_PROFILE_HARDCODED_QUBIT",
-                     f"节点把比特名写死成 {q!r}（env.qubit = {env_qubit!r}）："
-                     "换片/换会话就会打到别的比特",
-                     _line(st),
-                     hint="写成 $env.qubit，名字由画像/会话提供")
+        # 多比特（2026-11-19）：`qubits` 是列表，逐个查
+        raw_qubits = st.get("qubits")
+        names = ([str(x) for x in raw_qubits] if isinstance(raw_qubits, list)
+                 else [str(st.get("qubit") or "")])
+        for q in names:
+            if not q or q.startswith("$"):
+                continue
+            if env_qubit and q != env_qubit:
+                rep.warn("W_PROFILE_HARDCODED_QUBIT",
+                         f"节点把比特名写死成 {q!r}（env.qubit = {env_qubit!r}）："
+                         "换片/换会话就会打到别的比特",
+                         _line(st),
+                         hint="写成 $env.qubit，名字由画像/会话提供")
 
 
 def _profile_foreign_qubit_checks(rep: "_Report", env: Dict[str, Any],
@@ -443,10 +459,22 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
             if not fn:
                 rep.error("E_NO_FN", "measure 没有 fn", line)
             elif fn not in SQ_NODE_FNS:
-                rep.error("E_UNKNOWN_FN",
-                          f"{fn} 在 lqms.measure.tuners.sq_nodes 里没有同名函数",
-                          line,
-                          hint="可用：" + ", ".join(sorted(SQ_NODE_FNS)))
+                # 词表里有、但真机 sq_nodes 里没有 → 不是写错，是**只能跑模拟后端**
+                # （如 sq.swap：真机没有双比特函数，见 config/experiment_configs.json
+                #   的 available=false）。这种情况报 warning，不报 error ——
+                #   否则所有 qiskit 专用的 .qwf 都 lint 不过。
+                available = _vocab_available(fn)
+                if available is False:
+                    rep.warn("W_FN_NOT_ON_HARDWARE",
+                             f"{fn} 在真机 sq_nodes 里没有同名函数"
+                             "（只能在 qiskit 等模拟后端上跑）",
+                             line,
+                             hint="真机路径请换成 sq_nodes 里有的函数")
+                else:
+                    rep.error("E_UNKNOWN_FN",
+                              f"{fn} 在 lqms.measure.tuners.sq_nodes 里没有同名函数",
+                              line,
+                              hint="可用：" + ", ".join(sorted(SQ_NODE_FNS)))
             if st.get("do_plot") is not None:
                 rep.error("E_DO_PLOT",
                           "measure 里不要写 do_plot：服务进程内画图会把 quantum 端点卡死"

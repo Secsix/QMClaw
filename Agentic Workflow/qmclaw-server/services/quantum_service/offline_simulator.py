@@ -134,33 +134,36 @@ class ExperimentSimulator:
 
     @classmethod
     def parse_experiment_code(cls, code: str) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+        """解析实验代码（单比特视图：只返回第一个比特）。
+
+        兼容入口 —— 多比特请用 `parse_experiment_code_multi`。
         """
-        解析实验代码
+        exp_type, qubits, params = cls.parse_experiment_code_multi(code)
+        return exp_type, (qubits[0] if qubits else None), params
 
-        类方法：不依赖实例状态，因此没有离线数据（``_offline_provider is None``、
-        ``_simulator`` 未创建）的机器上也能用 —— qiskit 后端就是靠它把
-        ``sq.t1(q0)`` 这种代码翻译成实验名 + 比特名的。
+    @classmethod
+    def parse_experiment_code_multi(cls, code: str) -> Tuple[Optional[str], List[str], Optional[Dict[str, Any]]]:
+        """
+        解析实验代码（**多比特**，2026-11-19）
 
-        **括号要配平**（2026-11-19 修）：早先用 ``sq\\.\\w+\\s*\\([^)]+\\)`` 截参数表，
-        一遇到值里带括号（``delay=range(0, 2000, 100)``）就提前截断，
-        后面的 kwargs 直接丢失；而且截下来的值带着尾随的逗号/右括号，
-        ``int()``/``float()`` 解析失败 → 参数变成字符串 → qiskit 侧的
-        数值钳位（``_clamp``）又静默退回默认值。
-        症状：qwf 里写 ``points 21``，qiskit 实际按默认 51 点跑，且不报错。
+        返回 (实验类型, 比特列表, 参数字典)。比特列表 = 调用里的**位置参数**：
+        ``sq.swap(q0, q1)`` → ``["q0", "q1"]``；``sq.t1(q0, points=21)`` → ``["q0"]``。
 
         Args:
             code: 实验代码，如 "sq.spectroscopy(q1, do_plot=True)"
 
         Returns:
-            (实验类型, qubit名称, 参数字典) 或 (None, None, None)
+            (实验类型, 比特名列表, 参数字典) 或 (None, [], None)
         """
         # 匹配 sq.<exp_name>(<qubit>, ...)
         match = re.search(r'sq\.(\w+)\s*\(\s*([^,\s)]+)', code)
         if not match:
-            return None, None, None
+            return None, [], None
 
         exp_name = match.group(1)
         qubit_name = match.group(2).strip()
+        # 多比特：位置参数就是比特名（第一个已在上面拿到）
+        qubits: List[str] = [qubit_name]
 
         # 解析参数：先定位这次调用的括号范围，再按顶层逗号切
         params: Dict[str, Any] = {}
@@ -188,6 +191,10 @@ class ExperimentSimulator:
             body = code[open_idx + 1:end_idx] if end_idx > open_idx else ""
             for part in cls._split_call_args(body)[1:]:
                 if "=" not in part:
+                    # 位置参数（第一个之后）= 第二个/第三个比特
+                    name = part.strip().strip("\"'")
+                    if name:
+                        qubits.append(name)
                     continue
                 key, _, value = part.partition("=")
                 key = key.strip()
@@ -198,7 +205,7 @@ class ExperimentSimulator:
         # 标准化实验名称
         exp_type = cls.EXP_FUNC_MAP.get(exp_name, exp_name)
 
-        return exp_type, qubit_name, params
+        return exp_type, qubits, params
 
     def find_matching_datasets(
         self,

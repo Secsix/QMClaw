@@ -249,6 +249,28 @@ class TestExperiments(unittest.TestCase):
         self.assertGreater(res["metrics"]["swap_fidelity"], 0)
         self.assertLessEqual(res["metrics"]["swap_fidelity"], 1.0)
 
+    def test_swap_with_explicit_two_qubits(self):
+        """多比特（2026-11-19）：两个比特名要落到线路上，并出现在结果里。"""
+        res = qiskit_backend.run({
+            "experiment": "swap", "qubit": "q0", "qubits": ["qA", "qB"],
+            "shots": 400, "params": {},
+        })
+        self.assertEqual(res["status"], "qiskit_completed", res.get("error"))
+        self.assertEqual(res["extra"]["qubits"], ["qA", "qB"])
+        self.assertEqual(res["extra"]["qubit_a"], "qA")
+        self.assertEqual(res["extra"]["qubit_b"], "qB")
+        self.assertIn("qA", res["data"]["xlabel"])
+        self.assertIn("qB", res["data"]["xlabel"])
+
+    def test_drag_calibrate_reports_two_qubits(self):
+        res = qiskit_backend.run({
+            "experiment": "drag_calibrate", "qubit": "q0", "qubits": ["qA", "qB"],
+            "shots": 400, "params": {"points": 5},
+        })
+        self.assertEqual(res["status"], "qiskit_completed", res.get("error"))
+        self.assertEqual(res["extra"]["qubit_compute"], "qA")
+        self.assertEqual(res["extra"]["qubit_leak_flag"], "qB")
+
     def test_spectroscopy(self):
         res = _run("spectroscopy", params={"points": 11})
         self._assert_envelope(res, "spectroscopy")

@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from . import capabilities
 from . import goal as goal_mod
 from . import ir as ir_mod
+from .experiments import qubit_arity
 from .helpers import hint
 from .const import (
     ALL_OPS,
@@ -343,6 +344,39 @@ def _walk_stmt(st: Dict[str, Any], scope: Scope, path: str, index: int, diags: L
         q = st.get("qubit")
         if isinstance(q, str) and not parse_ref(q) and q and not SAFE_QUBIT_RE.match(q):
             add("E_BAD_QUBIT", f"qubit={q!r} 只允许 [A-Za-z0-9_%-]", "qubit")
+        # ── 多比特（2026-11-19）：`qubits ["q0","q1"]` ──────────────────────────
+        # 语义：`qubits` 是**列表**，元数必须与实验声明相符（词表：config/
+        # experiment_configs.json 的 qubits 字段）。`qubit`（单数）保留，
+        # 等价于 `qubits [qubit]`。
+        qubits = st.get("qubits")
+        if qubits is not None:
+            if not isinstance(qubits, list) or not qubits:
+                add("E_SCHEMA", "qubits 必须是非空列表，如 [\"q0\", \"q1\"]", "qubits")
+                qubits = None
+            else:
+                if q is not None:
+                    add("E_SCHEMA",
+                        "measure 同时写了 qubit 和 qubits：只留 qubits（单比特也用 qubits）", "qubits")
+                for item in qubits:
+                    if not isinstance(item, str) or not item:
+                        add("E_BAD_QUBIT", f"qubits 里的元素 {item!r} 必须是非空字符串", "qubits")
+                    elif not parse_ref(item) and not SAFE_QUBIT_RE.match(item):
+                        add("E_BAD_QUBIT",
+                            f"qubits 里的 {item!r} 只允许 [A-Za-z0-9_%-]", "qubits")
+        expected = qubit_arity(fn) if isinstance(fn, str) else None
+        if expected is not None:
+            if qubits is not None:
+                actual = len(qubits)
+            elif q:
+                actual = 1          # qubit 单数写法 → 1 个比特
+            else:
+                actual = 1          # 都没写 → 运行期取 $env.qubit（也是 1 个）
+            if actual != expected:
+                add("E_QUBIT_ARITY",
+                    f"{fn} 需要 {expected} 个比特，实际给了 {actual} 个"
+                    + (f"（现在写的是 qubits [{', '.join(chr(34)+str(x)+chr(34) for x in (qubits or []))}]）"
+                       if qubits else "（单比特实验用 qubit，双比特实验用 qubits [\"q0\", \"q1\"]）"),
+                    "qubits")
         for key in ("args", "params"):
             for arg in (st.get(key) or {}):
                 if not SAFE_ARGNAME_RE.match(str(arg)):

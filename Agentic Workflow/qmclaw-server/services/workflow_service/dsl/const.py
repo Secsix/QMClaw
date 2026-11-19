@@ -87,7 +87,7 @@ COMMON_FIELDS = frozenset({
 
 OP_FIELDS = {
     OP_LET: {"value"},
-    OP_MEASURE: {"fn", "qubit", "args", "params", "reportDataset"},
+    OP_MEASURE: {"fn", "qubit", "qubits", "args", "params", "reportDataset"},
     OP_READ: {"kind", "dataset", "threshold", "qubit"},
     OP_ANALYZE: {"dataset", "command"},
     OP_DECIDE: {"from", "mode", "intent", "systemPrompt", "temperature", "maxTokens",
@@ -200,6 +200,7 @@ ERROR_CODES = {
     "E_UNREACHABLE": "分支常量假 / maxRounds 非法",
     "E_BAD_FN": "fn 不匹配 ^sq\\.[a-z][a-z0-9_]*$",
     "E_BAD_QUBIT": "qubit 不匹配 ^[A-Za-z0-9_%-]+$",
+    "E_QUBIT_ARITY": "比特个数与实验元数不符（详见 config/experiment_configs.json 的 qubits）",
     "E_BAD_COMMAND": "analyze 的 command 不在白名单",
     "E_NOT_IMPLEMENTED": "本版本不执行该 op",
     "E_LEGACY_INTERP": "仍含 {{}} 旧式插值（警告）",

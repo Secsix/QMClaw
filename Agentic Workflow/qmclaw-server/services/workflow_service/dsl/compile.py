@@ -51,16 +51,30 @@ def build_node(stmt: Dict[str, Any], name: str,
         args = stmt.get("args")
         if args is None:
             args = stmt.get("params")
+        # ── 比特列表（2026-11-19 支持多比特）───────────────────────────────
+        # `qubits ["q0","q1"]` 是列表；`qubit "q0"`（单数）是历史写法，
+        # 等价于 `qubits ["q0"]`。两者都没写 → 运行期取 $env.qubit（1 个）。
+        # **config["qubit"] 继续保留且等于第一个比特**：下游（写清单、节点摘要、
+        # 前端展示）都按单比特读它，改成列表会到处炸。
+        qubits = stmt.get("qubits")
+        if isinstance(qubits, list):
+            resolved_qubits = list(resolve(qubits) or [])
+        elif qubits is not None:
+            resolved_qubits = []
+        else:
+            one = resolve(stmt.get("qubit", "$env.qubit"))
+            resolved_qubits = [one] if one else []
         config = dict(base)
         config.update({
             "fn": stmt.get("fn"),
-            "qubit": resolve(stmt.get("qubit", "$env.qubit")),
+            "qubit": resolved_qubits[0] if resolved_qubits else resolve(stmt.get("qubit", "$env.qubit")),
+            "qubits": resolved_qubits,
             "params": resolve(args or {}),
             "do_plot": False,          # 服务进程里画图会把微服务卡死（见 :664 注释）
             "reportDataset": stmt.get("reportDataset", True),
         })
         return {"type": "experiment", "config": config,
-                "depends": _ref_names(stmt, ("qubit", "args", "params"))}
+                "depends": _ref_names(stmt, ("qubit", "qubits", "args", "params"))}
 
     if op == OP_READ:
         config = dict(base)
@@ -368,7 +382,13 @@ def _canvas_fields(op: str, cfg: Dict[str, Any], by_id: Dict[str, Any],
     out: Dict[str, Any] = {}
     if op == OP_MEASURE:
         out["fn"] = cfg.get("fn", "sq.iqraw")
-        out["qubit"] = cfg.get("qubit", "$env.qubit")
+        # 多比特（2026-11-19）：画布给了 qubits 就只落 qubits（不能两个都写，
+        # 校验会判"同时写了 qubit 和 qubits"）
+        canvas_qubits = cfg.get("qubits")
+        if isinstance(canvas_qubits, list) and canvas_qubits:
+            out["qubits"] = list(canvas_qubits)
+        else:
+            out["qubit"] = cfg.get("qubit", "$env.qubit")
         if cfg.get("params") or cfg.get("args"):
             out["args"] = cfg.get("args") or cfg.get("params")
         if cfg.get("timeout"):

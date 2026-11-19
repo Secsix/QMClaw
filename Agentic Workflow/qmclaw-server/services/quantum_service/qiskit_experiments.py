@@ -55,9 +55,18 @@ class QiskitRequest:
 
     experiment: str
     qubit: str = ""
+    qubits: List[str] = field(default_factory=list)   # 多比特（2026-11-19）
     params: Dict[str, Any] = field(default_factory=dict)
     shots: int = 2000
     seed: int = 42
+
+    @property
+    def qubit_list(self) -> List[str]:
+        """有效比特列表：`qubits` 优先，否则退回单数的 `qubit`。"""
+        names = [str(q) for q in (self.qubits or []) if str(q)]
+        if not names and self.qubit:
+            names = [str(self.qubit)]
+        return names
 
     def p(self, name: str, default: Any) -> Any:
         """取参数；没传或为空时用默认值。"""
@@ -384,4 +393,11 @@ def run_experiment(req: QiskitRequest) -> ExperimentOutcome:
     builder = getattr(module, func_name, None)
     if builder is None:
         raise QiskitUnavailable(f"实验 {req.experiment} 的实现 {spec.impl} 不存在")
-    return builder(req)
+    outcome = builder(req)
+    # 多比特（2026-11-19）：把这次实际用到的比特名记进结果，
+    # 这样"哪个比特跑的"在 qiskit 结果里可查（以前只有单比特隐含在 code 里）。
+    names = req.qubit_list
+    if names:
+        outcome.extra.setdefault("qubits", names)
+        outcome.extra.setdefault("qubit", names[0])
+    return outcome

@@ -155,9 +155,16 @@ def collect_manifest(ir: Dict[str, Any], adapter: Any = None) -> Dict[str, Any]:
         if op != OP_MEASURE:
             continue
         fn = str(st.get("fn") or "")
-        qubit = st.get("qubit")
-        if isinstance(qubit, str) and qubit and qubit not in qubits:
-            qubits.append(qubit)
+        # 多比特（2026-11-19）：写清单按**比特**开票，所以每个比特都要登记
+        raw_qubits = st.get("qubits")
+        stmt_qubits = ([str(q) for q in raw_qubits if isinstance(q, str) and q]
+                       if isinstance(raw_qubits, list) else [])
+        single = st.get("qubit")
+        if not stmt_qubits and isinstance(single, str) and single:
+            stmt_qubits = [single]
+        for name in stmt_qubits:
+            if name not in qubits:
+                qubits.append(name)
         if mult > rounds:
             rounds = mult
         if write_effects is None:
@@ -182,8 +189,9 @@ def collect_manifest(ir: Dict[str, Any], adapter: Any = None) -> Dict[str, Any]:
             rec["max_count"] += mult
             if fn and fn not in rec["fns"]:
                 rec["fns"].append(fn)
-            if isinstance(qubit, str) and qubit and qubit not in rec["qubits"]:
-                rec["qubits"].append(qubit)
+            for name in stmt_qubits:
+                if name not in rec["qubits"]:
+                    rec["qubits"].append(name)
 
     writes: List[Dict[str, Any]] = []
     unbounded: List[str] = []
