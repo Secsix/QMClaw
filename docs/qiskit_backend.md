@@ -370,8 +370,13 @@ python qwf_sweep.py --only t1 ramsey     # 只跑指定的
 **双比特的表达方式**：2026-11-19 起 `.qwf` 的 `measure` 支持 `qubits` 列表
 （见 §11），`swap` / `drag_calibrate` 写成 `qubits ["q0", "q1"]`，
 **两个比特的顺序 = 线路里物理比特的顺序**（第 1 个 → 线路 qubit 0）。
-真机上目前**没有**双比特实验函数（`sq_nodes` 只有单比特），
-所以这份写法在 qiskit 后端可跑、在真机上会失败。
+
+**真机的双比特能力在别处**（2026-11-19 内省 `lqms` 得到）：不是 `sq_nodes`，
+而是 `lqms.measure.tuners.cz_nodes.DCZTuner` —— **类方法**形态
+（`swap11to20()` / `zpa_q_m()` / `czecho` / `xeb` …），而且要
+**2 比特 + 1 耦合器**（`DCZTuner(qubits)` 里 `qubits[2]` 是 coupler）。
+当前 DSL/后端链只会拼 `sq.xxx(...)` 模块级函数，**调不到它**；
+登记与缺口见 `config/experiment_configs.json` 的 `vendor_capabilities.two_qubit`。
 
 ---
 

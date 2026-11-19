@@ -210,7 +210,12 @@ if root:
 else:
     warn("capabilities/未找到 lqms", "sys.path 中没有 lqms")
 
-check("capabilities/KNOWN_MISSING 列表", "spectroscopy_iq" in KNOWN_MISSING)
+# 2026-11-19 实测校正：sq_nodes 运行时只缺 pidf21；
+# spectroscopy_iq / time_rabi / iqcenter / impa_gain 都在，别再当成缺失。
+check("capabilities/KNOWN_MISSING 只剩 pidf21", KNOWN_MISSING == ["pidf21"],
+      str(KNOWN_MISSING))
+check("capabilities/四个曾被误判的函数不算缺失",
+      not ({"spectroscopy_iq", "time_rabi", "iqcenter", "impa_gain"} & set(KNOWN_MISSING)))
 
 # ------------------------------------------------------------------ 4. Qubit Port
 from services.quantum_service.port import QubitPort  # noqa: E402

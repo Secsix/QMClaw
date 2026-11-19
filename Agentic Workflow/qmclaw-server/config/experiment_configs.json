@@ -161,7 +161,7 @@
       "defaultPlotCommand": "qter.fitData({exp_num})",
       "defaultAnalysisCommand": "",
       "available": false,
-      "note": "sq_nodes 只提供单比特函数，没有双比特 SWAP 实验；当前无法直接测。",
+      "note": "sq_nodes 里没有 sq.swap（模块级函数）。真机的双比特 SWAP 走另一个模块：lqms.measure.tuners.cz_nodes.DCZTuner.swap11to20 —— 但它是**类方法**，要 2 比特 + 1 耦合器（qubits[2]），且当前 DSL/后端链（只会拼 sq.xxx(...)）调不到。详见 vendor_capabilities.two_qubit。",
       "metricsToExtract": [
         "swap_fidelity"
       ]
@@ -183,6 +183,56 @@
       "metricsToExtract": [
         "optimal_drag"
       ]
+    }
+  },
+
+  "vendor_capabilities": {
+    "note": "厂商（lqms）能力登记。2026-11-19 内省本机 D:\\anaconda3\\envs\\lqcs 得到：sq_nodes 是编译版 .pyd，只导出 22 个实验函数（缺 pidf21）；双比特能力在 cz_nodes。",
+    "sq_nodes": {
+      "module": "lqms.measure.tuners.sq_nodes",
+      "form": "模块级函数",
+      "experiment_functions": [
+        "iqraw", "iqcenter", "piamp", "pidf", "impa_gain",
+        "t1", "ramsey_df", "ramsey_t2", "spinecho_t2", "xeb",
+        "time_rabi", "test_timing_xyz",
+        "spectroscopy", "spectroscopy_auto", "spectroscopy_iq",
+        "s21", "s21_dis", "s21_power2d", "s21_zpa2d",
+        "pulse_shape", "pulse_shape_ramsey", "set_pi"
+      ],
+      "missing_at_runtime": ["pidf21"],
+      "two_qubit": false
+    },
+    "two_qubit": {
+      "module": "lqms.measure.tuners.cz_nodes",
+      "class": "DCZTuner",
+      "init": "DCZTuner(qubits, gate_name='DCZGate', overwrite=False)",
+      "form": "类方法（不是 sq.xxx 模块级函数）",
+      "requires_coupler": true,
+      "coupler_index": 2,
+      "qubit_count": 2,
+      "methods": [
+        "initialize_gate", "swap11to20", "interaction",
+        "find_zpa_c_half_cycle", "find_zpa_q", "zpa_c_m", "zpa_q_m",
+        "sweep_sq_phase", "swap11to20_sq_phase", "gate_time_m",
+        "zpa_q_czecho", "zpa_c_czecho", "gate_time_czecho",
+        "sq_phase_xeb", "run_xeb", "tune"
+      ],
+      "experiment_classes": [
+        "TQExperiment", "Swap11to20", "Swap11to20Entanglement",
+        "Swap11to20SQphase", "CZEcho", "CZXeb", "Interaction", "CriticalZpaC"
+      ],
+      "batch": ["MultiDCZTuner", "SMTRunner"],
+      "equivalent_methods": {
+        "sq.swap": "swap11to20",
+        "sq.drag_calibrate": "zpa_q_m"
+      },
+      "dsl_support": false,
+      "dsl_gap": [
+        "后端链只拼 sq.xxx(...) 模块级函数 → 调不到类方法",
+        "DSL 的 qubits 列表描述不了**耦合器**（真机双比特要 2 比特 + 1 耦合器）",
+        "词表里没有对应的 qubits 元数声明"
+      ],
+      "suggestion": "IR 侧建议加 coupler 字段（qubits [\"q0\",\"q1\"] + coupler \"c0\"），后端再加一条 cz_nodes 适配路径（DCZTuner(...) 生命周期 + registry 建键 + ZPA 标定前置）"
     }
   }
 }

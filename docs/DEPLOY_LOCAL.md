@@ -270,9 +270,18 @@ spawn `scripts/job_runner.py`（legacy 单体模式），只需启 ②③ 两步
 allxy, drag_calibrate, pulsed_spec, ramsey, single_shot, swap
 ```
 
-（`sq_nodes` 实际导出 20 个可调用对象，包含 `ramsey_df` / `ramsey_t2` 等。）
+（`ramsey` 对应的是 `sq.ramsey_df`；`pulsed_spec` 对应 `sq.spectroscopy_iq`。
+**2026-11-19 实测更正**：本机 `sq_nodes` 是编译版 `.pyd`，实际导出 **22 个实验函数**
+—— `spectroscopy_iq` / `time_rabi` / `iqcenter` / `impa_gain` **都在**，
+真正缺的只有 `pidf21`。此前列的"20 个可调用对象"是过期结论。）
+
 前端会把这些名字列出来，但真正下发时按名字取函数会失败。写权限打开之前值得
 先对一遍映射。
+
+**双比特另说**：真机不是"没有双比特"，而是双比特在
+`lqms.measure.tuners.cz_nodes.DCZTuner`（类方法，要 **2 比特 + 1 耦合器**，
+`qubits[2]` 是 coupler）—— 当前 DSL/后端链只会拼 `sq.xxx(...)`，调不到它。
+登记见 `config/experiment_configs.json` 的 `vendor_capabilities.two_qubit`。
 
 ---
 

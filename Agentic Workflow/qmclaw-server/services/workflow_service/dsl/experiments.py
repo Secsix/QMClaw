@@ -11,7 +11,11 @@
 **为什么不放在代码里**：DSL 层（workflow_service）和量子层（quantum_service）
 是两个微服务，谁都不该 import 谁；配置文件是它们本来就共用的东西。
 （真机侧 `dsl/backends/lqcs.py` 的 `SQ_NODES` 是**厂商函数**清单，
-和"元数"是两回事 —— 真机上目前**没有**双比特函数，见 `swap.available=false`。）
+和"元数"是两回事 —— `sq.swap` 这种**模块级**双比特函数在真机上不存在，
+所以 `swap.available=false`；但真机**有**双比特能力，只是在另一个模块
+`cz_nodes.DCZTuner` 里，是**类方法**、还要 2 比特 + 1 耦合器，
+见 `config/experiment_configs.json` 的 `vendor_capabilities.two_qubit`
+与 `two_qubit_vendor()`。）
 
 用法：
 
@@ -117,3 +121,35 @@ def vocabulary_fns() -> Dict[str, bool]:
         if fn:
             out[fn] = bool(spec.get("available", True))
     return out
+
+
+def two_qubit_vendor() -> Dict[str, object]:
+    """厂商的**双比特**能力登记（`config/experiment_configs.json` 的
+    `vendor_capabilities.two_qubit`）。
+
+    真机不是"没有双比特"，而是双比特在 `cz_nodes.DCZTuner` 里：
+    **类方法**形态，且要 **2 比特 + 1 耦合器**（`qubits[2]` 是 coupler）。
+    当前 DSL/后端链调不到它（只会拼 `sq.xxx(...)`），
+    但缺口要有个能查的地方 —— 这就是本函数的用途。
+    """
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f) or {}
+        block = (raw.get("vendor_capabilities") or {}).get("two_qubit") or {}
+        return dict(block) if isinstance(block, dict) else {}
+    except Exception:
+        return {}
+
+
+def vendor_method_for(fn: str) -> Optional[str]:
+    """这个词表里的实验，在厂商双比特模块里的**对应方法名**。
+
+    例：`sq.swap` → `swap11to20`（`cz_nodes.DCZTuner` 的方法）。
+    用来在 lint 里指出"真机其实有这条路，但当前 DSL 调不到"。
+    """
+    table = two_qubit_vendor().get("equivalent_methods") or {}
+    if isinstance(table, dict):
+        value = table.get(str(fn or "").strip())
+        if isinstance(value, str) and value:
+            return value
+    return None

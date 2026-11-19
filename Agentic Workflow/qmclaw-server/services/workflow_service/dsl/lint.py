@@ -20,16 +20,30 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-# lqms.measure.tuners.sq_nodes 里真实存在的实验函数（2026-11-06 实测签名）。
+# lqms.measure.tuners.sq_nodes 里真实存在的实验函数。
+#
+# **2026-11-19 实测校正**（`D:\anaconda3\envs\lqcs\python.exe` 内省本机编译版
+# `.pyd`：`from lqms.measure.tuners import sq_nodes; dir(sq_nodes)`）：
+# 本机运行时**实际导出 22 个实验函数**（下面这份清单）——
+# 此前把 `spectroscopy_iq` / `time_rabi` / `iqcenter` / `impa_gain` 记成"运行时不存在"
+# 是**过期结论**（那台机器的基线），这四个今天实测都在。
+# 真正不存在的只有 `sq.pidf21`（见 SQ_NODE_FNS_VENDOR_ONLY）。
+#
 # 名字不在这里的（如 allxy / single_shot / pulsed_spec / swap / drag_calibrate）
 # 在 sq_nodes 里**没有同名函数**，写进 qwf 必然失败。
+# ⚠️ 真机的**双比特**能力不在 sq_nodes，在 `cz_nodes.DCZTuner`（类方法 + 需要耦合器），
+#    见 config/experiment_configs.json 的 `vendor_capabilities.two_qubit`。
 SQ_NODE_FNS: Set[str] = {
-    "sq.iqraw", "sq.piamp", "sq.pidf", "sq.pidf21", "sq.ramsey_df", "sq.ramsey_t2",
+    "sq.iqraw", "sq.piamp", "sq.pidf", "sq.ramsey_df", "sq.ramsey_t2",
     "sq.s21", "sq.s21_dis", "sq.s21_power2d", "sq.s21_zpa2d", "sq.set_pi",
     "sq.spectroscopy", "sq.spectroscopy_auto", "sq.spectroscopy_iq", "sq.spinecho_t2",
     "sq.t1", "sq.test_timing_xyz", "sq.xeb", "sq.pulse_shape", "sq.pulse_shape_ramsey",
     "sq.time_rabi", "sq.impa_gain", "sq.iqcenter",
 }
+
+# 厂商**源码**里有、但本机编译版 .pyd 没导出的函数。
+# 这类不报 error（换个装了更新 .py 的机器就能跑），只提醒。
+SQ_NODE_FNS_VENDOR_ONLY: Set[str] = {"sq.pidf21"}
 
 # read（contrast）节点能处理的数据集类型。contrast 的实现
 # （dsl/backends/lqcs.py build_contrast_code）只认 IQraw 的数据形状
@@ -48,6 +62,15 @@ def _vocab_available(fn: str) -> Optional[bool]:
         from .experiments import vocabulary_fns
         return vocabulary_fns().get(fn)
     except Exception:  # noqa: BLE001 —— 词表读不到就当"不知道"
+        return None
+
+
+def _vendor_method(fn: str) -> Optional[str]:
+    """厂商双比特模块里的对应方法名（如 `sq.swap` → `swap11to20`）。"""
+    try:
+        from .experiments import vendor_method_for
+        return vendor_method_for(fn)
+    except Exception:  # noqa: BLE001
         return None
 # 数据形状分类（D5-①「按数据形状自动选节点」）：
 # sq.iqraw 产出 IQraw 形状（shape (N,5)），read/contrast 能直接处理；
@@ -458,6 +481,12 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
             fn = str(st.get("fn") or "")
             if not fn:
                 rep.error("E_NO_FN", "measure 没有 fn", line)
+            elif fn in SQ_NODE_FNS_VENDOR_ONLY:
+                # 厂商源码里有、本机 .pyd 没导出 → 不算写错（换机器可能能跑）
+                rep.warn("W_FN_NOT_EXPORTED",
+                         f"{fn} 本机运行时没导出（2026-11-19 实测 sq_nodes）"
+                         "，在装更新厂商源码的机器上可能可用",
+                         line)
             elif fn not in SQ_NODE_FNS:
                 # 词表里有、但真机 sq_nodes 里没有 → 不是写错，是**只能跑模拟后端**
                 # （如 sq.swap：真机没有双比特函数，见 config/experiment_configs.json
@@ -465,11 +494,23 @@ def lint_ir(ir: Dict[str, Any]) -> Dict[str, Any]:
                 #   否则所有 qiskit 专用的 .qwf 都 lint 不过。
                 available = _vocab_available(fn)
                 if available is False:
-                    rep.warn("W_FN_NOT_ON_HARDWARE",
-                             f"{fn} 在真机 sq_nodes 里没有同名函数"
-                             "（只能在 qiskit 等模拟后端上跑）",
-                             line,
-                             hint="真机路径请换成 sq_nodes 里有的函数")
+                    vendor_fn = _vendor_method(fn)
+                    if vendor_fn:
+                        # 真机**有**双比特能力，只是不在 sq_nodes 里：
+                        # cz_nodes.DCZTuner.<方法>，是类方法，要 2 比特 + 耦合器。
+                        rep.warn("W_FN_NOT_ON_HARDWARE",
+                                 f"{fn} 在真机 sq_nodes 里没有同名函数"
+                                 "（只能在 qiskit 等模拟后端上跑）",
+                                 line,
+                                 hint=f"真机对应路径：cz_nodes.DCZTuner.{vendor_fn}()"
+                                      "（类方法，需要 2 比特 + 1 耦合器；"
+                                      "当前 DSL/后端链还调不到）")
+                    else:
+                        rep.warn("W_FN_NOT_ON_HARDWARE",
+                                 f"{fn} 在真机 sq_nodes 里没有同名函数"
+                                 "（只能在 qiskit 等模拟后端上跑）",
+                                 line,
+                                 hint="真机路径请换成 sq_nodes 里有的函数")
                 else:
                     rep.error("E_UNKNOWN_FN",
                               f"{fn} 在 lqms.measure.tuners.sq_nodes 里没有同名函数",

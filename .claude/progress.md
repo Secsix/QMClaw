@@ -2314,3 +2314,54 @@ iqraw(SNR=4.0, separation=1.414)、allxy(avg_fidelity=0.9805, leakage=0.0195)；
 ### 遗留
 - 前端画布 UI 没有多比特输入框（只有 IR 往返映射）
 - 真机 sq_nodes 仍**没有**双比特函数：多比特流目前只能跑在 qiskit 等模拟后端
+
+### 补充：厂商能力基线校正 + 真机双比特能力登记（2026-11-19 晚）
+
+**起因**：用户要求"看一下 sq_nodes 里的所有定义"。本机 `sq_nodes` 是**编译版 .pyd**
+（`D:\anaconda3\envs\lqcs\Lib\site-packages\lqms\measure\tuners\sq_nodes.cp311-win_amd64.pyd`，
+无 .py 源码），用 lqcs 解释器内省 `dir(sq_nodes)` 得到 **35 个公开名字 / 22 个实验函数**。
+
+**发现 1：能力基线过期（4 个误判 + 1 个漏网）**
+- `services/common/capabilities.py` 的 `KNOWN_RUNTIME_EXPORTS` / `KNOWN_MISSING`
+  把 `spectroscopy_iq` / `time_rabi` / `iqcenter` / `impa_gain` 记成"运行时不存在" ——
+  **今天实测这四个都在**；真正缺的只有 `pidf21`。
+- `config/lab_criteria.json` 的 `available` / `missing_in_pyd` 是同一份过期清单。
+- `dsl/lint.py` 的 `SQ_NODE_FNS` 里留着**运行时不存在的** `sq.pidf21` → lint 会放过一个必炸的函数。
+- 已校正：白名单去掉 pidf21（改列 `SQ_NODE_FNS_VENDOR_ONLY`，命中只给 warning
+  `W_FN_NOT_EXPORTED`，因为装了更新厂商源码的机器上可用）；
+  `KNOWN_MISSING` 只剩 pidf21；新增 `probe_runtime_exports()`（子进程现场探，
+  不在本进程 import lqms，避免 torch/MKL 冲突），`capability_report(probe=True)` 可用。
+
+**发现 2：真机其实有双比特能力，在 `cz_nodes` 不在 `sq_nodes`**
+`lqms.measure.tuners.cz_nodes.DCZTuner`（.py 源码可读）：
+- **类方法**形态：`swap11to20` / `interaction` / `zpa_q_m` / `zpa_c_m` /
+  `zpa_q_czecho` / `zpa_c_czecho` / `gate_time_m` / `gate_time_czecho` /
+  `sq_phase_xeb` / `run_xeb` / `initialize_gate` / `find_zpa_*` / `tune`
+- **要 3 个对象**：2 比特 + **耦合器**（`qubits[:2]` 是比特，`qubits[2]` 是 coupler）
+- 底层实验类（`cz_experiment.pyd`）：`TQExperiment`（存 P00/P01/P10/P11）、
+  `Swap11to20`、`Swap11to20Entanglement`、`Swap11to20SQphase`、`CZEcho`、`CZXeb`、
+  `Interaction`、`CriticalZpaC`；批量用 `MultiDCZTuner` / `SMTRunner`
+- 结论修正：**"真机没有双比特"是错的** —— 准确说法是"没有 `sq.xxx` 模块级双比特函数"。
+
+**登记（词表）**：`config/experiment_configs.json` 新增顶层 `vendor_capabilities`
+（sq_nodes 现状 + `two_qubit` 块：模块/类/方法清单/耦合器要求/`dsl_support=false`/缺口/建议）；
+`swap` 的 note 改为指向 `cz_nodes.DCZTuner.swap11to20`；
+`dsl/experiments.py` 新增 `two_qubit_vendor()` / `vendor_method_for()`；
+`config/lab_criteria.json` 加 `two_qubit_vendor` 段；
+lint 的 `W_FN_NOT_ON_HARDWARE` 提示里直接给出真机方法
+（"真机对应路径：cz_nodes.DCZTuner.swap11to20()（类方法，需要 2 比特 + 1 耦合器…）"）。
+
+**未做（待拍板）**：IR 加 `coupler` 字段 + 后端加 cz_nodes 适配路径
+（`DCZTuner` 生命周期 + registry 建键 + ZPA 标定前置）。
+
+**验证**：`tests/test_multiqubit_ir.py` 扩到 **23 项**（新增 4 项基线一致性 +
+2 项双比特登记）全过；`tests.test_qiskit_backend` + `test_backend_policy` +
+`test_model_config_env` 合计 **89 项**全过；`qwf_lint.py` 7 个示例 error=0；
+`probe_runtime_exports()` 实探 35 个导出、不含 pidf21；
+`_phase2_check.py` 的 KNOWN_MISSING 断言同步改为"只剩 pidf21"。
+
+**改动文件**：`services/common/capabilities.py`、`services/workflow_service/dsl/lint.py`、
+`services/workflow_service/dsl/experiments.py`、`config/experiment_configs.json`、
+`config/lab_criteria.json`、`tests/test_multiqubit_ir.py`、`_phase2_check.py`、
+`docs/REAL_MACHINE.md`（新增第七节）、`docs/qiskit_backend.md`、`docs/OPERATIONS.md`、
+`docs/DEPLOY_LOCAL.md`

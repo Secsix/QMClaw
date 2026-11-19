@@ -94,8 +94,10 @@ measure as c1 {
 * 比特个数必须与实验元数相符，元数来自 `config/experiment_configs.json` 的
   `qubits` 字段（`swap` / `drag_calibrate` 是 2，其余是 1）。
   对不上 → `E_QUBIT_ARITY`（**下发前**就拦下，不会白烧额度）。
-* 真机的 `sq_nodes` 目前只有单比特函数，所以多比特流只能跑在 qiskit 等模拟后端；
-  lint 会给 `W_FN_NOT_ON_HARDWARE` 提醒（不是 error）。
+* 真机的双比特能力在 `lqms.measure.tuners.cz_nodes.DCZTuner`（**类方法**，
+  要 **2 比特 + 1 耦合器**），当前后端链（只会拼 `sq.xxx(...)`）调不到；
+  lint 会给 `W_FN_NOT_ON_HARDWARE` 提醒（不是 error），并在提示里给出
+  真机对应方法（如 `cz_nodes.DCZTuner.swap11to20()`）。
 
 详见 `docs/qiskit_backend.md` §11。
 
