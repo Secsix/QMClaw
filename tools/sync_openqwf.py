@@ -172,8 +172,9 @@ def _write_meta(source: Path, commit: str, branch: str, files: List[str],
     }
     if note:
         meta["note"] = note
+    # newline="\n"：Windows 上默认会写成 CRLF，vendor 副本统一 LF（见 .gitattributes）
     UPSTREAM_META.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
-                             encoding="utf-8")
+                             encoding="utf-8", newline="\n")
     return meta
 
 

@@ -48,3 +48,34 @@ jobs:
           Write-Host "lint $($files.Count) 个 .qwf"
           python qwf_lint.py @files
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  openqwf-drift:
+    name: 上游 OpenQWF 漂移检查（vendor 副本 vs 上游仓）
+    runs-on: ubuntu-latest
+    # 上游是私有仓：没有 OPENQWF_TOKEN 时这一项直接跳过（不阻塞主线）。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 克隆上游并逐文件比对
+        env:
+          OPENQWF_TOKEN: ${{ secrets.OPENQWF_TOKEN }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENQWF_TOKEN:-}" ]; then
+            echo "::notice::没有 OPENQWF_TOKEN，跳过上游漂移检查"
+            exit 0
+          fi
+          BRANCH=$(python -c "import json;print(json.load(open('vendor/openqwf/UPSTREAM.json',encoding='utf-8'))['branch'])")
+          echo "上游分支：$BRANCH"
+          git clone --depth 1 --branch "$BRANCH" \
+            "https://x-access-token:${OPENQWF_TOKEN}@github.com/Secsix/OpenQWF.git" \
+            upstream-openqwf
+          python tools/check_openqwf_drift.py --from upstream-openqwf
