@@ -2476,6 +2476,37 @@ lint 的 `W_FN_NOT_ON_HARDWARE` 提示里直接给出真机方法
 - :3008 那个进程**仍是旧代码**：要走 HTTP 入口（`qwf_run.py` / `qwf_sweep.py`）用新版本，
   得**人工重启 workflow_service**（约定 3：服务启停由人控制）→ 已登记 BACKLOG N9
 
+---
+
+## 2026-11-19 20:10 ★ 服务重启后：HTTP 链复核 13/13 + 运行时指纹
+
+### 背景
+19:59 有人把 `start_all_services.py --all` 重启了一遍（:3008 的进程启动时间 **20:00:00**，
+晚于门面化提交），所以 :3008 这回加载的**就是新门面代码**。
+
+### 复核：`python qwf_sweep.py`（完整 HTTP 链）
+`qwf_run.py` → :3008 `/workflows/parse_qwf` + `/workflows/run_ir` → :3009 租约 → :3003 `/execute`
+→ qiskit/Aer：**13/13 completed**，backend=qiskit，shots=2000 seed=42，
+指标与「进程内那轮」「迁移前基线」**三方一致**
+（T1=4.9569e-05、T2=2.0656e-05、pi_amplitude=0.2753、gate_fidelity=0.9953、
+readout_fidelity=0.9695、swap_fidelity=0.992、f10=0、dispersive_shift=2e6、
+SNR=4.0、average_fidelity=0.9805、optimal_drag=0.45 …）。
+
+### 运行时指纹（证明线上跑的真是新代码，不是"看起来像"）
+同一份 .qwf 交给三处 lint：
+
+| 位置 | 诊断码 |
+|---|---|
+| :3008（HTTP，线上） | `W_PROFILE_UNKNOWN_QUBIT`（warning） |
+| 新门面（进程内） | `W_PROFILE_UNKNOWN_QUBIT`（warning）——**一致** |
+| 门面化之前 5060a37 | `I_PROFILE_UNAVAILABLE`（info）——**不一样** |
+
+旧本地 DSL 根本没有 `qwf/reachability.py` 这套上游诊断，所以这条码能当指纹用。
+
+### 另外
+- 旧树 vs 新门面对 7 个范例 + 13 个 sweep `.qwf` 的 lint 输出**逐条一致**
+  （`ex_spectroscopy.qwf` 在新旧两边都是 `error=1`，不是回归）
+
 ### 改动文件
-`.claude/progress.md`、`docs/BACKLOG.md`（N8 结项 + 新增 N9）
+`.claude/progress.md`、`docs/BACKLOG.md`（N9 结项）
 

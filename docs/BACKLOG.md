@@ -989,9 +989,12 @@ optimal_drag=0.45、readout_fidelity=0.9695 …），
 另外：全仓 142 个 `from dsl... import X` 全部可取到；
 13 个实验的 `ledger.manifest_hash` 门面化前后**逐字节一致**。
 
-### N9 ⬜ 走 HTTP 入口验新版本需要**人工重启 workflow_service**
+### N9 ✅ 走 HTTP 入口验新版本（2026-11-19 20:00）
 
-:3008 上那个 workflow_service 是门面化**之前**起的旧进程，内存里还是老 DSL。
-要跑 `qwf_run.py` / `qwf_sweep.py` 这条 HTTP 链用新版本，
-得由人重启 `python -m services.workflow_service.server`（约定 3）。
-重启后建议再跑一次 `python qwf_sweep.py` 复核 13/13。
+服务在 19:59 被**人工重启**（`start_all_services.py --all`，:3008 的进程启动时间 20:00:00，
+晚于门面化提交），随后：
+- `python qwf_sweep.py` 走完整 HTTP 链（:3008 → :3003 → qiskit/Aer）：**13/13 completed**，
+  指标与进程内那轮、与迁移前基线**三方一致**
+- **运行时指纹**：同一份 .qwf 的 lint 响应，:3008 给的是 `W_PROFILE_UNKNOWN_QUBIT`，
+  新门面进程内给的一样，而门面化**之前**（5060a37）给的是 `I_PROFILE_UNAVAILABLE`
+  —— 证明线上跑的就是上游 vendor 的 DSL，不是旧本地实现
