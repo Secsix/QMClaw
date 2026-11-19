@@ -2132,3 +2132,43 @@ quantum/analysis/qubitclient → ⚠️ Running in degraded mode；函数返回 
 
 **顺带确认未改动**：前端读网关 /health 与 /api/quantum/mode（恒 200），
 不受 503 影响；网关 proxyToService 用 fetch，不会因 503 抛异常。
+### 补充：[ERR] 标签打错了 + stderr 遇中文整条流消失（5b16f12）
+
+**现象**：`start_all_services.py --all` 输出里满是 `[ERR]`，但服务其实好好地跑着。
+
+**根因一：`[ERR]` 的含义只是"这行走的是 stderr"**
+本项目**故意把服务日志写到 stderr**（`services/base/base_service.py` 的
+`_log_writer`："日志消费线程：唯一允许写 stderr 的地方"；`_safe_print` 同路），
+Python 的 warning 也走 stderr。实测抓到的量子服务真实 stderr 9 行**全是正常
+运行日志**（Initializing / Mode: auto / Started on localhost:3003 / [backend] qiskit
+可用 …），却全被贴上 [ERR]。
+
+改成三级分类（`classify_output_line` / `format_output_line`）：
+- `error` —— 崩溃级：traceback / 未捕获异常 / ERROR·CRITICAL 级日志
+- `warn` —— warning 类（DeprecationWarning 等）
+- `log` —— 其余，原样打印不加标签
+
+**关键细节**：服务自己的结构化日志行（`[quantum_service] ...`）**只认显式的错误
+级别**，因为这类行常把异常名写进说明文字（"连不上（TimeoutError: timed out）"）
+—— 那是描述不是崩溃。第一版按内容匹配 `Error:` 把这条正常日志误判成错误，
+已修正（结构化行走 `_LOGGED_ERROR_PATTERNS`，原始 Python 输出才走 `Error:`）。
+
+**根因二：stderr 遇中文整条流静默消失**
+`Popen(text=True)` 没指定 encoding，父进程按 locale（中文 Windows = cp936/GBK）
+解码，子进程可能按 UTF-8 写 → `UnicodeDecodeError` → `read_output` 的
+`except Exception: pass` 把**整个 stderr 流吞掉**。实测复现：15 行输出只到第 3 行
+（正好是第一行含中文之前），后面全没了，且毫无提示。服务日志恰恰全是中文。
+
+修：`Popen(encoding="utf-8", errors="replace")` + `env["PYTHONIOENCODING"]="utf-8"`；
+`read_output` 的 except 收窄（管道关闭属正常，其余异常必须喊出来）。
+
+**汇总时机**：打印线程是在 `wait_for_services` 之后才起的（启动期输出都堆队列里），
+所以真错误汇总要等队列排空 —— 放在退出时 / 进程异常退出时。
+
+**验证**：分类回归 22/22；端到端（真子进程→真中文 stderr→分类→渲染）15 行全到、
+中文正常、3 条 traceback 标 [ERR]、1 条 warning 标 [WARN]、其余 11 行无标签；
+真实跑一遍改后脚本，已有服务不受影响；py_compile 通过。
+
+**顺带记一笔（未修，超出本次范围）**：若所有服务端口都被占用，脚本走
+"No services started" 早退分支就退出了 —— 而此时服务其实都在跑，
+提示语容易让人误解。
