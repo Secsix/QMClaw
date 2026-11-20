@@ -31,23 +31,39 @@
 
 ## vendor 副本机制
 
+> **2026-11-20 更新**：`vendor/openqwf/` **现在就是上游仓的 git clone 本体**
+> （`origin` = `https://github.com/Secsix/OpenQWF.git`，HEAD = `96a2240`）。
+> 原先放在 `%TEMP%\OpenQWF*` 下的 5 个临时 clone 已全部删除。
+
 ```
-vendor/openqwf/
-├── qwf/            # 上游核心包（逐字）
-├── adapters/       # 上游适配器包（逐字）
-├── pyproject.toml
-└── UPSTREAM.json   # 同步元信息：仓库 / 分支 / commit / 每个文件的 sha256 / 备注
+vendor/openqwf/            ← 上游仓 clone 本体（.git/ 在这里）
+├── qwf/            # 上游核心包（逐字，本仓跟踪）
+├── adapters/       # 上游适配器包（逐字，本仓跟踪）
+├── pyproject.toml  # 逐字，本仓跟踪
+├── UPSTREAM.json   # 同步元信息：仓库 / 分支 / commit / 每个文件的 sha256 / 备注
+└── README.md docs/ examples/ config/ data/ tools/   # 上游自己的文件，**本仓不入库**
 ```
 
-- **同步**：`python tools/sync_openqwf.py --from <上游 clone 目录> --note "<备注>"`
+- **更新上游**（日常）：
+  ```bash
+  git -C vendor/openqwf pull                     # 需要仓库访问权（私有仓 + credential helper）
+  python tools/sync_openqwf.py --refresh          # 恢复 vendor 包到 HEAD + 重算哈希 + 更新 UPSTREAM.json
+  python tools/check_openqwf_drift.py             # 确认无漂移
+  ```
+- **从别处的 clone 同步**：`python tools/sync_openqwf.py --from <clone 目录> --note "<备注>"`
   只搬 `qwf/` + `adapters/` + `pyproject.toml`；
   `config/`、`data/`、`.env`、`device_profile.json`、`qubitclient.json` **一律不搬**。
-- **查漂移**：`python tools/check_openqwf_drift.py --from <上游 clone 目录>`
-  （不给 `--from` 就自己 clone 远端；访问不到上游时返回 2 = 跳过，不算失败）。
+  ⚠️ `--from` **不能**指向 `vendor/openqwf` 自身（同步是整目录替换，会先清空目标 —— 脚本已加护栏拦截）。
+- **查漂移**：`python tools/check_openqwf_drift.py`
+  默认拿**仓内 clone 的 HEAD** 与 vendor 快照逐文件比（比的是 commit 里的 blob，不是目录）；
+  给 `--from <别的 clone>` 则比那个 clone；访问不到上游时返回 2 = 跳过，不算失败。
 - **CI**：`checks.yml` 的 `openqwf-drift` 任务用 `secrets.OPENQWF_TOKEN` 克隆上游逐文件比对；
   **没有 token 就跳过**（`continue-on-error: true`），不阻塞主线。
 - **行尾**：vendor 副本统一 LF（`.gitattributes`：`vendor/openqwf/** text eol=lf`）。
   比对脚本本身也会做 CRLF→LF 归一，但文件本身保持 LF 更省心。
+- **为什么上游其余文件不进本仓**：上游 `config/`（真机档案、阈值）、`data/`（运行产物）、
+  `docs/`、`examples/`、`tools/` 与本仓的服务运行无关，且部分含本机参数；
+  本仓只跟踪 DSL 实现本体，保证离线可用且改动可追溯到上游 commit。
 
 ## 门面规则（硬约束）
 
@@ -117,8 +133,8 @@ DSL ↔ qiskit 的契约是**代码文本 + `config/experiment_configs.json`**�
 ## 本地专属功能怎么回流上游
 
 1. 先在上游仓实现 + 提交 + 推送（上游是唯一真源）；
-2. 本仓 `python tools/sync_openqwf.py --from <上游 clone> --note "<改了什么>"`；
-3. `python tools/check_openqwf_drift.py --from <上游 clone>` → 必须 `[OK] vendor 与上游一致`；
+2. 本仓 `git -C vendor/openqwf pull` → `python tools/sync_openqwf.py --refresh --note "<改了什么>"`；
+3. `python tools/check_openqwf_drift.py` → 必须 `[OK] vendor 与上游一致`；
 4. 提交本仓（vendor 副本 + 门面对照改动一起）。
 
 如果改动**只在本地、暂时不能推上游**：在 `vendor/openqwf/UPSTREAM.json` 里
@@ -128,14 +144,14 @@ DSL ↔ qiskit 的契约是**代码文本 + `config/experiment_configs.json`**�
 ## 常见操作
 
 ```bash
-# 1) 拉上游最新（私有仓，靠 credential helper）
-git clone --branch main https://github.com/Secsix/OpenQWF.git <dir>
+# 1) 拉上游最新（私有仓，靠 credential helper；clone 就在仓内 vendor/openqwf）
+git -C vendor/openqwf pull
 
-# 2) 同步进 vendor
-python tools/sync_openqwf.py --from <dir> --note "说明这次同步了什么"
+# 2) 刷新 vendor 快照与登记信息
+python tools/sync_openqwf.py --refresh --note "说明这次同步了什么"
 
 # 3) 查漂移（0 = 一致）
-python tools/check_openqwf_drift.py --from <dir>
+python tools/check_openqwf_drift.py
 
 # 4) 回归网
 python -m pytest "Agentic Workflow/qmclaw-server/tests" -q

@@ -20,6 +20,7 @@ CI 用它当闸门：上游一有新提交，本仓就被提醒重新同步。
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -76,6 +77,30 @@ def _tree_hashes(root: Path) -> dict:
     return out
 
 
+def _git_blob_hashes(repo: Path, ref: str = "HEAD") -> dict:
+    """从 git 仓的 `ref`（默认 HEAD）里取出 vendored 包的 blob 内容并算 sha256。
+
+    2026-11-20 起上游 clone 就放在 vendor/openqwf/ 内 —— 直接比目录没有意义
+    （自己跟自己比永远相等），所以改成比 **commit 里的内容**：这样才能回答
+    "vendor 快照是不是已经落后于上游 HEAD"。
+    """
+    out = {}
+    rc, listing, _ = _git(["ls-tree", "-r", "--name-only", ref], repo)
+    if rc != 0:
+        return out
+    for rel in listing.splitlines():
+        rel = rel.replace("\\", "/")
+        if not any(rel == pkg or rel.startswith(pkg + "/") for pkg in VENDORED_PACKAGES):
+            continue
+        proc = subprocess.run(["git", "cat-file", "blob", f"{ref}:{rel}"],
+                              cwd=str(repo), capture_output=True)
+        if proc.returncode != 0:
+            continue
+        data = _normalized_bytes(proc.stdout, rel.split("/")[-1])
+        out[rel] = hashlib.sha256(data).hexdigest()
+    return out
+
+
 def main() -> int:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -102,6 +127,13 @@ def main() -> int:
             if rc != 0:
                 print(f"[X] 不是 git 仓：{source}")
                 return 2
+        elif (VENDOR_DIR / ".git").exists():
+            # 2026-11-20 起上游 clone 就放在 vendor/openqwf/ 内，默认直接用它
+            source = VENDOR_DIR
+            rc, commit, err = _git(["rev-parse", "HEAD"], source)
+            if rc != 0:
+                print(f"[X] vendor/openqwf 不是可用的 git 仓：{err}")
+                return 2
         else:
             tmp = Path(tempfile.mkdtemp(prefix="openqwf_drift_"))
             source = tmp / "repo"
@@ -113,7 +145,7 @@ def main() -> int:
                 return 2
             _, commit, _ = _git(["rev-parse", "HEAD"], source)
 
-        upstream_hashes = _tree_hashes(source)
+        upstream_hashes = _git_blob_hashes(source)
     finally:
         if tmp and tmp.exists():
             import shutil
@@ -123,6 +155,7 @@ def main() -> int:
     extra = sorted(set(local_hashes) - set(upstream_hashes))
     changed = sorted(rel for rel in set(local_hashes) & set(upstream_hashes)
                      if local_hashes[rel] != upstream_hashes[rel])
+    commit_mismatch = bool(meta.get("commit")) and meta.get("commit") != commit
 
     pending = bool(meta.get("pending_upstream"))
     result = {
@@ -130,10 +163,11 @@ def main() -> int:
         "vendoredCommit": meta.get("commit"),
         "branch": meta.get("branch"),
         "pendingUpstream": pending,
+        "commitMismatch": commit_mismatch,
         "missing": missing,
         "extra": extra,
         "changed": changed,
-        "drift": bool(missing or extra or changed),
+        "drift": bool(missing or extra or changed or commit_mismatch),
     }
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -142,6 +176,8 @@ def main() -> int:
         print(f"已 vendor：{meta.get('commit')}")
         if pending:
             print("  （本地含尚未推给上游的改动 —— 属预期，不是漂移）")
+        if commit_mismatch:
+            print("[X] 登记的 commit 与上游 HEAD 不一致（登记信息需刷新）")
         for rel in missing:
             print(f"[X] 本地缺失：{rel}")
         for rel in extra:
@@ -149,7 +185,8 @@ def main() -> int:
         for rel in changed:
             print(f"[X] 内容不同：{rel}")
         if result["drift"]:
-            print("-> 需要重新同步：python tools/sync_openqwf.py --from <上游 clone>")
+            print("-> 需要重新同步：git -C vendor/openqwf pull && "
+                  "python tools/sync_openqwf.py --refresh")
         else:
             print("[OK] vendor 与上游一致")
     return 1 if result["drift"] else 0

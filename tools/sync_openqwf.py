@@ -16,7 +16,11 @@
 
 用法
 ----
-    # 从本地 clone 同步（开发时最常用）
+    # 2026-11-20 起：上游 clone 就住在 vendor/openqwf/ 内，日常用这两条
+    git -C vendor/openqwf pull                       # 更新上游
+    python tools/sync_openqwf.py --refresh            # 刷新 vendor 快照与登记
+
+    # 从本地 clone 同步（开发时最常用；source 不能是 vendor 目录自身）
     python tools/sync_openqwf.py --from C:\\path\\to\\OpenQWF
 
     # 从远端拉取后同步（需要仓库访问权）
@@ -109,6 +113,25 @@ def _iter_files(root: Path) -> List[Path]:
     return sorted(out)
 
 
+def _iter_vendored_files(root: Path) -> List[Path]:
+    """只列 **vendor 范围内** 的文件（qwf/ + adapters/ + EXTRA_FILES）。
+
+    2026-11-20 起 vendor/openqwf/ 里放的是上游的完整 clone（含 README/docs/
+    examples/config/data/tools），这些**不属于** vendor 范围，检查时必须跳过，
+    否则会把上游自己的文件全报成"未登记的多余文件"。
+    """
+    out: List[Path] = []
+    for pkg in VENDORED_PACKAGES:
+        base = root / pkg
+        if base.is_dir():
+            out.extend(_iter_files(base))
+    for extra in EXTRA_FILES:
+        path = root / extra
+        if path.is_file():
+            out.append(path)
+    return sorted(out)
+
+
 def _check_safe(rel: str) -> None:
     """拒绝 vendor 真机配置 / 密钥类文件。"""
     parts = rel.replace("\\", "/").split("/")
@@ -191,6 +214,14 @@ def _read_meta() -> Optional[Dict]:
 def cmd_sync(args: argparse.Namespace) -> int:
     if args.from_path:
         source = Path(args.from_path).resolve()
+        if source == VENDOR_DIR or VENDOR_DIR in source.parents:
+            # 同步是"整目录替换"：source 若就是 vendor 目录，会先把它清空再拷贝 —— 自杀。
+            raise SystemExit(
+                "--from 不能指向 vendor/openqwf/ 自身或其子目录（同步会先清空目标）。\n"
+                "  2026-11-20 起上游 clone 就放在 vendor/openqwf/ 内：\n"
+                "    更新上游：git -C vendor/openqwf pull\n"
+                "    刷新登记：python tools/sync_openqwf.py --refresh\n"
+                "  或从别处的 clone 同步：--from <其它 clone 目录>")
         if not (source / "qwf").is_dir():
             raise SystemExit(f"不是上游仓（没有 qwf/ 目录）：{source}")
         branch = args.branch or _run_git(["rev-parse", "--abbrev-ref", "HEAD"], source)
@@ -230,6 +261,39 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_refresh(args: argparse.Namespace) -> int:
+    """从仓内 clone（vendor/openqwf/.git）刷新 vendor 快照与 UPSTREAM.json。
+
+    2026-11-20 起上游 clone 就住在 vendor/openqwf/ 里，它的 qwf/ + adapters/
+    工作区**就是** vendor 副本本身。所以"刷新"= 把这两个包恢复到 HEAD，
+    再重算哈希、更新 UPSTREAM.json（commit / branch / synced_at）。
+    """
+    clone = VENDOR_DIR
+    if not (clone / ".git").exists():
+        raise SystemExit("vendor/openqwf/ 不是 git clone，无法 --refresh")
+    paths = list(VENDORED_PACKAGES) + [e for e in EXTRA_FILES if (clone / e).is_file()]
+    _run_git(["checkout", "HEAD", "--"] + paths, clone)
+    branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], clone)
+    commit = _run_git(["rev-parse", "HEAD"], clone)
+    copied: List[str] = []
+    for pkg in VENDORED_PACKAGES:
+        base = clone / pkg
+        if not base.is_dir():
+            continue
+        for path in _iter_files(base):
+            copied.append(f"{pkg}/{path.relative_to(base).as_posix()}")
+    for extra in EXTRA_FILES:
+        if (clone / extra).is_file():
+            copied.append(extra)
+    meta = _write_meta(clone, commit, branch, sorted(copied),
+                       pending_upstream=bool(args.mark_pending_upstream),
+                       note=args.note or "")
+    print(f"已刷新 {len(copied)} 个文件 → {VENDOR_DIR}")
+    print(f"  分支：{meta['branch']}")
+    print(f"  提交：{meta['commit']}")
+    return 0
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     """校验 vendor/ 与 UPSTREAM.json 是否一致（文件集合 + 哈希）。"""
     meta = _read_meta()
@@ -243,7 +307,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         if target.is_file():
             actual[rel] = sha256_of(target)
     # vendor 里出现但没登记的文件 = 手工塞进去的漂移
-    for path in _iter_files(VENDOR_DIR):
+    for path in _iter_vendored_files(VENDOR_DIR):
         rel = str(path.relative_to(VENDOR_DIR)).replace("\\", "/")
         if rel == UPSTREAM_META.name:
             continue
@@ -289,6 +353,8 @@ def main() -> int:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--from", dest="from_path", help="从本地 clone 同步")
     group.add_argument("--remote", action="store_true", help="从 GitHub 拉取后同步")
+    group.add_argument("--refresh", action="store_true",
+                       help="刷新仓内 clone（vendor/openqwf）并更新 UPSTREAM.json")
     group.add_argument("--check", action="store_true", help="校验 vendor 是否漂移")
     group.add_argument("--status", action="store_true", help="显示当前 vendored 版本")
     ap.add_argument("--branch", help=f"上游分支（默认 {DEFAULT_BRANCH}）")
@@ -301,6 +367,8 @@ def main() -> int:
         return cmd_check(args)
     if args.status:
         return cmd_status(args)
+    if args.refresh:
+        return cmd_refresh(args)
     return cmd_sync(args)
 
 
