@@ -26,7 +26,7 @@ import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 DOC_FILES = sorted((ROOT / "docs").glob("*.md")) + [
     p for p in sorted(ROOT.glob("*.md")) if p.is_file()
 ]
@@ -116,7 +116,7 @@ def check_paths() -> None:
 
 
 def load_runner_list(name: str) -> list:
-    src = (ROOT / "run_all_checks.py").read_text(encoding="utf-8")
+    src = (ROOT / "checks" / "run_all_checks.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(

@@ -18,10 +18,10 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活的源目�
 沙箱禁止 subprocess（CreatePipe 被拒），所以检查脚本用 runpy 在当前进程内跑并重定向 stdout。
 
 用法：
-    D:/anaconda3/envs/lqcs/python.exe run_all_checks.py             # 12 套离线自检 + 归档
-    D:/anaconda3/envs/lqcs/python.exe run_all_checks.py --e2e      # 再加 e2e / registry 两套
-    D:/anaconda3/envs/lqcs/python.exe run_all_checks.py --only _p3_check
-    D:/anaconda3/envs/lqcs/python.exe run_all_checks.py --archive-only --window-min 600
+    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py             # 12 套离线自检 + 归档
+    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --e2e      # 再加 e2e / registry 两套
+    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --only _p3_check
+    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --archive-only --window-min 600
 """
 import hashlib
 import io
@@ -35,8 +35,9 @@ import time
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_ROOT = os.path.join(HERE, "_checks")
+HERE = os.path.dirname(os.path.abspath(__file__))  # checks/ 目录（自检脚本与本文件同处）
+ROOT = os.path.dirname(HERE)                       # 仓库根
+OUT_ROOT = os.path.join(ROOT, "_checks")
 
 # 离线套件（不连真机 / 不需要服务）
 OFFLINE = [
@@ -89,16 +90,16 @@ ONLINE = [
 
 # 产物来源：类别 -> (源目录, 只收 mtime 在窗口内的 .json)
 ARTIFACT_SOURCES = {
-    "workflow-runs": os.path.join(HERE, "Agentic Workflow", "qmclaw-server", "data", "workflow-runs"),
-    "ledger": os.path.join(HERE, "Agentic Workflow", "qmclaw-server", "services", "task_queue", "data", "tasks"),
-    "e2e-tasks": os.path.join(HERE, "_p3_e2e_tasks"),
-    "lane-tasks": os.path.join(HERE, "Agentic Workflow", "config", "tasks"),
+    "workflow-runs": os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "data", "workflow-runs"),
+    "ledger": os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "services", "task_queue", "data", "tasks"),
+    "e2e-tasks": os.path.join(ROOT, "_p3_e2e_tasks"),
+    "lane-tasks": os.path.join(ROOT, "Agentic Workflow", "config", "tasks"),
 }
 # 体积大 / 活的源目录：只在 manifest 里记路径
 EXTERNAL_SOURCES = {
     "datavault": "D:/DataVault/LQHL.dir/test.dir/20251103_LD_SQ.dir",
-    "plots": os.path.join(HERE, "Agentic Workflow", "qmclaw-web", "public", "plots"),
-    "reg_snapshots": os.path.join(HERE, "reg_snapshots"),
+    "plots": os.path.join(ROOT, "Agentic Workflow", "qmclaw-web", "public", "plots"),
+    "reg_snapshots": os.path.join(ROOT, "reg_snapshots"),
 }
 
 PASS_RE = re.compile(r"PASS[=:\s]+(\d+)")
@@ -230,7 +231,7 @@ def write_manifest(outdir: str, results: list, items: list, ts: str, note: str =
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "timestamp": ts,
         "note": note,
-        "workspace": HERE,
+        "workspace": ROOT,
         "checks": results,
         "checks_total": len(results),
         "checks_failed": sum(1 for r in results if r["exit_code"] != 0),

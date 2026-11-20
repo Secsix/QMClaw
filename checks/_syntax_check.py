@@ -14,7 +14,7 @@ import ast
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 SKIP_DIRS = {
     ".git", "node_modules", ".next", "_checks", "__pycache__",

@@ -188,7 +188,7 @@ curl -s "http://127.0.0.1:3003/qubit/profile?refresh=1"
   在 `services/common/qubit_state.py`，返回体含 `state` / `reasons` / `missing` / `next_action` / `metrics`。
 - `probe_transition` 的 `method` 限 `pidf` / `spectroscopy` / `iqcenter`；能力缺失时返回
   `not_found`，提示"重启服务无效：需实验室重新编译 lqms 扩展"。
-- `/qubit/profile` 的数据源是 `config/device_profile.json`，由 `D:\qmclaw\_gen_device_profile.py`
+- `/qubit/profile` 的数据源是 `config/device_profile.json`，由 `D:\qmclaw\checks\_gen_device_profile.py`
   生成（只读 `POST /qubit/registry`，**不下发任何实验**）。用 `--dry-run` 先看差异；
   若目标目录不可写，脚本会改写到 `D:\qmclaw\_device_profile.json` 并提示手动拷贝。
 - **fixture 自动录制（`quantum_service.actuation.replay_auto_record`）**：三档
@@ -275,11 +275,11 @@ goal {
 
 ```powershell
 # 读默认 fixture 目录（services/common/replay.py 的 ReplayStore 目录）
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\_replay_regression.py
+D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py
 
 # 指定目录 / 限制条数 / 输出 JSON / 允许 N 条漂移
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\_replay_regression.py --max-drift 2
+D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
+D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-drift 2
 ```
 
 - 结论 `verdict`：`green`（仿真与真机一致）/ `drift`（检出漂移）/ `broken`（fixture 损坏）/
@@ -298,7 +298,7 @@ D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\_replay_regression.py --max-drift 2
      （**只在你自己的实验间隙改**，常开会给每次实验多读两次 LabRAD registry）；
   2. 跑一次实验 → 服务端自动落 `fx-*.json`；
   3. 立刻把该项改回 `off`（默认值）；
-  4. `D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\_replay_regression.py` 看 verdict。
+  4. `D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py` 看 verdict。
 - 设备层报错时**照样会落 fixture，但 `dataset_ids` 为空、status=error** —— 这种 fixture
   不含真机数据，回归只能验证代码路径，不能当"真机覆盖"。
 - **fixture 目录用环境变量钉住**：`QMCLAW_REPLAY_FIXTURE_DIR`（读写两侧都认；`--dir` 优先于它）。
@@ -943,15 +943,15 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"; $env:PYTHONDONTWRITEBYTECODE="1"
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\_p3_check.py
+D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\_p3_check.py
 ```
 
 ### 一次跑完并落盘（推荐）
 
 ```powershell
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\run_all_checks.py          # 12 套离线自检
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\run_all_checks.py --e2e   # 再加 e2e / registry 两套
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\run_all_checks.py --only _p3_check
+D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py          # 12 套离线自检
+D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py --e2e   # 再加 e2e / registry 两套
+D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py --only _p3_check
 ```
 
 输出统一落在 `D:\qmclaw\_checks\<时间戳>\`，**所有 DSL 测试的原始数据都汇总在这里**：
@@ -1015,6 +1015,6 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 2. 跑第四节的自检脚本（离线那几套不需要起服务）
 3. HTTP 那几套（`_p3_e2e.py`）需要 `:3009` 在跑（默认就打正式 :3008/:3009；
    沙箱里要在临时端口验证就设 `QMCLAW_WF_URL` / `QMCLAW_TQ_URL`）：
-   `D:/qmclaw/_tq_test_server.py`（:3019）、`D:/qmclaw/_wf_test_server.py`（:3018，`QMCLAW_QUEUE_URL=http://127.0.0.1:3019`）
+   `D:/qmclaw/checks\_tq_test_server.py`（:3019）、`D:/qmclaw/checks\_wf_test_server.py`（:3018，`QMCLAW_QUEUE_URL=http://127.0.0.1:3019`）
 4. 同步 `.claude/progress.md`（内容写在**文件顶部**）与 `docs/DSL_DESIGN.md`
 5. 请人重启 :3003/:3008/:3009 后再真机复验

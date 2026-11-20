@@ -8,7 +8,7 @@ import glob
 import os
 import sys
 
-REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT = r"D:/qmclaw/Agentic Workflow/qmclaw-server/services/workflow_service"
 if not os.path.isdir(ROOT):
     # 仓库不在上游写死的 D:/qmclaw 下时，用脚本自身位置兜底

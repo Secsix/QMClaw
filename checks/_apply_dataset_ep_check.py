@@ -25,7 +25,7 @@ import sys
 import urllib.error
 import urllib.request
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "services",
                       "quantum_service", "server.py")
 PROXY = os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "src",

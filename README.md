@@ -185,6 +185,26 @@ qmclaw-skills/
 
 ---
 
+### 仓库根目录（2026-11-20 整理后）
+
+```
+QMClaw/
+├── Agentic Workflow/   # 主工程：qmclaw-server（Express + Python 服务）/ qmclaw-web（Next.js）
+├── checks/             # 自检脚本（原根目录 49 个 _*.py）+ run_all_checks.py
+├── experiments/        # 实验脚本与产物：自动化单比特标定 / s21_image / reports / t1_fit
+├── legacy/             # 历史目录（new_ctrl / new_templates / measure_scripts / ...）
+├── docs/               # 设计与运维文档
+├── tools/              # 运维工具（OpenQWF 同步/漂移、比特体检、照片读取、自动标定）
+├── skills/             # Agent 技能
+├── tests/              # 仓库级测试
+├── vendor/             # 上游仓副本（openqwf / hermes-agent / QubitClient ...）
+├── qwf_*.py            # QWF DSL CLI（run / gen / exp / lint / sweep）
+├── start-qmclaw.ps1    # 一键启动（服务启停由人控制）
+└── deploy-local.ps1    # 本机部署
+```
+
+新增文件的落位规则与各目录职责见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。
+
 ## 🏗️ Architecture
 
 ### Six-Layer Execution Stack
