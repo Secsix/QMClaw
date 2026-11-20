@@ -211,7 +211,7 @@ cd "D:\semester4\QMClaw\vendor\hermes-agent";            npm install   # 可选�
 | **task_queue** | 3009 | 标准库 | `redis` **未装**（默认内存后端可用） | ✅ 降级可用 |
 | **qca_service** | 3011 | deepagents, langchain-core, langgraph, fastapi | **vendor QCA 路径**（§2.2 要改） | ❌ 需先修路径 |
 | **hermes_service** | 3012 | `run_agent`（vendor hermes-agent） | **vendor 路径**（§2.1 要拷） | ⚠️ 现在能启但 AIAgent 不可用 |
-| **qubitclient_service** | — | `qubitclient` 0.6.21 ✅ | `config/qubitclient.json`（**不存在**） | ⚠️ 缺配置文件 |
+| **qubitclient_service** | 3010 | `qubitclient` 0.6.21 / **vendor 源码**（自动挂 sys.path） | `config/qubitclient.json` ✅ **2026-11-20 已配好**（本机文件，gitignored） | ✅ VLM 实测跑通 |
 | Express 网关 | 3002 | — | Node + `PYTHON_BIN` | ✅ |
 | Next.js 前端 | 8081* | — | Node | ✅ |
 | LabRAD 服务 | 7682 | `lqcs` ✅ | 需要**手动启动** | ✅ 包就绪 |
@@ -275,12 +275,15 @@ cd "D:\semester4\QMClaw\Agentic Workflow\qmclaw-web"; npm run dev
 | `redis` | `redis` | task_queue 的 Redis 后端（默认内存后端可用） | `& $PY -m pip install redis` |
 | `swiftmcp` | `swiftmcp` | 根目录 `mcp_tools_new.py` 的 MCP 服务 | `& $PY -m pip install swiftmcp` |
 
-另有两个"包在但没配好"的：
+另有一个"包在但没装进环境"的：
 
-- **`qubitclient_service`** 需要 `config/qubitclient.json`，现在不存在。它会依次找
-  `services/qubitclient_service/config/qubitclient.json` → `qmclaw-server/config/qubitclient.json`
-  → `vendor/QubitClient/qubitclient.json` → `./qubitclient.json`。
-  `deploy\vendor\QubitClient\qubitclient.json.example` 是模板。
+- **`qubitclient_service`** 要 `config/qubitclient.json`（本机文件，gitignored）。
+  **2026-11-20 已配好并实测跑通 VLM**（`nv-community/Ising-Calibration-1-35B-A3B`）。
+  搜索顺序：`qmclaw-server/config/qubitclient.json` → `Agentic Workflow/vendor/QubitClient/qubitclient.json`
+  → `./qubitclient.json`；模板是 `config/qubitclient.example.json`。
+  `qubitclient` 包**不需要** `pip install -e`：`services/qubitclient_service/server.py` 会自动把
+  `vendor/QubitClient` 挂上 `sys.path`（`_find_vendor_qubitclient()`）。改配置后
+  `POST :3010/reload` 即可，不必重启。
 - **`torch` 是 CPU 版**（`2.14.0+cpu`），图像推理没有 GPU 加速。
 
 **不要装** `quanputing` / `quanputing_server` 这两个轮子：项目代码零引用，且会与现有环境产生
