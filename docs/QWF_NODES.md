@@ -43,11 +43,12 @@
 
 ## 3. qiskit 后端的三个限制（不是 bug，是能力边界）
 
-1. **没有 DataVault 数据集**：`experiment` 节点结果里 `dataset_id` 是 `null`，
-   因此 `read`（contrast 要 int datasetId）与 `analyze`（qter.fitData 要 dataset_id）都拿不到抓手。
-2. **contrast 代码片段属于 lqcs**：即使给了 datasetId，qiskit 后端也跑不了那段读出对比度代码。
-3. **没有画图以外的语义**：`vlm`/`classify` 想吃 `plotPath` 是可以的（qiskit 也出图），
-   但 VLM/分类服务本身要单独配置。
+1. **缺少 DataVault 数据集**：`experiment` 节点的结果中 `dataset_id` 为 `null`，
+   因此 `read`（contrast 需要整数 datasetId）与 `analyze`（`qter.fitData` 需要 dataset_id）均缺少输入。
+2. **contrast 的实现片段依赖 lqcs**：即便提供 datasetId，qiskit 后端也无法执行该读出对比度片段。
+3. **图像类节点的输入可用，但服务需另行配置**：`vlm` 与 `classify` 消费的是 `plotPath` 指向的图像，
+   qiskit 后端同样产出该图像，因此输入侧不构成限制；实际的前置条件是 VLM 服务与图像分类服务
+   自身的配置与模型加载状态。
 
 结论：**qiskit 演示路径下，只有 experiment / 控制类 / ask / decide / say 是可用的**；
 read/analyze 属于"真机 + LabRAD"才有的能力。写工作流时要么避开，要么用 `onError continue`。
