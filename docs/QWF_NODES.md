@@ -19,7 +19,7 @@
 | `decide` | `decision` | workflow_service 直调 LLM | ✅（需 `config/qubitclient.json`） |
 | `ask <question>` | `ask` | 本地 `_exec_ask` | ✅ 终态 `needs_human` |
 | `ask { prompt }`（无 question） | `llm` | llm_service :3006 | ✅ |
-| `vlm` | `image_analysis` | qubitclient :3010 | ⚠️ 缺配置即 failed（不再假完成） |
+| `vlm` | `image_analysis` | qubitclient :3010 | ✅ 2026-11-20 配好并跑通（模型/端点见 §5） |
 | `classify` | `image_classification` | image_service :3007 | ⚠️ 需已训练模型 |
 | `assert` | `quality_gate` | 本地 | ✅ |
 | `apply` | `adjust_params` | 本地 | ✅ |
@@ -37,7 +37,7 @@
 | `p_control.qwf` | `completed`（35.1s）：`c1`/`ap1`/`g1` + 达标分支 `s2` 执行、`s3` skipped，`repeat` 第二轮 `c2`、`s5` 完成 |
 | `p_notify.qwf` | `completed`，`notify` 与 `print` 两个节点都产出 message |
 | `p_measure_decide.qwf` | `completed`，`d1` 返回 `choice="sq.ramsey_df"`（MiniMax-M2.7），`if` 据此走 `s3` 分支 ✓ |
-| `p_measure_vlm.qwf` | **修复前假 completed**；修复后后端不可用时 `failed` |
+| `p_measure_vlm.qwf` | 配置前：**假 completed**（两个子请求 500 被吞）→ 修语义后 `failed`；2026-11-20 配上真实 key 后 **`completed` 且 `degraded=false`**，读出 `t1_us=8e-05`、`decay_visible=true` 与英文描述 |
 | `p_measure_classify.qwf` | `failed`：`Model not loaded`（image_service 未训练/未加载模型）✓ 失败语义正确 |
 | `p_measure_read_analyze.qwf` | `failed`：`实验模拟器未初始化，且当前没有可用的模拟后端`——contrast 走异步 job 的 lqcs 代码片段，qiskit 后端不支持 |
 
@@ -72,14 +72,41 @@ read/analyze 属于"真机 + LabRAD"才有的能力。写工作流时要么避�
 | 段 | 消费者 | 生效时机 | key 来源 |
 |----|--------|----------|----------|
 | `llm_decision` | workflow_service 的 `decision` 节点 | 每次调用重读 → 立即生效 | `api_key` 或 `api_key_env`（可读 `.env`） |
-| `llm` | qubitclient_service :3010（VLM） | **只在服务启动时读** → 改完要重启 | 只认文件里的 `api_key`；`QubitLLM` 不读环境变量 |
+| `llm` | qubitclient_service :3010（VLM） | 启动时读；改完 `POST /reload` 或重启 | 只认文件里的 `api_key`；`QubitLLM` 不读环境变量 |
+| `url` / `api_key` | 其它直连 QubitClient 云端的调用方 | — | 顶层 JWT |
+| `generate` | 图像生成（Qwen-Image-Edit，另一套端点） | — | 该段自带 `api_key` |
 
 仓库里现在有 `config/qubitclient.example.json`（模板，入库）；
 真文件 `config/qubitclient.json` 在 `.gitignore` 里，绝不入库。
 
+**2026-11-20 已配好并实测跑通**（模型 `nv-community/Ising-Calibration-1-35B-A3B`，
+OpenAI 兼容端点 `http://8.134.196.16:13001/v1`）。端到端 `p_measure_vlm.qwf` 走
+:3008 → :3010 → VLM，`v1` 节点返回：
+
+```json
+{"status": "completed", "degraded": false, "vlm_errors": [],
+ "t1_us": 8e-05, "decay_visible": true,
+ "description": "The plot shows the decay of the qubit's excited state population ...",
+ "metrics": {"t1_us": 8e-05, "decay_visible": true, "plot_type": "line"}}
+```
+
+配套改的两处（都在 `services/qubitclient_service/server.py`）：
+
+1. **`vendor/QubitClient` 自动挂 `sys.path`**（`_find_vendor_qubitclient()`）——
+   不要求先 `pip install -e vendor/QubitClient`；否则 `from qubitclient.llm import ...`
+   报 ModuleNotFoundError，表现成"配置对了还是跑不通"。
+2. **配置自愈 + 热重载**：`_ensure_loaded()` 在 `initialized=false` 时每次请求重试读盘
+   （本机文件是 gitignored 的，第一次启动时不存在，原来是永久 503 只能重启）；
+   `POST /reload` 强制重读并丢弃旧 client（换 key / 换 model 不用重启进程）。
+   回归测试：`tests/test_qubitclient_service_reload.py`（5 passed）。
+
+VLM 的 `imagePath` 来自上游 `measure` 出的图（qiskit 也会出图），所以 qiskit 后端下
+`vlm` 节点确实"看得到图"——这是它和 `classify`/`analyze` 的关键差别。
+
 ## 6. 还没解决的（按优先级）
 
-1. **VLM 真要能用**：得填 `llm.api_key`（`QubitLLM` 只认文件，与「key 走环境变量」的约定冲突），
-   并确认 MiniMax 的 OpenAI 兼容端点（`QubitLLM` 用 `OpenAI` 客户端，不是 anthropic 协议）。
-2. **classify**：image_service 需要先训练/加载模型（`model_loaded: false`）。
-3. **read/analyze 在 qiskit 下**：要不要做"从 experiment 结果直接拟合"的本地通路，待定。
+1. **classify**：image_service 需要先训练/加载模型（`model_loaded: false`）。
+2. **read/analyze 在 qiskit 下**：要不要做"从 experiment 结果直接拟合"的本地通路，待定。
+3. **`vlm c1` 的字段语义**：`parse_dataset_ref` 会把无点号的 ref 补成 `$c1.dataset`，
+   而 `image_analysis` 要的是图片路径。现在能跑是因为 `measure` 之后上游把图路径写进了节点；
+   语义仍然别扭，考虑在上游 lint 加一条诊断。

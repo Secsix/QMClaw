@@ -24,11 +24,18 @@
 
 ## A. 只能由你们提供的东西（我方补不了）
 
-### A1 🔴 `config/qubitclient.json` —— LLM/决策服务起不来
+### A1 ✅ `config/qubitclient.json` —— **2026-11-20 本机已配好**（曾导致 LLM/决策服务起不来）
+
+> **状态更新（2026-11-20）**：用户提供了真实 `qubitclient.json`（含 VLM 端点
+> `http://8.134.196.16:13001/v1` + `nv-community/Ising-Calibration-1-35B-A3B`），
+> `GET :3010/health` → `healthy` / `initialized: true`，`.qwf` 的 `vlm` 节点端到端跑通，
+> `decide` 也在早前用 `llm_decision` 段跑通。文件本身仍**不入库**（下列约束不变）。
+> 顺带修掉两个"配置对不对都跑不通"的坑：`vendor/QubitClient` 自动挂 `sys.path`、
+> 配置缺失自愈 + `POST /reload` 热重载（见 `docs/QWF_NODES.md` §5）。
 
 | | |
-|---|---|
-| **现状（实测）** | `qubitclient_service`（:3010）`/health` → **HTTP 503**，`status: degraded`，`error: "No LLM configuration found in qubitclient.json"`，`initialized: false` |
+|---|---|---|
+| **现状（实测）** | ~~`qubitclient_service`（:3010）`/health` → **HTTP 503**，`error: "No LLM configuration found in qubitclient.json"`~~ → 本机现在 `healthy` |
 | **为什么不能自己造** | 该文件含**实验室内网地址与 API Key**。上游不但排除了它，2026-11-12 还加了一条"兜底忽略**任意层级**的 `qubitclient.json`"（`c7ec2b9`）—— 即**明确不会入库** |
 | **影响** | ① `.qwf` 里的 **`decide` / `ask` 节点**（走 LLM 决策）在这台机器上**完全不可用**；② `_p2_llm_check.py` 的 6 条配置断言只能判 SKIP；③ `/api/services/health` 里 LLM 相关能力标 `unavailable` |
 
@@ -207,7 +214,7 @@
 
 | # | 项 | 期望 | 当前 |
 |---|---|---|---|
-| 1 | `GET :3010/health` | `healthy` / `initialized: true` | ❌ 503 degraded（缺 `qubitclient.json`） |
+| 1 | `GET :3010/health` | `healthy` / `initialized: true` | ✅ **已达成**（2026-11-20 配上真实 `qubitclient.json`，VLM 端到端跑通） |
 | 2 | `GET :3004/health` | `healthy` / `datalab_connected: true` | ✅ **已达成** |
 | 3 | analysis_service `offlineAvailable` | `true` | ❌ false（缺离线数据包） |
 | 4 | 7 份设计文档 | 新 clone 后可见 | ⚠️ 2/7（缺 `DSL_DESIGN` / `DSL_FACTS` / `DSL_EXPERIMENTS` / `BACKEND_ADAPTERS` / `TUNEUP_FLOW`） |

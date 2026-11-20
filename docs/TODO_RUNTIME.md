@@ -41,7 +41,7 @@
 | B-3（原 P4-15） | 两个 `run-dev.cmd` 改为**优先 AutoClaw、否则用 PATH 上的 node**，找不到 node 时报错退出（本机 node 在 `C:\Program Files\nodejs`） |
 | B-4（原 P4-16） | `test_offline.py:65` 改为相对 `__file__` 解析 `data/offline_data` 并带缺失提示；`test_load_qubits.py:39,45` 输出改到脚本同目录。实测 `test_offline.py` 现在能直接跑通 |
 | B-5（原 P4-17） | `qubitclient_service/requirements.txt` 的 `-e` 路径由 3 级改为 **4 级**（`../../../../vendor/QubitClient`），实测解析到 `D:\semester4\QMClaw\vendor\QubitClient` 且含 `pyproject.toml`；同时修了 `server.py:152` 的误导性报错提示 |
-| B-6（原 P1-4） | 创建 `config/qubitclient.json`（按 `qubitclient.json.example` 结构）。实测服务能加载，`initialized=True`。**`api_key` 仍是 `REPLACE_ME`，待填**。该文件已在 `.gitignore` 中 |
+| B-6（原 P1-4） | 创建 `config/qubitclient.json`（按 `qubitclient.json.example` 结构）。实测服务能加载，`initialized=True`。**`api_key` 仍是 `REPLACE_ME`，待填**。该文件已在 `.gitignore` 中 —— **2026-11-20 已填真实 key，VLM 端到端跑通（见 `docs/QWF_NODES.md` §5）** |
 
 ### 审核新发现
 

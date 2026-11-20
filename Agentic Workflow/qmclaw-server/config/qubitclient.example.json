@@ -4,11 +4,15 @@
     "两段配置喂给两个不同的消费者，别混：",
     "  llm          → qubitclient_service（:3010，VLM 看图：/extract_params、/describe）",
     "  llm_decision → workflow_service 的 decide 节点（文本决策，走 qwf/llm.py）",
-    "api_key 可以留空，改用环境变量（优先级高于文件）：",
+    "llm_decision 的 api_key 可以留空，改用环境变量（优先级高于文件）：",
     "  QWF_LLM_API_KEY / QWF_LLM_BASE_URL / QWF_LLM_MODEL / QWF_LLM_PROVIDER",
     "或者在该段里写 api_key_env: \"MY_ENV_NAME\"，由 loader 去环境里取。",
-    "注意：qubitclient_service 只在启动时读本文件 —— 改完要重启 :3010 才生效；",
-    "      workflow_service 每次调 decide 都重读，改完立即生效。"
+    "注意：qubitclient_service 只在启动时读本文件 —— 改完要重启 :3010（或 POST /reload）才生效；",
+    "      workflow_service 每次调 decide 都重读，改完立即生效。",
+    "llm.api_key 必须写在文件里：QubitLLM 用 OpenAI 客户端，传空串不会回退到 OPENAI_API_KEY。",
+    "llm.base_url 要带 /v1（例：http://host:13001/v1），模型名形如 nv-community/Ising-Calibration-1-35B-A3B。",
+    "顶层 url / api_key 是直连 QubitClient 云端用的（JWT），与上面两段无关。",
+    "generate 段是图像生成（Qwen-Image-Edit 一类），端点又是另一套，键名同为 api_key/base_url/model。"
   ],
   "url": "http://localhost:3002",
   "api_key": "",

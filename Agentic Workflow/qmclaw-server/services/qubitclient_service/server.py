@@ -20,6 +20,21 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# `qubitclient` 是 vendor 里的源码副本（vendor/QubitClient），不要求先 `pip install -e`。
+# 没装进环境时把它挂上 sys.path 即可 —— 否则 VLM 一定报 ModuleNotFoundError。
+# 注意 `project_root` 是 "Agentic Workflow"，vendor 在**仓库根**，要再往上找一层。
+def _find_vendor_qubitclient() -> "Path | None":
+    for parent in (project_root, *project_root.parents):
+        cand = parent / "vendor" / "QubitClient"
+        if (cand / "qubitclient" / "__init__.py").exists():
+            return cand
+    return None
+
+
+_vendor_qubitclient = _find_vendor_qubitclient()
+if _vendor_qubitclient is not None and str(_vendor_qubitclient) not in sys.path:
+    sys.path.append(str(_vendor_qubitclient))
+
 from services.base import BaseService, ServiceConfig, run_service, _safe_print
 
 
@@ -157,6 +172,27 @@ class QubitClientService(BaseService):
 
         return self._qubit_llm
 
+    def _ensure_loaded(self) -> None:
+        """配置没加载成功就**再试一次**（自愈）。
+
+        背景：`_load_config()` 只在 `__init__` 里跑一次，而 `config/qubitclient.json`
+        在整个仓库里是 gitignored 的本机文件 —— 第一次启动时文件还不存在，
+        服务就永久停在 `initialized=false`，之后把文件补好也还是 500，
+        必须重启进程。加上这条后：文件一出现，下一次请求自己就好了。
+        """
+        if self._initialized:
+            return
+        self._load_config()
+
+    def _reload_config(self) -> Dict[str, Any]:
+        """强制重读配置（换了 key / model 不想重启就用 `/reload`）。"""
+        self._qubit_llm = None
+        self._init_error = ""
+        self._initialized = False
+        self._llm_config = {}
+        self._load_config()
+        return {"ok": self._initialized, **self._handle_health()}
+
     def _decode_image(self, image_data: str) -> Image.Image:
         """解码 base64 图像数据"""
         try:
@@ -170,9 +206,13 @@ class QubitClientService(BaseService):
 
     def handle_request(self, method: str, path: str, data: Dict[str, Any], query: Dict[str, List[str]]) -> Dict[str, Any]:
         """处理请求"""
+        # 配置缺失时自愈（见 _ensure_loaded 的注释）
+        self._ensure_loaded()
         # 路由
         if path == "/health":
             return self._handle_health()
+        elif path == "/reload":
+            return self._reload_config()
         elif path == "/families":
             return self._handle_families()
         elif path == "/describe":

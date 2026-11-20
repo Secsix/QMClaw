@@ -2723,4 +2723,40 @@ selftest 258/259、reliability 117/130、usability 10/10、rules 48/48、e1verif
 - 验证：`pytest tests` **139 passed / 1 skipped**；`_syntax_check.py` PASS=392 FAIL=0；
   `_docs_paths_check.py` PASS=6 FAIL=0
 
+## 2026-11-20 10:30 — VLM 真正接通（真实 key）+ 修两处"配置对了也跑不通"的坑
+
+用户给了真实 `qubitclient.json`（`D:\Documents\Downloads\qubitclient.json`），要求把 vlm 配好。
+
+### 配好的内容（`Agentic Workflow/qmclaw-server/config/qubitclient.json`，gitignored）
+- `llm` = `http://8.134.196.16:13001/v1`（OpenAI 兼容）+ `nv-community/Ising-Calibration-1-35B-A3B`
+  + 真实 `sk-` key；`generate`（Qwen-Image-Edit 端点）与顶层 `url`/`api_key`(JWT) 原样保留；
+  我原来的 `llm_decision`（MiniMax，decide 用）合并保留 —— **一个文件喂三个消费者**。
+
+### 修掉两个坑（都在 `services/qubitclient_service/server.py`）
+1. **`vendor/QubitClient` 自动挂 `sys.path`**（`_find_vendor_qubitclient()`）：
+   本机 anaconda 环境**没装** `qubitclient`（`pip show` 查无），服务里
+   `from qubitclient.llm import ...` 直接 ModuleNotFoundError。改为向上找
+   `vendor/QubitClient/qubitclient/__init__.py` 并 append 到 `sys.path`。
+   注意 `project_root` 算出来是 `Agentic Workflow`，vendor 在**仓库根**，要多上一级。
+2. **配置自愈 + 热重载**：`_ensure_loaded()` 在 `initialized=false` 时每次请求重试读盘
+   （本机文件 gitignored，第一次启动时不存在 → 原来永久 503，只能重启）；
+   新增 `POST /reload` 强制重读并丢弃旧 client（换 key/model 不用重启）。
+
+### 实测（三层都验了）
+- 进程内直连：`.claude/tmp/probe_vlm_direct.py`（绕过服务）+ `.claude/tmp/probe_vlm_service.py`
+  （走 service 类）→ `/extract_params` 返回 `{"T1_us": 6e-05, "decay_visible": true}`，
+  `/describe` 返回带 x/y 轴与英文描述的结构化结果，`/reload` → `ok: true`。
+- 服务级：用户重启 :3010 后 `GET /health` → `healthy` / `initialized: true` / 模型正确。
+- 端到端：`qwf_run.py .claude/tmp/qwf_nodes/p_measure_vlm.qwf --if yes` → completed 25.1s，
+  `v1` 节点 `degraded=false`、`vlm_errors=[]`、`t1_us=8e-05`、`decay_visible=true`（有真英文描述）。
+
+### 文档 / 测试
+- 新增 `tests/test_qubitclient_service_reload.py`（5 passed）：自愈只读一次、`/reload` 丢旧 client、
+  路由挂上、vendor 路径在 `sys.path`。
+- `docs/QWF_NODES.md` §5 重写（含实测 JSON）+ 全景表 vlm 改 ✅ + 待办里补 "vlm c1 字段语义"
+- `docs/RUNTIME_DEPS.md`、`docs/UPSTREAM_GAP_LIST.md`（A1 与验收清单第 1 项）、
+  `docs/DEPLOY_LOCAL.md`（§6.5 与首页表格）、`docs/TODO_RUNTIME.md`（B-6）同步成"已配好"
+- `config/qubitclient.example.json` 的 `_comment` 补：`llm.api_key` 必须写文件、base_url 要带 `/v1`、
+  顶层 `url/api_key` 与 `generate` 各是什么
+
 

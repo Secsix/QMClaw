@@ -25,7 +25,7 @@
 | 写闸门 | 🔓 **已打开**（`quantum_service` 两项 = `true`，**全局生效**），见 §10.3 |
 | LLM API Key | ⚠️ 未填，见 §6.3 |
 | 离线数据 `data/offline_data` | ⚠️ 空目录；真机已可用，暂时不需要它，见 §6.2 |
-| `qubitclient.json` | ⚠️ 未创建，见 §6.5 |
+| `qubitclient.json` | ✅ 已创建（VLM 已跑通），见 §6.5 |
 | 服务是否已启动 | 否 —— 按项目约定 3，启停由人操作，见 §5 |
 
 ---
@@ -252,14 +252,19 @@ spawn `scripts/job_runner.py`（legacy 单体模式），只需启 ②③ 两步
 用的 `tsx` / `next dev` 不做类型检查。**本机部署只支持 dev 模式**，生产构建需要
 先修类型错误。
 
-### 6.5 `qubitclient.json` 未创建
+### 6.5 `qubitclient.json` —— ✅ 2026-11-20 已创建（本机文件）
 
 `qubitclient_service` 会依次找
 `services/qubitclient_service/config/` → `qmclaw-server/config/` →
-`vendor/QubitClient/` → `./`。现在都没有，服务会以 `initialized=False` 启动
-（只影响 QubitClient/NNScope 相关能力）。
-模板是 `vendor/QubitClient/qubitclient.json.example`。
-注意该文件含实验室内部地址与 Key，已被 `.gitignore` 全局忽略，**不要提交**。
+`vendor/QubitClient/` → `./`。本机现在放在 `qmclaw-server/config/qubitclient.json`，
+已实测 `GET :3010/health` → `healthy`，`.qwf` 的 `vlm` 节点端到端跑通
+（模型 `nv-community/Ising-Calibration-1-35B-A3B`）。
+模板是 `config/qubitclient.example.json`（入库）；真文件含实验室内部地址与 Key，
+已被 `.gitignore` 全局忽略，**不要提交**。
+
+改这个文件后**不用重启**：`POST :3010/reload` 即可热重载（服务启动时缺文件也能自愈，
+见 `docs/QWF_NODES.md` §5）。`qubitclient` 包也不需要 `pip install -e`，
+`services/qubitclient_service/server.py` 会自动把 `vendor/QubitClient` 挂上 `sys.path`。
 
 ### 6.6 `experiment_configs.json` 里有 6 个名字对不上 `sq_nodes`
 
