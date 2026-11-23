@@ -248,7 +248,7 @@ export default function AnalysisCommandEditor({
             {result.success && result.metrics && Object.keys(result.metrics).length > 0 && (
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(120px, 100%), 1fr))",
                 gap: "0.5rem",
                 marginBottom: "0.5rem",
               }}>

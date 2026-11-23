@@ -387,7 +387,8 @@ export default function ExperimentConfigs({ onClose }: ExperimentConfigsProps) {
             </div>
           ) : (
             /* Config List */
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "520px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #334155" }}>
                   <th style={{ textAlign: "left", padding: "0.5rem", color: "#94a3b8", fontSize: "0.75rem" }}>Type</th>
@@ -444,7 +445,8 @@ export default function ExperimentConfigs({ onClose }: ExperimentConfigsProps) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           )}
         </div>
       </div>

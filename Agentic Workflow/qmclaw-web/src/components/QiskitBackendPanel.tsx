@@ -20,6 +20,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { api, normalizePlotUrl } from '../lib/api';
+import useViewport from '../hooks/useViewport';
 
 interface Props {
   onClose: () => void;
@@ -105,6 +106,7 @@ function statusStyle(status: string | undefined): { color: string; label: string
 }
 
 export default function QiskitBackendPanel({ onClose }: Props) {
+  const { isNarrow } = useViewport();
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [experiments, setExperiments] = useState<ExperimentSpec[]>([]);
   const [coverage, setCoverage] = useState<Record<string, unknown> | null>(null);
@@ -266,10 +268,10 @@ export default function QiskitBackendPanel({ onClose }: Props) {
         </div>
 
         {/* Body: 左目录 / 右表单+结果 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '280px 1fr', flex: 1, minHeight: 0 }}>
 
           {/* 实验目录 */}
-          <div style={{ borderRight: `1px solid ${C.border}`, overflowY: 'auto', padding: '10px' }}>
+          <div style={{ borderRight: isNarrow ? 'none' : `1px solid ${C.border}`, borderBottom: isNarrow ? `1px solid ${C.border}` : 'none', overflowY: 'auto', padding: '10px', maxHeight: isNarrow ? '180px' : undefined }}>
             <div style={{ fontSize: '11px', color: C.dim, marginBottom: '8px', padding: '0 4px' }}>
               实验目录（与真机词表同名）
             </div>

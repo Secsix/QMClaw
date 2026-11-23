@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../../lib/api";
 import { normalizeStoredWorkflow } from "../../lib/qwfBridge";
+import useViewport from "../../hooks/useViewport";
 
 export interface StoredWorkflow {
   id: string;
@@ -70,6 +71,7 @@ const CARD_COLORS = [
 ];
 
 export default function WorkflowListView({ onSelectWorkflow, onCreateNew }: Props) {
+  const { isNarrow } = useViewport();
   const [workflows, setWorkflows] = useState<StoredWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -314,7 +316,7 @@ export default function WorkflowListView({ onSelectWorkflow, onCreateNew }: Prop
       ) : (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(min(160px, 100%), 1fr))",
           gap: "8px",
           overflow: "auto",
           flex: 1,
@@ -526,9 +528,9 @@ export default function WorkflowListView({ onSelectWorkflow, onCreateNew }: Prop
               background: "#0f172a",
               border: "1px solid #334155",
               borderRadius: "10px",
-              padding: "24px",
-              width: "380px",
-              maxWidth: "90vw",
+              padding: isNarrow ? "16px" : "24px",
+              width: "min(380px, 92%)",
+              maxWidth: "100%",
             }}
           >
             <h3 style={{

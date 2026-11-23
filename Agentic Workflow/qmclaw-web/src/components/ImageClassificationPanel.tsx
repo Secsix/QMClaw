@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
+import useViewport from "../hooks/useViewport";
 
 interface ClassificationResult {
   imagePath: string;
@@ -36,6 +37,7 @@ interface Stats {
 }
 
 export default function ImageClassificationPanel() {
+  const { isNarrow, isCompact } = useViewport();
   // ── State ─────────────────────────────────────────────────────────────────
   const [folderPath, setFolderPath] = useState("");
   const [backend, setBackend] = useState("pytorch");
@@ -162,7 +164,7 @@ export default function ImageClassificationPanel() {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "1fr 320px",
+      gridTemplateColumns: isNarrow ? "1fr" : isCompact ? "1fr 240px" : "1fr 320px",
       gap: "16px",
       height: "100%",
       overflow: "hidden",
@@ -220,7 +222,7 @@ export default function ImageClassificationPanel() {
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
             <div>
               <label style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px", display: "block" }}>推理后端</label>
               <select

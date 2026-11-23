@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
+import useViewport from "../hooks/useViewport";
 
 // ── Theme Colors (matching hubui) ─────────────────────────────────────────────
 
@@ -435,6 +436,7 @@ function AddMemoryForm({ onAdd }: { onAdd: (content: string) => void }) {
 }
 
 function MemorySection() {
+  const { isNarrow } = useViewport();
   const [memory, setMemory] = useState<MemoryState | null>(null);
   const [user, setUser] = useState<MemoryState | null>(null);
   const [activeTab, setActiveTab] = useState<'memory' | 'user'>('memory');
@@ -484,7 +486,7 @@ function MemorySection() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: '16px' }}>
       {/* Agent Memory */}
       <div style={{ background: THEME['bg-deep'], border: `1px solid ${THEME.border}`, borderRadius: '8px', padding: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -582,6 +584,7 @@ function SkillItem({ skill }: { skill: SkillInfo }) {
 }
 
 function SkillsSection() {
+  const { isNarrow } = useViewport();
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null);
   const [skillContent, setSkillContent] = useState<string | null>(null);
@@ -654,7 +657,7 @@ function SkillsSection() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: selectedCategory ? '300px 1fr' : '1fr', gap: '16px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: selectedCategory ? (isNarrow ? '1fr' : '300px 1fr') : '1fr', gap: '16px' }}>
       {/* Category list with bar chart */}
       <div style={{ background: THEME['bg-deep'], border: `1px solid ${THEME.border}`, borderRadius: '8px', padding: '16px' }}>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -1026,7 +1029,7 @@ function CronJobCard({ job, onPause, onResume, onRun, onDelete }: {
       {/* Job details grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(120px, 100%), 1fr))',
         gap: '12px',
         fontSize: '12px',
       }}>

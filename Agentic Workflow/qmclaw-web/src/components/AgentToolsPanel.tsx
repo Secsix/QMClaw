@@ -149,7 +149,7 @@ function McpToolsPanel() {
       {servers.length > 0 && (
         <div>
           <div style={{ fontSize: "11px", color: "#475569", marginBottom: "6px", fontWeight: 700 }}>MCP SERVERS</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "8px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: "8px" }}>
             {servers.map(srv => (
               <div key={srv.id} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", padding: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
@@ -174,7 +174,7 @@ function McpToolsPanel() {
       {tools.length > 0 && (
         <div>
           <div style={{ fontSize: "11px", color: "#475569", marginBottom: "6px", fontWeight: 700 }}>MCP TOOLS ({tools.length})</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "8px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: "8px" }}>
             {tools.map(tool => (
               <div key={tool.id} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", padding: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
@@ -409,7 +409,7 @@ function SkillsPanel() {
       </div>
 
       {/* Skill list */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: "10px" }}>
         {skills.map(skill => (
           <div key={skill.id} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: "8px", padding: "12px" }}>
             <div style={{ fontWeight: 700, color: "#e2e8f0", fontSize: "13px", marginBottom: "4px" }}>{skill.name}</div>

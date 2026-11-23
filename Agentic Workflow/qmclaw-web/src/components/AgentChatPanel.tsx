@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
+import useViewport from "../hooks/useViewport";
 import { useModelStore } from "../store/modelStore";
 import MemoryPanel from "./MemoryPanel";
 import AgentToolsPanel from "./AgentToolsPanel";
@@ -150,6 +151,7 @@ const SESSION_STATUS_STYLE: Record<string, { color: string; label: string }> = {
 };
 
 export default function AgentChatPanel() {
+  const { isNarrow, isCompact } = useViewport();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState("react");
@@ -508,10 +510,11 @@ export default function AgentChatPanel() {
 
       {/* Content area - switch between views */}
       {activeView === "chat" && (
-      <div style={{ flex: 1, display: "flex", gap: "12px", minHeight: 0 }}>
+      <div style={{ flex: 1, display: "flex", gap: "12px", minHeight: 0, flexDirection: isNarrow ? "column" : "row" }}>
         {/* Session sidebar */}
         <div style={{
-          width: "210px",
+          width: isNarrow ? "100%" : isCompact ? "170px" : "210px",
+          maxHeight: isNarrow ? "160px" : undefined,
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",

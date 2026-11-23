@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api, WorkflowRun, WorkflowRunNode } from "../../lib/api";
+import useViewport from "../../hooks/useViewport";
 
 interface Props {
   workflowId: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function WorkflowRunHistory({ workflowId, workflowName, onBack }: Props) {
+  const { isNarrow } = useViewport();
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
@@ -157,7 +159,7 @@ export default function WorkflowRunHistory({ workflowId, workflowName, onBack }:
       {/* Main content */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: selectedRun ? "300px 1fr" : "1fr",
+        gridTemplateColumns: selectedRun ? (isNarrow ? "1fr" : "300px 1fr") : "1fr",
         gap: "12px",
         flex: 1,
         minHeight: 0,

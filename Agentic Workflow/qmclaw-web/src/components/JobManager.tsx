@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { api, JobResult } from "../lib/api";
+import useViewport from "../hooks/useViewport";
 
 interface JobEntry extends JobResult {
   id: string;
@@ -37,6 +38,7 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function JobDetailPanel({ job }: { job: JobEntry }) {
+  const { isNarrow } = useViewport();
   const hasPlot = job.plotPath && job.status === "completed";
   return (
     <div style={{
@@ -56,7 +58,7 @@ function JobDetailPanel({ job }: { job: JobEntry }) {
         <span>JOB DETAIL — {job.qubit || "?"}-{job.experiment || "?"} (ID: {job.id.slice(0, 12)}...)</span>
         <span style={{ color: "#64748b" }}>{job.status}</span>
       </div>
-      <div style={{ display: "flex", minHeight: 0 }}>
+      <div style={{ display: "flex", flexDirection: isNarrow ? "column" : "row", minHeight: 0 }}>
         {/* Left: stdout */}
         <div style={{ flex: 1, padding: "0.5rem 0.75rem", minWidth: 0, overflow: "auto" }}>
          <div style={{ fontSize: "0.65rem", color: "#475569", marginBottom: "0.25rem" }}>STDOUT</div>
@@ -83,8 +85,9 @@ function JobDetailPanel({ job }: { job: JobEntry }) {
         {/* Right: plot */}
         {hasPlot && (
           <div style={{
-            width: "280px", flexShrink: 0,
-            borderLeft: "1px solid #1e293b",
+            width: isNarrow ? "100%" : "280px", flexShrink: 0,
+            borderLeft: isNarrow ? "none" : "1px solid #1e293b",
+            borderTop: isNarrow ? "1px solid #1e293b" : "none",
             padding: "0.5rem",
           }}>
             <div style={{ fontSize: "0.65rem", color: "#475569", marginBottom: "0.25rem" }}>PLOT</div>

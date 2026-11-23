@@ -1,0 +1,70 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * responsive.css — 全局窄屏适配辅助
+ *
+ * 组件内部的布局断点由 src/hooks/useViewport.ts 在 JS 侧判断（inline style 写不了媒体查询）；
+ * 这个文件只放「与具体组件无关」的全局规则：
+ *   - 根容器高度（100vh → 100dvh，iframe / 移动端地址栏更稳）
+ *   - 横向滚动条容器（tab 栏等）
+ *   - 长文本 / 代码块折行，避免窄窗口横向溢出
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.qm-root {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .qm-root {
+    height: 100dvh;
+  }
+}
+
+/* 横向滚动但不显示滚动条（窄屏 tab 栏） */
+.qm-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.qm-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* 长单词 / 长命令折行 */
+.qm-wrap-any {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* markdown / 代码块：窄屏不撑破容器 */
+.qm-markdown pre,
+.qm-markdown code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.qm-markdown pre {
+  overflow-x: auto;
+}
+
+/* 表格在窄容器里可横向滚动 */
+.qm-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 抽屉遮罩 */
+.qm-drawer-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.62);
+  z-index: 55;
+}
+
+/* 窄屏下隐藏（组件里用 JS 判断时也可直接用这个类） */
+@media (max-width: 560px) {
+  .qm-hide-narrow {
+    display: none !important;
+  }
+}

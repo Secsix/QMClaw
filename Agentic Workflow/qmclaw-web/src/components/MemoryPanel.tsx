@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
+import useViewport from "../hooks/useViewport";
 
 interface Episode {
   id: string;
@@ -52,6 +53,7 @@ interface MemoryStats {
 type Tab = "episodes" | "skills" | "stats";
 
 export default function MemoryPanel() {
+  const { isNarrow, isCompact } = useViewport();
   const [activeTab, setActiveTab] = useState<Tab>("episodes");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -237,6 +239,7 @@ export default function MemoryPanel() {
         flex: 1,
         overflowY: "auto",
         display: "flex",
+        flexDirection: isNarrow ? "column" : "row",
         gap: "12px",
       }}>
         {/* Main content */}
@@ -265,7 +268,8 @@ export default function MemoryPanel() {
         {/* Detail panel */}
         {selectedEpisode && (
           <div style={{
-            width: "400px",
+            width: isNarrow ? "100%" : isCompact ? "300px" : "400px",
+            flexShrink: 0,
             background: "#1e293b",
             borderRadius: "8px",
             border: "1px solid #334155",
@@ -551,7 +555,7 @@ function StatsView({ stats }: { stats: MemoryStats | null }) {
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: "12px" }}>
       {statCards.map((card) => (
         <div
           key={card.label}
@@ -638,7 +642,7 @@ function DetailView({ episode }: { episode: Episode }) {
       {episode.metrics && Object.keys(episode.metrics).length > 0 && (
         <div>
           <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>关键指标</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(120px, 100%), 1fr))", gap: "4px" }}>
             {Object.entries(episode.metrics).map(([k, v]) => (
               <div
                 key={k}

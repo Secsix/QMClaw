@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/variables.css";
 import "@/styles/animations.css";
+import "@/styles/responsive.css";
 
 export const metadata: Metadata = {
   title: "qmclaw - Quantum Measurement & Calibration Workflow",

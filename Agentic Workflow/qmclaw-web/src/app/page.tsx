@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import { api, Metrics, ExperimentConfig, normalizePlotUrl } from "../lib/api";
 import CollapsibleCommand from "../components/CollapsibleCommand";
 import UnifiedResults from "../components/UnifiedResults";
@@ -25,6 +26,7 @@ import QiskitBackendPanel from "../components/QiskitBackendPanel";
 import ModelRegistry from "../components/ModelRegistry";
 import ExperimentConfigs from "../components/ExperimentConfigs";
 import { useModelStore } from "../store/modelStore";
+import useViewport from "../hooks/useViewport";
 import ChatHistorySidebar from "../components/ChatHistorySidebar";
 import WorkflowHistorySidebar from "../components/WorkflowHistorySidebar";
 import QCATab from "../components/QCATab";
@@ -122,6 +124,26 @@ function ActionBtn({ label, on, color, disabled }: { label: string; on: () => vo
   );
 }
 
+// ── 窄屏抽屉（侧栏）样式 ────────────────────────────────────────────────────
+// 宽屏时侧栏是普通栅格列；窄屏/紧凑时变成从边缘滑出的抽屉。
+function drawerStyle(side: "left" | "right", open: boolean): CSSProperties {
+  return {
+    position: "fixed",
+    top: 0,
+    bottom: 0,
+    [side]: 0,
+    width: side === "left" ? "min(78vw, 300px)" : "min(86vw, 340px)",
+    zIndex: 60,
+    background: "#0f172a",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    boxShadow: "0 0 30px rgba(0,0,0,0.55)",
+    transform: open ? "translateX(0)" : `translateX(${side === "left" ? "-102%" : "102%"})`,
+    transition: "transform 0.18s ease",
+  };
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -207,6 +229,32 @@ export default function Dashboard() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<Tab>("experiments");
+
+  // ── 视口 / 窄侧栏适配 ────────────────────────────────────────────────────
+  // 宽屏：220px | 1fr | 280px 三栏（不变）
+  // 紧凑(≤900)：180px | 1fr，右侧栏转抽屉
+  // 窄屏(≤560，IDE 侧栏)：单栏，左右侧栏都转抽屉
+  const { isNarrow, isCompact } = useViewport();
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+
+  // 切 tab 时收起抽屉，避免遮住新内容
+  useEffect(() => {
+    setLeftDrawerOpen(false);
+    setRightDrawerOpen(false);
+  }, [activeTab]);
+
+  // Esc 关闭抽屉
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLeftDrawerOpen(false);
+        setRightDrawerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [selectedExp, setSelectedExpState] = useState<ExpType>(defaultSelectedExp);
   const [logs, setLogs] = useState<string[]>([]);
   const [plotUrl, setPlotUrl] = useState<string | null>(null);
@@ -901,16 +949,172 @@ export default function Dashboard() {
 
   const expButtons: ExpType[] = ["spectroscopy", "s21", "iqraw", "t1", "ramsey", "piamp", "xeb", "s21_dis", "allxy", "single_shot", "pulsed_spec", "swap", "drag_calibrate"];
 
+  // ── 工具组（宽屏放 header，窄屏/紧凑屏放进右侧抽屉）────────────────────
+  const toolItems = (
+    <>
+      <CompactSessionManager />
+      <span title="Express server" style={{ color: serverOk ? "#22c55e" : "#ef4444", fontSize: "0.75rem" }}>
+        Express {serverOk ? "✅" : "❌"}
+      </span>
+      {/* 硬件通道 / 任务队列 */}
+      <QueueStatusBadge />
+      {/* Offline mode selector */}
+      <select
+        value={quantumMode}
+        onChange={async (e) => {
+          const newMode = e.target.value as "online" | "offline" | "auto";
+          setQuantumMode(newMode);
+          try {
+            await api.quantumMode(newMode);
+            addLog(`Mode changed to: ${newMode}`);
+          } catch (err: any) {
+            addLog(`Failed to change mode: ${err.message}`, true);
+          }
+        }}
+        style={{
+          padding: "0.2rem 0.5rem",
+          background: quantumMode === "offline" ? "#92400e" : quantumMode === "online" ? "#1e40af" : "#374151",
+          border: "1px solid #4b5563",
+          borderRadius: "0.375rem",
+          color: "#e2e8f0",
+          cursor: "pointer",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+        }}
+        title={offlineAvailable ? "Offline data available" : "Enable offline mode"}
+      >
+        <option value="auto">🔄 Auto</option>
+        <option value="online">🌐 Online</option>
+        <option value="offline">📦 Offline {offlineAvailable ? "✓" : ""}</option>
+      </select>
+      {/* Qiskit 模拟后端 button —— 与真机/离线并列的第三个后端 */}
+      <button
+        onClick={() => setShowQiskit(true)}
+        title="qiskit/Aer 本地模拟（无量纲结果，不打真机）"
+        style={{
+          padding: "0.25rem 0.6rem",
+          background: "#1e293b",
+          border: "1px solid #334155",
+          borderRadius: "0.375rem",
+          color: "#38bdf8",
+          cursor: "pointer",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+        }}
+      >
+        ⚛️ Qiskit
+      </button>
+      {/* 当前生效的实验后端徽标：真机 / qiskit 模拟 / 离线回放。
+          演示机上没有真机，靠这个让看的人一眼知道跑的是模拟。 */}
+      {backendInfo?.active && (
+        <span
+          title={
+            backendInfo.hardware
+              ? "当前使用真机（LabRAD）通道"
+              : `当前使用 ${backendInfo.active} 后端（不是真机）`
+          }
+          style={{
+            padding: "0.25rem 0.5rem",
+            background: backendInfo.hardware ? "#064e3b" : "#78350f",
+            border: "1px solid #334155",
+            borderRadius: "0.375rem",
+            color: backendInfo.hardware ? "#6ee7b7" : "#fcd34d",
+            fontSize: "0.7rem",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {backendInfo.hardware ? "🔌 真机" : `⚙️ ${backendInfo.active}`}
+        </span>
+      )}
+      {/* Model Registry button */}
+      <button
+        onClick={() => setShowModelRegistry(true)}
+        style={{
+          padding: "0.25rem 0.6rem",
+          background: "#1e293b",
+          border: "1px solid #334155",
+          borderRadius: "0.375rem",
+          color: "#38bdf8",
+          cursor: "pointer",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+        }}
+      >
+        🤖 Models
+      </button>
+      {/* Experiment Configs button */}
+      <button
+        onClick={() => setShowExperimentConfigs(true)}
+        style={{
+          padding: "0.25rem 0.6rem",
+          background: "#1e293b",
+          border: "1px solid #334155",
+          borderRadius: "0.375rem",
+          color: "#38bdf8",
+          cursor: "pointer",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+        }}
+      >
+        ⚙️ Exp Config
+      </button>
+    </>
+  );
+
+  // 宽屏：工具组直接跟在 tab 栏后面；窄屏/紧凑屏：收进右侧抽屉
+  const wideTools = isCompact || isNarrow ? null : (
+    <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+      {toolItems}
+    </div>
+  );
+
+  // 窄屏/紧凑屏抽屉里的工具组
+  const drawerTools = isCompact || isNarrow ? (
+    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", padding: "0.5rem 0.75rem", borderBottom: "1px solid #1e293b" }}>
+      {toolItems}
+    </div>
+  ) : null;
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ height: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div className="qm-root" style={{ height: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
       {/* Header */}
-      <header style={{ padding: "0.5rem 1rem", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
-        <span style={{ fontSize: "1.2rem" }}>⚡ qmclaw</span>
+      <header style={{
+        padding: isNarrow ? "0.4rem 0.5rem" : "0.5rem 1rem",
+        borderBottom: "1px solid #1e293b",
+        display: "flex", alignItems: "center", gap: "0.5rem",
+        flexShrink: 0, flexWrap: "wrap",
+      }}>
+        {/* 窄屏：左抽屉开关 */}
+        {isNarrow && (
+          <button
+            onClick={() => setLeftDrawerOpen((v) => !v)}
+            title="展开/收起左侧栏"
+            aria-label="展开或收起左侧栏"
+            style={{
+              padding: "0.15rem 0.45rem", fontSize: "1rem", lineHeight: 1.2,
+              background: "#1e293b", color: "#e2e8f0",
+              border: "1px solid #334155", borderRadius: "0.3rem", cursor: "pointer",
+            }}
+          >
+            ☰
+          </button>
+        )}
+        <span style={{ fontSize: isNarrow ? "1rem" : "1.2rem", whiteSpace: "nowrap" }}>⚡ qmclaw</span>
 
-        {/* Tab bar - fixed at top */}
-        <div style={{ display: "flex", gap: "0.25rem", marginLeft: "1rem" }}>
+        {/* Tab bar - fixed at top；窄屏独占第二行并横向滚动 */}
+        <div
+          className="qm-scroll-x"
+          style={{
+            display: "flex", gap: "0.25rem",
+            marginLeft: isNarrow ? 0 : "1rem",
+            order: isNarrow ? 2 : 0,
+            flex: isNarrow ? "1 1 100%" : undefined,
+            minWidth: 0,
+          }}
+        >
           {(["experiments", "workflow", "agent", "images", "hermes", "qca", "image_analysis"] as Tab[]).map((t) => (
             <button key={t} onClick={() => setActiveTab(t)} style={{
               padding: "0.3rem 0.75rem", borderRadius: "0.375rem", border: "none",
@@ -923,127 +1127,42 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-          <CompactSessionManager />
-          <span title="Express server" style={{ color: serverOk ? "#22c55e" : "#ef4444", fontSize: "0.75rem" }}>
-            Express {serverOk ? "✅" : "❌"}
-          </span>
-          {/* 硬件通道 / 任务队列 */}
-          <QueueStatusBadge />
-          {/* Offline mode selector */}
-          <select
-            value={quantumMode}
-            onChange={async (e) => {
-              const newMode = e.target.value as "online" | "offline" | "auto";
-              setQuantumMode(newMode);
-              try {
-                await api.quantumMode(newMode);
-                addLog(`Mode changed to: ${newMode}`);
-              } catch (err: any) {
-                addLog(`Failed to change mode: ${err.message}`, true);
-              }
-            }}
-            style={{
-              padding: "0.2rem 0.5rem",
-              background: quantumMode === "offline" ? "#92400e" : quantumMode === "online" ? "#1e40af" : "#374151",
-              border: "1px solid #4b5563",
-              borderRadius: "0.375rem",
-              color: "#e2e8f0",
-              cursor: "pointer",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-            }}
-            title={offlineAvailable ? "Offline data available" : "Enable offline mode"}
-          >
-            <option value="auto">🔄 Auto</option>
-            <option value="online">🌐 Online</option>
-            <option value="offline">📦 Offline {offlineAvailable ? "✓" : ""}</option>
-          </select>
-          {/* Qiskit 模拟后端 button —— 与真机/离线并列的第三个后端 */}
+        {wideTools}
+
+        {/* 窄屏/紧凑屏：右抽屉开关（工具组 + 输出面板都在里面） */}
+        {(isCompact || isNarrow) && (
           <button
-            onClick={() => setShowQiskit(true)}
-            title="qiskit/Aer 本地模拟（无量纲结果，不打真机）"
+            onClick={() => setRightDrawerOpen((v) => !v)}
+            title="展开/收起工具与输出面板"
+            aria-label="展开或收起工具与输出面板"
             style={{
-              padding: "0.25rem 0.6rem",
-              background: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "0.375rem",
-              color: "#38bdf8",
-              cursor: "pointer",
-              fontSize: "0.7rem",
-              fontWeight: 600,
+              marginLeft: "auto",
+              padding: "0.15rem 0.45rem", fontSize: "1rem", lineHeight: 1.2,
+              background: "#1e293b", color: "#e2e8f0",
+              border: "1px solid #334155", borderRadius: "0.3rem", cursor: "pointer",
             }}
           >
-            ⚛️ Qiskit
+            ⚙
           </button>
-          {/* 当前生效的实验后端徽标：真机 / qiskit 模拟 / 离线回放。
-              演示机上没有真机，靠这个让看的人一眼知道跑的是模拟。 */}
-          {backendInfo?.active && (
-            <span
-              title={
-                backendInfo.hardware
-                  ? "当前使用真机（LabRAD）通道"
-                  : `当前使用 ${backendInfo.active} 后端（不是真机）`
-              }
-              style={{
-                padding: "0.25rem 0.5rem",
-                background: backendInfo.hardware ? "#064e3b" : "#78350f",
-                border: "1px solid #334155",
-                borderRadius: "0.375rem",
-                color: backendInfo.hardware ? "#6ee7b7" : "#fcd34d",
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {backendInfo.hardware ? "🔌 真机" : `⚙️ ${backendInfo.active}`}
-            </span>
-          )}
-          {/* Model Registry button */}
-          <button
-            onClick={() => setShowModelRegistry(true)}
-            style={{
-              padding: "0.25rem 0.6rem",
-              background: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "0.375rem",
-              color: "#38bdf8",
-              cursor: "pointer",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-            }}
-          >
-            🤖 Models
-          </button>
-          {/* Experiment Configs button */}
-          <button
-            onClick={() => setShowExperimentConfigs(true)}
-            style={{
-              padding: "0.25rem 0.6rem",
-              background: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "0.375rem",
-              color: "#38bdf8",
-              cursor: "pointer",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-            }}
-          >
-            ⚙️ Exp Config
-          </button>
-        </div>
+        )}
       </header>
 
       {/* Body */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: activeTab === "hermes" ? "220px 1fr" : "220px 1fr 280px",
+        gridTemplateColumns: isNarrow
+          ? "1fr"
+          : isCompact
+            ? "180px 1fr"
+            : (activeTab === "hermes" ? "220px 1fr" : "220px 1fr 280px"),
         flex: 1,
         overflow: "hidden"
       }}>
 
         {/* ── Left sidebar: dynamic content based on active tab ── */}
-        <aside style={{ borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <aside style={isNarrow
+          ? { ...drawerStyle("left", leftDrawerOpen), borderRight: "1px solid #1e293b" }
+          : { borderRight: "1px solid #1e293b", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
           {/* Tab-specific content (top area) */}
           {activeTab === "experiments" && (
@@ -1230,7 +1349,13 @@ export default function Dashboard() {
         </aside>
 
         {/* ── Main content ── */}
-        <main style={{ overflow: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <main style={{
+          overflow: "auto",
+          padding: isNarrow ? "0.5rem" : "1rem",
+          display: "flex", flexDirection: "column",
+          gap: isNarrow ? "0.5rem" : "1rem",
+          minWidth: 0,
+        }}>
 
           {/* EXPERIMENTS TAB */}
           {activeTab === "experiments" && (
@@ -1563,9 +1688,12 @@ export default function Dashboard() {
                 <HermesChatPanel />
               </div>
 
-              {/* Right side: Hermes Toolbar (top) + Log Panel (bottom, compact) */}
+              {/* Right side: Hermes Toolbar (top) + Log Panel (bottom, compact)
+                  窄屏/紧凑屏：整块变成右侧抽屉（与左抽屉共用遮罩与 Esc 关闭） */}
               <div style={{
-                width: "300px",
+                ...(isCompact || isNarrow
+                  ? drawerStyle("right", rightDrawerOpen)
+                  : { width: "300px" }),
                 display: "flex",
                 flexDirection: "column",
                 gap: "0.5rem",
@@ -1573,6 +1701,9 @@ export default function Dashboard() {
                 background: "#0a0f1a",
                 borderLeft: "1px solid #1e293b",
               }}>
+                {/* 工具组：窄屏/紧凑屏从 header 移到这里 */}
+                {drawerTools}
+
                 {/* Hermes Toolbar - Top Right Sidebar */}
                 <HermesToolbar />
 
@@ -1636,11 +1767,14 @@ export default function Dashboard() {
         {/* ── Log panel (only for non-hermes tabs) ── */}
         {activeTab !== "hermes" && (
         <aside style={{
+          ...(isCompact || isNarrow ? drawerStyle("right", rightDrawerOpen) : {}),
           borderLeft: "1px solid #1e293b",
           background: "#0a0f1a",
           display: "flex", flexDirection: "column",
           overflow: "hidden",
         }}>
+          {/* 工具组：窄屏/紧凑屏从 header 移到这里 */}
+          {drawerTools}
           <div style={{
             padding: "0.75rem",
             fontSize: "0.7rem", fontWeight: 600,
@@ -1668,6 +1802,15 @@ export default function Dashboard() {
         </aside>
         )}
       </div>
+
+      {/* 抽屉遮罩：窄屏/紧凑屏下点击遮罩关闭抽屉 */}
+      {(isCompact || isNarrow) && (leftDrawerOpen || rightDrawerOpen) && (
+        <div
+          className="qm-drawer-mask"
+          onClick={() => { setLeftDrawerOpen(false); setRightDrawerOpen(false); }}
+          aria-hidden
+        />
+      )}
 
       {/* Qubit Parameters Panel Modal */}
       {paramsQubit && (

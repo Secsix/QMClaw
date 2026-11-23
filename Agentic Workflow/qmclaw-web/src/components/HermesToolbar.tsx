@@ -1072,7 +1072,7 @@ function CronSectionCompact() {
         <Modal title={`定时任务: ${selectedJob.name}`} onClose={() => setShowDetailModal(false)} width="min(600px, 90vw)">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Status Info */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))', gap: '8px', fontSize: '11px' }}>
               <div>
                 <span style={{ color: THEME['text-dim'] }}>ID: </span>
                 <span style={{ color: THEME.text, fontFamily: 'monospace' }}>{selectedJob.id}</span>
@@ -1175,7 +1175,7 @@ function CronSectionCompact() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))', gap: '8px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: THEME['text-dim'], display: 'block', marginBottom: '4px' }}>模型</label>
                 {isEditing ? (

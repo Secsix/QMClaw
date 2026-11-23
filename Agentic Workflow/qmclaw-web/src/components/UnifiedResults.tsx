@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import useViewport from "../hooks/useViewport";
 
 interface AnalysisResult {
   success: boolean;
@@ -30,6 +31,7 @@ export default function UnifiedResults({
   onAiSummary,
 }: UnifiedResultsProps) {
   const [showStdout, setShowStdout] = useState(false);
+  const { isNarrow, isCompact } = useViewport();
 
   // 如果没有结果且没有绘图，保持空白
   if (!plotUrl && !plotLoading && !analysisResult && !llmSummary) {
@@ -104,7 +106,7 @@ export default function UnifiedResults({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 350px",
+          gridTemplateColumns: isNarrow ? "1fr" : isCompact ? "1fr 260px" : "1fr 350px",
           minHeight: "300px",
         }}
       >
@@ -113,7 +115,8 @@ export default function UnifiedResults({
           <div
             style={{
               padding: "0.75rem",
-              borderRight: "1px solid #1e293b",
+              borderRight: isNarrow ? "none" : "1px solid #1e293b",
+              borderBottom: isNarrow ? "1px solid #1e293b" : "none",
               display: "flex",
               flexDirection: "column",
             }}
@@ -226,7 +229,7 @@ export default function UnifiedResults({
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(min(80px, 100%), 1fr))",
                         gap: "0.5rem",
                         marginBottom: "0.75rem",
                       }}
