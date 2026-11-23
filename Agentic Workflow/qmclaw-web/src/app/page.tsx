@@ -32,6 +32,7 @@ import WorkflowHistorySidebar from "../components/WorkflowHistorySidebar";
 import QCATab from "../components/QCATab";
 import ImageAnalysisTab from "../components/tabs/ImageAnalysisTab";
 import VariantGenerator from "../components/VariantGenerator";
+import ThemeToggle from "../components/ThemeToggle";
 
 // Plots directory (must match Express server)
 // Uses relative path from project root, or PLOTS_DIR env var
@@ -1145,6 +1146,9 @@ export default function Dashboard() {
             ⚙
           </button>
         )}
+
+        {/* 主题切换 */}
+        <ThemeToggle compact={isNarrow} />
       </header>
 
       {/* Body */}

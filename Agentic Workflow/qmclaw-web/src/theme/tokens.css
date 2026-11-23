@@ -1,0 +1,58 @@
+/* ────────────────────────────────────────────────────────────────────────────
+ * QMClaw 设计令牌（深色 / 浅色）
+ *
+ * 约定：
+ *   - `html[data-qm-theme="dark"]`   → 深色（默认）
+ *   - `html[data-qm-theme="light"]`  → 浅色
+ *   - 新写的组件一律用 var(--qm-*) 取色，切换主题零成本。
+ *   - 旧组件的 inline style 颜色由 src/theme/applyTheme.ts 在运行时重映射。
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root,
+html[data-qm-theme="dark"] {
+  --qm-bg: #0f172a;
+  --qm-bg-2: #0b1220;
+  --qm-panel: #1e293b;
+  --qm-panel-2: #334155;
+  --qm-panel-3: #475569;
+  --qm-border: #334155;
+  --qm-border-strong: #475569;
+  --qm-text: #e2e8f0;
+  --qm-text-dim: #94a3b8;
+  --qm-text-mute: #64748b;
+  --qm-accent: #38bdf8;
+  --qm-accent-soft: #1e3a5f;
+  --qm-ok: #22c55e;
+  --qm-ok-soft: #1e3a2f;
+  --qm-warn: #f59e0b;
+  --qm-warn-soft: #3a2a1a;
+  --qm-err: #f87171;
+  --qm-err-soft: #3a1e1e;
+  --qm-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  --qm-grid: rgba(148, 163, 184, 0.16);
+  --qm-overlay: rgba(2, 6, 23, 0.62);
+}
+
+html[data-qm-theme="light"] {
+  --qm-bg: #f8fafc;
+  --qm-bg-2: #eef2f7;
+  --qm-panel: #ffffff;
+  --qm-panel-2: #f1f5f9;
+  --qm-panel-3: #e2e8f0;
+  --qm-border: #e2e8f0;
+  --qm-border-strong: #cbd5e1;
+  --qm-text: #0f172a;
+  --qm-text-dim: #475569;
+  --qm-text-mute: #64748b;
+  --qm-accent: #0284c7;
+  --qm-accent-soft: #e0f2fe;
+  --qm-ok: #16a34a;
+  --qm-ok-soft: #dcfce7;
+  --qm-warn: #b45309;
+  --qm-warn-soft: #fef3c7;
+  --qm-err: #dc2626;
+  --qm-err-soft: #fee2e2;
+  --qm-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
+  --qm-grid: rgba(15, 23, 42, 0.12);
+  --qm-overlay: rgba(15, 23, 42, 0.35);
+}
