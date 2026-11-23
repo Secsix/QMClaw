@@ -828,6 +828,8 @@ class QuantumService(BaseService):
             return self._handle_qubit_assess(data)
         elif path == "/qubit/state":
             return self._handle_qubit_state(data)
+        elif path == "/qubit/state_table":
+            return self._handle_qubit_state_table(data)
         elif path == "/qubit/writer":
             return self._handle_qubit_writer(data)
         elif path == "/qubit/profile":
@@ -950,6 +952,21 @@ class QuantumService(BaseService):
                 "limit": limit,
             },
             "plan": evidence_plan(state["state"]),
+        }
+
+    def _handle_qubit_state_table(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """比特状态机全表（**只读、纯函数、不碰硬件**）。
+
+        返回状态序列、每个状态的说明、下一步动作、每类证据由哪个实验产出，
+        以及"每个状态再往前一步缺哪些证据"。前端的状态转移图直接用这份表，
+        避免在前端硬编码状态机（状态机口径只在 `services/common/qubit_state.py`）。
+        """
+        from services.common.qubit_state import state_table
+
+        table = state_table()
+        return {
+            "success": True,
+            **table,
         }
 
     def _handle_qubit_capabilities(self, data: Dict[str, Any]) -> Dict[str, Any]:

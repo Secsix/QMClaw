@@ -273,6 +273,45 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // ── 作业列表（测控总览页用：当前在跑 / 刚跑完的实验）──────────────────
+  // 只读，不含 result 明细（明细走 /quantum/jobs/:id）。
+  proxy.get('/quantum/jobs', async (_req, res) => {
+    const result = await proxyToService('quantum', '/jobs', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  // ── 比特状态机（测控总览页的状态转移图）──────────────────────────────
+  // 状态机口径唯一真源在 services/common/qubit_state.py，前端只读不改。
+  proxy.get('/quantum/qubit/state-table', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/state_table', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/state', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/state', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/assess', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/assess', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/runs', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/runs', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.get('/quantum/qubit/capabilities', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/capabilities', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/profile', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/profile', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.post('/quantum/switch_session', async (req, res) => {
     const result = await proxyToService('quantum', '/switch_session', 'POST', req.body);
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
