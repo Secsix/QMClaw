@@ -832,6 +832,16 @@ class QuantumService(BaseService):
             return self._handle_qubit_state_table(data)
         elif path == "/qubit/route":
             return self._handle_qubit_route(data)
+        elif path == "/qubit/templates":
+            return self._handle_qubit_templates(data)
+        elif path == "/qubit/templates/outcome":
+            return self._handle_qubit_template_outcome(data)
+        elif path == "/qubit/templates/refresh":
+            return self._handle_qubit_template_refresh(data)
+        elif path == "/qubit/templates/retire":
+            return self._handle_qubit_template_retire(data)
+        elif path == "/qubit/templates/reset":
+            return self._handle_qubit_template_reset(data)
         elif path == "/qubit/writer":
             return self._handle_qubit_writer(data)
         elif path == "/qubit/profile":
@@ -1020,6 +1030,116 @@ class QuantumService(BaseService):
             "evidence_ref": refs[-20:],
         }
 
+    # ── 模板库（P3 / BACKLOG O4） ──────────────────────────────────────────
+    def _template_store(self):
+        from services.common.template_store import TemplateStore
+
+        return TemplateStore()
+
+    def _handle_qubit_templates(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """模板库全表（**只读**）：出厂模板 + 运行期实例，带平滑后的成功率。"""
+        try:
+            store = self._template_store()
+            machine = store._structure()
+            items = store.merged(machine)
+            return {
+                "success": True,
+                "count": len(items),
+                "templates": items,
+                "stats": __import__("services.common.templates", fromlist=["stats"]).stats(items),
+                "store": {"path": store.path, "instances": len(store.instances())},
+            }
+        except Exception as exc:
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+
+    def _handle_qubit_template_outcome(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """记一次实测结果（**写盘**：只更新模板库，不碰硬件/台账）。
+
+        请求：{"template_id": "T-...", "success": true, "run_id": "run-...", "limit": null}
+        也可用 {"edge": "a->b", "fn": "sq.piamp"} 定位模板。
+        """
+        success = data.get("success")
+        if not isinstance(success, bool):
+            return {
+                "success": False,
+                **error_envelope("validation_error", "success (bool) is required"),
+            }
+        try:
+            store = self._template_store()
+            result = store.record_outcome(
+                success,
+                template_id=data.get("template_id") or data.get("id"),
+                edge=data.get("edge"),
+                fn=data.get("fn") or data.get("function"),
+                run_id=data.get("run_id"),
+            )
+        except Exception as exc:
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        if not result.get("ok"):
+            return {
+                "success": False,
+                **error_envelope("not_found", str(result.get("detail") or result.get("error"))),
+                "candidates": result.get("templates") or [],
+            }
+        template = result["template"]
+        return {
+            "success": True,
+            "template": template,
+            "transition": result.get("transition") or "",
+            "promoted": bool(result.get("promoted")),
+            "degraded": bool(result.get("degraded")),
+        }
+
+    def _handle_qubit_template_refresh(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """按 RunRecord 台账批量更新成功率（§9.2：成功且有数据集才计入）。"""
+        try:
+            limit = int(data.get("limit", 500))
+        except (TypeError, ValueError):
+            limit = 500
+        limit = max(1, min(limit, 5000))
+        try:
+            store = self._template_store()
+            result = store.refresh_from_records(limit=limit)
+        except Exception as exc:
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        if not result.get("ok"):
+            return {
+                "success": False,
+                **error_envelope("internal_error", str(result.get("detail") or result.get("error"))),
+            }
+        return {
+            "success": True,
+            "applied": result.get("applied", 0),
+            "skipped": result.get("skipped", 0),
+            "transitions": result.get("transitions", []),
+            "skipped_detail": result.get("skipped_detail", []),
+            "store": store.summary(),
+        }
+
+    def _handle_qubit_template_retire(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """出库（status → retired，保留历史）。"""
+        template_id = data.get("template_id") or data.get("id")
+        if not template_id:
+            return {
+                "success": False,
+                **error_envelope("validation_error", "template_id is required"),
+            }
+        try:
+            result = self._template_store().retire(str(template_id), reason=str(data.get("reason") or ""))
+        except Exception as exc:
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        if not result.get("ok"):
+            return {"success": False, **error_envelope("not_found", str(template_id))}
+        return {"success": True, "template": result["template"]}
+
+    def _handle_qubit_template_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """清空运行期实例（出厂模板不受影响）。"""
+        try:
+            result = self._template_store().reset()
+        except Exception as exc:
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        return {"success": bool(result.get("ok"))}
+
     def _handle_qubit_route(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """路由判定（设计稿 §10.3 / BACKLOG O3 · P2）：候选动作 → 唯一准入判定。
 
@@ -1071,6 +1191,17 @@ class QuantumService(BaseService):
             criteria_version=state.get("criteria_version"),
         )
         machine = load_state_machine()
+        # 出厂模板在 config 里，实测成功率/晋退状态在 data/state_ledger；
+        # 这里把运行期实例合进来，G1/G2 才有可能命中（读盘失败不影响判定）。
+        try:
+            from services.common.template_store import TemplateStore
+
+            effective = TemplateStore().merged(machine)
+            if effective:
+                machine = dict(machine)
+                machine["templates"] = effective
+        except Exception:
+            pass
         current_state = str(record.get("state") or "unknown")
 
         actions = data.get("actions")

@@ -299,6 +299,34 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // 模板库（BACKLOG O4 / 设计稿 §9）：出厂模板在 config/state_machine.json，
+  // 实测成功率与晋退状态在 data/state_ledger/templates.json。这些端点是运维/前端用的，
+  // 执行链路里 state_route 节点直接打 :3003，不经这里。
+  proxy.get('/quantum/qubit/templates', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/templates', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/templates/outcome', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/templates/outcome', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/templates/refresh', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/templates/refresh', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/templates/retire', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/templates/retire', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/templates/reset', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/templates/reset', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.post('/quantum/qubit/assess', async (req, res) => {
     const result = await proxyToService('quantum', '/qubit/assess', 'POST', req.body ?? {});
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
