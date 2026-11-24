@@ -42,6 +42,44 @@ export interface EvidenceSource {
   note?: string;
 }
 
+/** 边上登记的动作（`config/state_machine.json` 的 `edges[].action`）。 */
+export interface EdgeAction {
+  fn?: string;
+  alternatives?: string[];
+  params_hint?: Record<string, string>;
+}
+
+/**
+ * 状态机的一条边（三类边，设计稿 §5）：
+ *   - `forward` 前向：推进状态；
+ *   - `self`    自环：同态重测（重扫 / 重扫脉幅 / 重定位），有 `max_attempts` 上限；
+ *   - `back`    回退：证据失效时退回去重做。
+ */
+export interface StateMachineEdge {
+  id: string;
+  kind?: "forward" | "self" | "back" | string;
+  from?: string;
+  to?: string;
+  action?: EdgeAction;
+  requires?: string[];
+  max_attempts?: number;
+  guard?: { evidence?: string[]; ttl_s?: number | null };
+  note?: string;
+  semantic?: string;
+  trigger?: string;
+}
+
+/** 一道闸门（GATE-PRE / GATE-VER / GATE-TTL）的配置。 */
+export interface GateConfig {
+  id?: string;
+  description?: string;
+  on_violation?: string;
+  on_version_mismatch?: string;
+  recovery?: string;
+  note?: string;
+  report?: string[];
+}
+
 export interface QubitStateTable {
   success?: boolean;
   states: string[];
@@ -49,6 +87,19 @@ export interface QubitStateTable {
   next_action: Record<string, string>;
   evidence_sources: Record<string, EvidenceSource>;
   missing_by_state: Record<string, string[]>;
+  // --- 状态机结构（P0/P1 起由 state_table_extended 提供）---
+  edges?: StateMachineEdge[];
+  gates?: Record<string, GateConfig>;
+  state_version?: string;
+  state_ttl?: Record<string, number | null>;
+}
+
+/** 状态时效结论（`record_validity` 的返回）。 */
+export interface StateValidity {
+  valid?: boolean;
+  expired?: boolean;
+  expires_at?: number | null;
+  reason?: string;
 }
 
 export interface MissingEvidence {
@@ -111,6 +162,15 @@ export interface QubitState {
     missing?: MissingEvidence[];
     next_action?: string;
   };
+  // --- 以下为 P0/P1 增补（`/qubit/state` 只增不改）---
+  state_version?: string;
+  /** 该状态的过期时间戳（秒，epoch）；null = 永不过期（unknown）。 */
+  expires_at?: number | null;
+  valid?: boolean;
+  validity?: StateValidity;
+  /** A(s)：当前态下允许的全部转移边（前向 + 自环 + 回退）。 */
+  edges?: StateMachineEdge[];
+  record?: Record<string, unknown>;
 }
 
 export interface QuantumJob {
