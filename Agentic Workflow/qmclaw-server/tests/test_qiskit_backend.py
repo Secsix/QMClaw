@@ -99,7 +99,7 @@ class TestCatalog(unittest.TestCase):
 
     def test_list_specs_works_without_qiskit(self):
         """目录是静态声明的，不该因为没装 qiskit 就列不出来。"""
-        self.assertEqual(len(list_specs()), 13)
+        self.assertEqual(len(list_specs()), 14)
         self.assertEqual(list_specs()[0]["backend"] if "backend" in list_specs()[0] else "qiskit", "qiskit")
 
     def test_catalog_layer_imports_in_interpreter_without_qiskit(self):
@@ -136,7 +136,7 @@ class TestCatalog(unittest.TestCase):
                 cwd=str(_SERVER_DIR), env=env,
             )
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(res.stdout.strip().splitlines()[-1], "13")
+            self.assertEqual(res.stdout.strip().splitlines()[-1], "14")
             return
         self.skipTest("本机没找到装了 qiskit 以外解释器的 conda 环境")
 
@@ -398,7 +398,7 @@ class TestServiceRoutes(unittest.TestCase):
     def test_experiments_route(self):
         res = self._service.handle_request("GET", "/qiskit/experiments", {}, {})
         self.assertTrue(res.get("success"))
-        self.assertEqual(len(res["experiments"]), 13)
+        self.assertEqual(len(res["experiments"]), 14)
         self.assertIn("coverage", res)
 
     def test_run_route_unknown_experiment(self):
