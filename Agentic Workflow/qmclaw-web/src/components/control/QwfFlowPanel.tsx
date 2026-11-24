@@ -28,7 +28,8 @@ import { RunNode, WorkflowCanvas, WorkflowRun } from "@/lib/controlApi";
 interface Props {
   canvas: WorkflowCanvas | null;
   run: WorkflowRun | null;
-  height?: number;
+  /** 画布高度；栅格里传 "100%" 让它跟着卡片大小走 */
+  height?: number | string;
 }
 
 interface FlowData extends Record<string, unknown> {

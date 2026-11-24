@@ -1,0 +1,158 @@
+/* /control 卡片自由栅格：把 react-grid-layout 的默认外观接到页面主题变量上。
+   RGL 自带的 css（react-grid-layout/css/styles.css + react-resizable/css/styles.css）
+   在 ControlCardGrid.tsx 里先引入，这里只做覆盖。 */
+
+.qm-control-grid {
+  position: relative;
+  width: 100%;
+}
+
+/* 拖动中的占位框 */
+.qm-control-grid .react-grid-placeholder {
+  background: var(--qm-accent-soft, rgba(56, 189, 248, 0.18));
+  border: 1px dashed var(--qm-accent, #38bdf8);
+  border-radius: 0.6rem;
+  opacity: 1;
+  transition: transform 120ms ease;
+}
+
+/* 卡片本体在栅格里撑满格子 */
+.qm-control-grid .react-grid-item {
+  min-width: 0;
+  transition: transform 160ms ease;
+}
+
+.qm-control-grid .react-grid-item.is-dragging,
+.qm-control-grid .react-grid-item.is-resizing {
+  z-index: 20;
+  transition: none;
+}
+
+/* 编辑态：格子四角虚线提示 + 悬浮阴影 */
+.qm-control-grid[data-editing="true"] .react-grid-item > .qm-card-frame {
+  outline: 1px dashed var(--qm-border-strong, #475569);
+  outline-offset: -1px;
+}
+
+.qm-control-grid .react-grid-item.is-dragging > .qm-card-frame,
+.qm-control-grid .react-grid-item.is-resizing > .qm-card-frame {
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.45);
+  outline-color: var(--qm-accent, #38bdf8);
+}
+
+/* 标题栏当作拖动把手（图表内部仍然可以正常交互） */
+.qm-card-handle {
+  user-select: none;
+}
+
+.qm-control-grid[data-editing="true"] .qm-card-handle {
+  cursor: move;
+}
+
+.qm-control-grid[data-editing="true"] .qm-card-handle:active {
+  cursor: grabbing;
+}
+
+/* 缩放手柄：主题化成一个右下角折角 */
+.qm-control-grid .react-resizable-handle {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  bottom: 2px;
+  right: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.qm-control-grid[data-editing="true"] .react-grid-item:hover > .react-resizable-handle,
+.qm-control-grid .react-grid-item.is-resizing > .react-resizable-handle {
+  opacity: 1;
+}
+
+.qm-control-grid .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--qm-accent, #38bdf8);
+  border-bottom: 2px solid var(--qm-accent, #38bdf8);
+  border-radius: 1px;
+}
+
+/* 卡片内部滚动条留一点余量，不让内容顶到圆角 */
+.qm-control-grid .qm-card-body {
+  scrollbar-gutter: stable;
+}
+
+/* 编辑工具条 */
+.qm-layout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.qm-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.74rem;
+  border-radius: 0.42rem;
+  border: 1px solid var(--qm-border, #334155);
+  background: var(--qm-panel, #1e293b);
+  color: var(--qm-text-dim, #cbd5e1);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.qm-layout-btn:hover {
+  border-color: var(--qm-accent, #38bdf8);
+  color: var(--qm-text, #f8fafc);
+}
+
+.qm-layout-btn[data-active="true"] {
+  border-color: var(--qm-accent, #38bdf8);
+  background: var(--qm-accent-soft, rgba(56, 189, 248, 0.16));
+  color: var(--qm-accent, #38bdf8);
+}
+
+.qm-layout-btn[data-variant="danger"]:hover {
+  border-color: var(--qm-err, #f87171);
+  color: var(--qm-err, #f87171);
+}
+
+.qm-layout-hint {
+  font-size: 0.72rem;
+  color: var(--qm-text-mute, #94a3b8);
+}
+
+.qm-layout-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* 卡片上的隐藏按钮：只在编辑态出现 */
+.qm-card-hide {
+  border: 1px solid var(--qm-border, #334155);
+  background: transparent;
+  color: var(--qm-text-mute, #94a3b8);
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  cursor: pointer;
+}
+
+.qm-card-hide:hover {
+  border-color: var(--qm-err, #f87171);
+  color: var(--qm-err, #f87171);
+}
