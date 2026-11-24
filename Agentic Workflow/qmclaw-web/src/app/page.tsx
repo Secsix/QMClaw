@@ -33,6 +33,7 @@ import QCATab from "../components/QCATab";
 import ImageAnalysisTab from "../components/tabs/ImageAnalysisTab";
 import VariantGenerator from "../components/VariantGenerator";
 import ThemeToggle from "../components/ThemeToggle";
+import Link from "next/link";
 
 // Plots directory (must match Express server)
 // Uses relative path from project root, or PLOTS_DIR env var
@@ -1149,6 +1150,25 @@ export default function Dashboard() {
 
         {/* 主题切换 */}
         <ThemeToggle compact={isNarrow} />
+
+        {/* 测控控制台（插件页 /control） */}
+        <Link
+          href="/control"
+          title="打开测控控制台（状态机 / QWF 流程 / 实验动态）"
+          style={{
+            padding: isNarrow ? "0.15rem 0.45rem" : "0.25rem 0.6rem",
+            fontSize: isNarrow ? "1rem" : "0.8rem",
+            lineHeight: 1.2,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+            background: "#1e3a5f",
+            color: "#38bdf8",
+            border: "1px solid #38bdf8",
+            borderRadius: "0.3rem",
+          }}
+        >
+          {isNarrow ? "◱" : "◱ 控制台"}
+        </Link>
       </header>
 
       {/* Body */}
