@@ -140,8 +140,8 @@ def check_manifest() -> None:
     offline = load_runner_offline()
     online = load_runner_list("ONLINE")
     doc = load_doc_scripts()
-    check("runner OFFLINE 非空", len(offline) > 15, str(len(offline)))
-    check("OPERATIONS §4 表格非空", len(doc) > 15, str(len(doc)))
+    check("runner OFFLINE 非空", len(offline) >= 10, str(len(offline)))
+    check("OPERATIONS §4 表格非空", len(doc) >= 10, str(len(doc)))
 
     # 本脚本自己：进了 runner 才需要文档行，避免自引用死循环时也不误报
     missing_doc = [s for s in offline if s not in doc and s != "_docs_paths_check.py"]

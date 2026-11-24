@@ -633,7 +633,7 @@ POST :3002/sessions/plot
 
 - 前端仍只发 `command`（UI 的语义是"画最新"），行为不变；需要指定数据集的调用方
   （agent / 脚本 / 复现流程）多传一个字段即可。
-- 自检 `_phase12_check.py`（Express 两个别名与非法值、两分支都转发、analysis 回包与结构完好、
+- 自检脚本（阶段 12；已出库，仅本机保留）：（Express 两个别名与非法值、两分支都转发、analysis 回包与结构完好、
   键名契约一致、文档在位）。
 
 ---
@@ -684,7 +684,7 @@ measure as c2 {
   lint 另有 `W_PROFILE_MISSING_FIELD`（画像缺该字段）、`W_PROFILE_UNKNOWN_QUBIT`、
   `I_PROFILE_REFS`（引用了画像字段但离线读不到画像）。
 - 刷新画像：`GET :3003/qubit/profile?refresh=1`（阶段 3 已有）。
-- 自检 `_phase13_check.py`（折平语义 / 执行器解析与报错 / validate 与 lint 诊断 /
+- 自检脚本（阶段 13；已出库，仅本机保留）：（折平语义 / 执行器解析与报错 / validate 与 lint 诊断 /
   键名三处一致 / 产品 qwf 回归 / 文档在位）。
 
 ---
@@ -717,7 +717,7 @@ measure as c2 {
   `update=False` 也照写，仍由 `W_WRITE_FN` + 写闸门管，别把 warning 消失当成只读。
 - `sq.iqraw` 的 `discriminator.*` 是派生键（不需要票据），但中心点会被重算 ——
   `W_UPDATE_DEFAULT_ON` 对它是"你这一眼会改判读基准"的提醒。
-- 自检 `_phase14_check.py`（常量与字面量解释、四条默认回写分支、df 五个边界、
+- 自检脚本（阶段 14；已出库，仅本机保留）：（常量与字面量解释、四条默认回写分支、df 五个边界、
   `E_ARG_MISSING` 打桩路径与去重、既有规则回归、表驱动契约与文档在位）。
 
 ---
@@ -752,7 +752,7 @@ POST :3003/execute
   `_finalize_async_job` 任何异常只记日志，绝不改写 job 结果。
 - **默认仍是同步**：不传 `async` 的调用方行为完全不变（同一个 `_complete_record`
   在请求线程里跑）。默认异步化见 §3.19（阶段 16a）。
-- 自检 `_phase15_check.py`（`collapse_records` 语义 / `job_id` 落盘 / `_complete_record`
+- 自检脚本（阶段 15；已出库，仅本机保留）：（`collapse_records` 语义 / `job_id` 落盘 / `_complete_record`
   状态与数据集归属 / `_handle_async_submission` 回包契约与 job 挂载 / `_finalize_async_job`
   与异常隔离 / 读侧去重 / worker 取基线与补记录的顺序契约）。
 
@@ -802,7 +802,7 @@ POST :3003/execute
 
 **前端**："直接执行"按钮的排队/轮询 UI 属阶段 16b（需另授权），本阶段前端行为不变（它经 agent 走 `wait:true`）。
 
-- 自检 `_phase16_check.py`（判定矩阵与字符串陷阱 / 默认值来源与优先级 / 服务端接线（解析结果钉进 `call_data`、三处 `_handle_execute_impl(call_data)`）/ `/jobs` 回包字段与内部字段不泄漏 / `_poll_job` 桩服务器端到端（queued→completed、失败终态、超时）/ 全仓 `/execute` 调用点扫描必须显式表态 / 配置落盘一致性 / 文档在位）。
+- 自检脚本（阶段 16；已出库，仅本机保留）：（判定矩阵与字符串陷阱 / 默认值来源与优先级 / 服务端接线（解析结果钉进 `call_data`、三处 `_handle_execute_impl(call_data)`）/ `/jobs` 回包字段与内部字段不泄漏 / `_poll_job` 桩服务器端到端（queued→completed、失败终态、超时）/ 全仓 `/execute` 调用点扫描必须显式表态 / 配置落盘一致性 / 文档在位）。
 
 ---
 
@@ -825,8 +825,8 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 - `lab` 组（`quantum`/`analysis`）**不允许**同进程：LabRAD 会话与 Ray 连接独占，一边崩会拖垮另一边；
   `--group lab` 会打印阻塞理由并退出码 2，请仍用 `scripts/start_all_services.py` 分开起。
 - 新增服务时先登记 `SERVICE_PORTS`；若它不能合并，必须在 `MERGE_BLOCKERS` 写理由——
-  `_phase17_check.py` 会对"没有理由的不可合并服务"直接判 FAIL。
-- 自检 `_phase17_check.py`（PASS=38）：两处端口表一致（`start_all_services.py` / `config/services.json`）、
+  `_service_groups_check.py` 会对"没有理由的不可合并服务"直接判 FAIL。
+- 自检 `_service_groups_check.py`（PASS=38）：两处端口表一致（`start_all_services.py` / `config/services.json`）、
   端口无重复、组定义自洽（`plan_group`）、阻塞理由齐备、启动器不硬编码端口、`--dry-run` 不启动进程、
   未知组退出码 2、`lab` 拒绝同进程、文档在位。
 
@@ -855,7 +855,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 - 过滤前后都保留"新→旧"响应顺序；同一 `run_id` 的 queued/完成两条先按阶段 15 去重再过滤。
 - 回包新增 `filters`（回显生效的条件，便于确认"是我筛空了还是本来没有"），`count` 是过滤后的条数。
 - 实现：纯函数 `filter_records()` 在 `services/common/runrecord.py`（可离线测）；端点见 `_handle_qubit_runs`。
-- 自检 `_phase18_check.py`（PASS=68）：规范状态映射 / 时间解析 / 各维度过滤 / 组合与边界 /
+- 自检脚本（阶段 18；已出库，仅本机保留）：（PASS=68）：规范状态映射 / 时间解析 / 各维度过滤 / 组合与边界 /
   桩 writer 端到端（过滤在任何截断之前、queued 去重）/ 源码契约 / 文档在位。
 
 ### 3.22 前端直接执行：排队与轮询（阶段 19 / 16b）
@@ -893,7 +893,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
   （或环境变量 `QMCLAW_EXECUTE_DEFAULT=sync`），前端两条路径都兼容；
 - 老接口 `waitForJob()`（`GET /job/{id}`）保留给 legacy 作业，微服务作业一律走 `waitForQuantumJob`。
 
-- 自检 `_phase19_check.py`（PASS=62）：助手齐全 / 终态集合 / 超时与传输层重试 / 两个入口都轮询 /
+- 自检 `_web_proxy_check.py`（PASS=62）：助手齐全 / 终态集合 / 超时与传输层重试 / 两个入口都轮询 /
   摊平字段与后端契约对齐 / Express 两条代理（含 `encodeURIComponent`） / 页面进度提示 /
   防回退扫描（不再声称同步） / 桩作业序列终止条件 / 文档在位。
 
@@ -919,30 +919,8 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 | `_registry_ep_check.py` | `:3003 /qubit/registry` 端点 + reg_snapshot 走 HTTP | PASS=14 FAIL=0（服务已重启时 WARN=0） |
 | `_apply_dataset_ep_check.py` | `:3003 /qubit/apply_dataset` 端点（数据集参数快照写回） | 静态 PASS=5；HTTP 段需服务重启后才有意义 |
 | `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=23 FAIL=0 |
-| `_phase2_check.py` | 阶段 2：RunRecord / 错误码 / 能力探测 / Qubit Port / server 接线（含 RunRecord 的 metrics/verdict 提取、快照与 diff 接线） | PASS=112 FAIL=0 |
-| `_phase2b_check.py` | 阶段 2b：Metric Registry 接入 / 比特状态机 / `/qubit/assess` 端点 | PASS=47 FAIL=0 |
-| `_phase2c_check.py` | 阶段 2c：单写者内核（串行/FIFO/异常隔离/超时）/ 治理覆盖率 / writer_mode 配置 | PASS=50 FAIL=0 |
-| `_phase3_check.py` | 阶段 3：traceId 贯穿 / 设备画像（加载·校验·合并·报告）/ `/qubit/profile` 接线 | PASS=49 FAIL=0 |
-| `_phase3b_check.py` | 阶段 3 第二批：traceId 全链贯通（Express→workflow→task_queue→quantum→RunRecord） | PASS=51 FAIL=0 |
-| `_phase3c_check.py` | 阶段 3 第二批②：设备画像 lint（I_PROFILE_QUBIT / W_PROFILE_*）+ 厂商坑静态预判（E_SPEC_NO_FREQ / W_ZPA2D_DEFAULT_ZPA / W_SWEEP_LARGE / `_sweep_points`）+ analyze 绑定 | PASS=42 FAIL=0 |
-| `_phase3d_check.py` | 阶段 3 第二批③：回放层（厂商语义仿真 + fixture 录制/回放 + 漂移检出） | PASS=58 FAIL=0 |
-| `_phase3e_check.py` | 阶段 3 后续：fixture 自动录制（replay_auto_record 开关）/ 设备画像自动刷新（`/qubit/profile?refresh=1`） | PASS=40 FAIL=0 |
-| `_phase4_check.py` | 阶段 4：Metric Registry 接入 goal 判定（criteria/level）+ 比特状态机进 outcome | PASS=37 FAIL=0 |
-| `_phase5_check.py` | 阶段 5：回放回归（fixture → 仿真 vs 真机，漂移检出；空目录 = 未覆盖；弱结论与目录降级保护；读侧目录不随写侧降级） | PASS=42 FAIL=0 |
-| `_phase6_check.py` | 阶段 6：统一状态语义（canonical status / reasonCode / legacyStatus / 未知码退化 / normalize 幂等 / 各服务接入与裸字面量扫描 / outcome 映射） | PASS=54 FAIL=0 |
-| `_phase7_check.py` | 阶段 7：数据集归属（stdout 解析 / DataVault 目录差集 / cd+dir 真实语义 / 合并 / 探测失败不外抛）与直发侧程序清单（厂商语义补全 / 确定性 / RunRecord 落盘 / `:3003` 接线） | PASS=64 FAIL=0 |
-| `_phase8_check.py` | 阶段 8：会话路径唯一实现（解析各形态 / 坏输入只回原因 / key 与同会话判定 / 配置读取与降级 / 四个接口与两份 `_load_session_config` 的接线） | PASS=39 FAIL=0 |
-| `_phase9_check.py` | 阶段 9：registry 读取收敛（`PARAM_KEYS` 键集 / `_legacy_param_value` 历史形状 / qubit 对象退路 / 两端点共用唯一读路径） | PASS=35 FAIL=0 |
-| `_phase10_check.py` | 阶段 10：真机可用性语义收敛（判据矩阵 / 历史 `status` 与 HTTP 码 / 模式归一化 / 两服务共用唯一判据且死处理器只剩委托） | PASS=62 FAIL=0 |
-| `_phase11_check.py` | 阶段 11：比特状态可自查（台账→证据推导 / 成功与数据集门槛 / 新证据覆盖与 20% 冲突 / 证据来源表 7 项与缺失表 6 态 / `derive_state.missing_detail` / `/qubit/state` 接线且只读） | PASS=76 FAIL=0 |
-| `_phase12_check.py` | 阶段 12：`dataset_index` 透传（Express 两个别名与非法值 400、两分支都转发、analysis 回包带实际编号与名字、键名契约、文档在位） | PASS=21 FAIL=0 |
-| `_phase13_check.py` | 阶段 13：设备画像进运行期（`profile_env` 折平语义 / 执行器 `$profile.*` 解析与报错 / validate 与 lint 诊断 / 键名三处一致 / 产品 qwf 回归） | PASS=38 FAIL=0 |
-| `_phase14_check.py` | 阶段 14：厂商语义风险进 lint（默认回写 `W_UPDATE_DEFAULT_ON`/`I_UPDATE_ON` / `sq.pidf` 的 `df` 窗口 / 表驱动必填 `E_ARG_MISSING` 与去重 / 字面量判定边界 / 既有规则回归） | PASS=69 FAIL=0 |
-| `_phase15_check.py` | 阶段 15：异步执行的 RunRecord（`collapse_records` 去重语义 / `job_id` / `_complete_record` 状态与数据集归属 / 异步回包契约与 job 挂载 / 补齐异常隔离 / 读侧按 run_id 去重 / worker 顺序契约） | PASS=54 FAIL=0 |
-| `_phase16_check.py` | 阶段 16a：`/execute` 默认 producer 化（三态判定矩阵与字符串陷阱 / 默认值来源与环境变量优先级 / 服务端接线与 `call_data` / `/jobs` 回包 run_id+trace_id 且不泄漏内部字段 / 完成态结果回写 `job["result"]` 与 trace 不 pop / `_poll_job` 桩服务器端到端与超时 / 全仓 `/execute` 调用点必须显式表态 / 配置落盘一致性） | PASS=58 FAIL=0 |
-| `_phase17_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
-| `_phase18_check.py` | 阶段 18：审计查询过滤（规范状态映射 / epoch 与 ISO 时间解析 / qubit·status·source·dataset·trace·时间窗过滤 / 组合与边界 / 过滤先于截断 / queued 去重 / 回包 `filters`） | PASS=68 FAIL=0 |
-| `_phase19_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
+| `_service_groups_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
+| `_web_proxy_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
 | `_syntax_check.py` | 全仓 Python 语法（`ast.parse` 全仓 `.py`，跳过 `vendor/` 与构建目录）—— 抓"从来没能 import"的角落文件 | 动态（当前 527）FAIL=0 |
 
@@ -1022,6 +1000,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 2. 跑第四节的自检脚本（离线那几套不需要起服务）
 3. HTTP 那几套（`_p3_e2e.py`）需要 `:3009` 在跑（默认就打正式 :3008/:3009；
    沙箱里要在临时端口验证就设 `QMCLAW_WF_URL` / `QMCLAW_TQ_URL`）：
-   `D:/qmclaw/checks\_tq_test_server.py`（:3019）、`D:/qmclaw/checks\_wf_test_server.py`（:3018，`QMCLAW_QUEUE_URL=http://127.0.0.1:3019`）
+   临时桩服务脚本（`_tq_test_server.py` / `_wf_test_server.py`）已出库，仅本机保留；
+   设 `QMCLAW_TQ_URL=http://127.0.0.1:3019` 指向自备的 task_queue 实例即可
 4. 同步 `.claude/progress.md`（内容写在**文件顶部**）与 `docs/DSL_DESIGN.md`
 5. 请人重启 :3003/:3008/:3009 后再真机复验

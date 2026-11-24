@@ -18,7 +18,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活的源目�
 沙箱禁止 subprocess（CreatePipe 被拒），所以检查脚本用 runpy 在当前进程内跑并重定向 stdout。
 
 用法：
-    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py             # 12 套离线自检 + 归档
+    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py             # 17 套离线自检 + 归档
     D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --e2e      # 再加 e2e / registry 两套
     D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --only _p3_check
     D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --archive-only --window-min 600
@@ -54,30 +54,8 @@ OFFLINE = [
     "_autorevert_check.py",
     "_autorevert_exec_check.py",
     "_d2_registry_offline_check.py",
-    "_phase2_check.py",
-    "_phase2b_check.py",
-    "_phase2c_check.py",
-    "_phase3_check.py",
-    "_phase3b_check.py",
-    "_phase3c_check.py",
-    "_phase3d_check.py",
-    "_phase3e_check.py",
-    "_phase4_check.py",
-    "_phase5_check.py",
-    "_phase6_check.py",
-    "_phase7_check.py",
-    "_phase8_check.py",
-    "_phase9_check.py",
-    "_phase10_check.py",
-    "_phase11_check.py",
-    "_phase12_check.py",
-    "_phase13_check.py",
-    "_phase14_check.py",
-    "_phase15_check.py",
-    "_phase16_check.py",
-    "_phase17_check.py",
-    "_phase18_check.py",
-    "_phase19_check.py",
+    "_service_groups_check.py",
+    "_web_proxy_check.py",
     "_docs_paths_check.py",
     "_syntax_check.py",
 ]

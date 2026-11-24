@@ -1,19 +1,21 @@
 # checks/ —— 自检脚本
 
-原先这 49 个 `_*.py` 散落在仓库根目录；2026-11-20 统一收进本目录，行为不变。
+原先这 49 个 `_*.py` 散落在仓库根目录；2026-11-20 统一收进本目录；
+2026-11-24 进一步裁剪：一次性的阶段里程碑自检（`_phase*_check.py` 等）已出库，
+本地文件保留可随时跑；长期有效的守卫脚本仍入库。
 
 ## 怎么跑
 
 在**仓库根目录**执行（脚本用 `__file__` 定位仓库根，从哪跑都行，但产物落在根目录的 `_checks/`）：
 
 ```bash
-python checks/run_all_checks.py              # 12 套离线自检 + 归档到 _checks/<时间戳>/
+python checks/run_all_checks.py              # 17 套离线自检 + 归档到 _checks/<时间戳>/
 python checks/run_all_checks.py --e2e        # 再加 e2e / registry 两套
 python checks/run_all_checks.py --only _p3_check
-python checks/_phase19_check.py              # 单个脚本也可以直接跑
+python checks/_web_proxy_check.py             # 单个脚本也可以直接跑
 ```
 
-CI 跑的是其中三个纯静态脚本：`_syntax_check.py`、`_docs_paths_check.py`、`_phase19_check.py`
+CI 跑的是其中三个纯静态脚本：`_syntax_check.py`、`_docs_paths_check.py`、`_web_proxy_check.py`
 （见 `.github/workflows/checks.yml`）。
 
 ## 新增自检脚本的规矩

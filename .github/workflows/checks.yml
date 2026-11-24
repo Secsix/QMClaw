@@ -59,8 +59,8 @@ jobs:
       - name: 文档漂移（docs 路径存在性 + 自检清单与 runner 一致）
         run: python checks/_docs_paths_check.py
 
-      - name: 前端/Express 契约（阶段 19：排队轮询 + 作业代理，纯文件级）
-        run: python checks/_phase19_check.py
+      - name: 前端/Express 契约（排队轮询 + 作业代理，纯文件级）
+        run: python checks/_web_proxy_check.py
 
       - name: qwf 离线体检（受版本控制的产品范例，必须 0 error）
         if: steps.openqwf.outputs.has_upstream == 'true'

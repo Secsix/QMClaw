@@ -25,7 +25,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 # 服务名 → 端口。与 scripts/start_all_services.py 的 SERVICES 保持一致；
-# 自检 `_phase17_check.py` 会比对两处，防漂移。
+# 自检 `_service_groups_check.py` 会比对两处，防漂移。
 SERVICE_PORTS: Dict[str, int] = {
     "quantum": 3003,
     "analysis": 3004,

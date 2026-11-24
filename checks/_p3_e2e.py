@@ -6,10 +6,10 @@
 
 只跑只读/账本类端点 + 一次干跑，**不碰真机**。真机闸门路径由 `_p3_check.py` 覆盖。
 
-跑法（若用临时服务）：
-    QMCLAW_TASK_DATA_DIR=D:/qmclaw/_p3_e2e_tasks python _tq_test_server.py &
-    QMCLAW_QUEUE_URL=http://127.0.0.1:3019 python _wf_test_server.py &
-    python _p3_e2e.py
+跑法（若用临时服务）：自备 task_queue 与 workflow_service 实例后，
+用 QMCLAW_WF_URL / QMCLAW_TQ_URL 指过去即可
+    QMCLAW_WF_URL=http://127.0.0.1:3018 QMCLAW_TQ_URL=http://127.0.0.1:3019 python _p3_e2e.py
+（一次性桩服务脚本 `_tq_test_server.py` / `_wf_test_server.py` 已出库，仅本机保留。）
 """
 import json
 import os
