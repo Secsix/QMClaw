@@ -6,7 +6,9 @@
 2. **G1/G2/G3/G4 各有分支用例** —— 模板命中且稳定 / 模板命中但参数漂移 /
    无适用模板交 LLM / 越权或连续失败转人工；
 3. **不变式③** —— ``chosen_action`` 的边 ∈ ``allowed_edges``；
-4. **确定性** —— 相同输入永远得到相同输出（不变式④）。
+4. **确定性** —— 相同输入永远得到相同输出（不变式④）；
+5. **写授权口径（2026-11-24 拍板「a」）** —— 只读动作的 accept 免授权，
+   写参数 / 未登记动作仍要闸门，判定依据是 ``action_semantics``（配置优先）。
 
 跑法：
     python -m unittest tests.test_router -v
@@ -23,7 +25,12 @@ _SERVER_DIR = Path(__file__).resolve().parents[1]
 if str(_SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVER_DIR))
 
-from services.common.router import route  # noqa: E402
+from services.common.router import (  # noqa: E402
+    _action_kind,
+    _action_semantics,
+    _authorization_for,
+    route,
+)
 from services.common.state_machine import load_state_machine  # noqa: E402
 
 NOW = 1_000_000.0
@@ -355,6 +362,167 @@ class TestRouterG4(unittest.TestCase):
         self.assertEqual(result["decision"], "hold")
         self.assertEqual(result["branch"], "G4")
         self.assertTrue(result["needs_human"])
+
+
+class TestRouterActionAuthorization(unittest.TestCase):
+    """G4 写授权口径：按动作的写语义判定，只读动作的 accept 免授权。
+
+    配置真源 = ``config/state_machine.json`` 的 ``action_semantics``；
+    这里同时验证「配置改了判定就跟着变」，避免把它写成代码里的死规则。
+    """
+
+    # ---- 工具 ----
+
+    def _semantics(self, machine=None, **overrides):
+        machine = machine or _machine()
+        if overrides:
+            sem = copy.deepcopy(machine.get("action_semantics") or {})
+            sem.update(overrides)
+            machine = copy.deepcopy(machine)
+            machine["action_semantics"] = sem
+        return _action_semantics(machine)
+
+    def _read_accept(self, actuation, machine=None):
+        """state_discriminated --sq.t1--> coherence_measured：纯测量动作。"""
+        return route(
+            _record("state_discriminated"),
+            [{"fn": "sq.t1"}],
+            criteria={"version": "1.0.0"},
+            history={"success_streak": {"sq.t1": 3}},
+            environment={"actuation": actuation, "now": NOW},
+            machine=machine or _machine(
+                [_template("state_discriminated->coherence_measured", "sq.t1")]
+            ),
+        )
+
+    def _write_accept(self, actuation, fn="sq.piamp"):
+        return route(
+            _record("freq_locked"),
+            [{"fn": fn}],
+            criteria={"version": "1.0.0"},
+            history={"success_streak": {fn: 3}},
+            environment={"actuation": actuation, "now": NOW},
+            machine=_machine([_template("freq_locked->amp_calibrated", fn)]),
+        )
+
+    # ---- 只读动作 ----
+
+    def test_read_only_accept_needs_no_authorization(self):
+        """两个闸门都关着，纯测量动作的 accept 照常成立。"""
+        result = self._read_accept({"allow_execute": False, "allow_set_params": False})
+        self.assertEqual(result["decision"], "accept")
+        self.assertEqual(result["branch"], "G1")
+        self.assertEqual(result["action_kind"], "read")
+        self.assertFalse(result["requires_authorization"])
+        self.assertFalse(result["needs_human"])
+        self.assertTrue(result["authorization"]["satisfied"])
+        self.assertEqual(result["authorization"]["needs_any"], [])
+
+    def test_read_only_kind_survives_call_form(self):
+        """``sq.t1(q0)`` 这种调用写法也要认出来，别因为带括号就落 unknown。"""
+        sem = self._semantics()
+        self.assertEqual(_action_kind(sem, {"fn": "sq.t1(q0)"}), "read")
+        self.assertEqual(_action_kind(sem, {"fn": " sq.iqraw "}), "read")
+
+    # ---- 写参数动作 ----
+
+    def test_write_accept_still_holds_without_gate(self):
+        result = self._write_accept({"allow_execute": False, "allow_set_params": False})
+        self.assertEqual(result["decision"], "hold")
+        self.assertEqual(result["branch"], "G4")
+        self.assertEqual(result["action_kind"], "write")
+        self.assertTrue(result["requires_authorization"])
+        self.assertTrue(result["needs_human"])
+        self.assertEqual(result["authorization"]["missing"], ["allow_set_params"])
+
+    def test_write_accept_passes_when_set_params_open(self):
+        result = self._write_accept({"allow_execute": False, "allow_set_params": True})
+        self.assertEqual(result["decision"], "accept")
+        self.assertFalse(result["requires_authorization"])
+
+    def test_write_kind_ignores_allow_execute(self):
+        """写参数只认 allow_set_params：只开 allow_execute 不算授权。"""
+        result = self._write_accept({"allow_execute": True, "allow_set_params": False})
+        self.assertEqual(result["decision"], "hold")
+        self.assertEqual(result["branch"], "G4")
+        self.assertEqual(result["authorization"]["missing"], ["allow_set_params"])
+
+    # ---- 未登记动作：保守 ----
+
+    def test_unregistered_fn_falls_back_to_unknown(self):
+        sem = self._semantics()
+        self.assertEqual(_action_kind(sem, {"fn": "sq.some_new_experiment"}), "unknown")
+        auth = _authorization_for(
+            sem,
+            {"fn": "sq.some_new_experiment"},
+            {"allow_execute": False, "allow_set_params": False},
+        )
+        self.assertEqual(auth["kind"], "unknown")
+        self.assertFalse(auth["satisfied"])
+        self.assertEqual(sorted(auth["needs_any"]), ["allow_execute", "allow_set_params"])
+
+    def test_unknown_kind_accept_holds(self):
+        """未登记动作落进 unknown → 闸门都关着时不放行。
+
+        同一份 t1 输入，只把配置里的 kind 改成 unknown，判定就从 accept 变成 hold。
+        """
+        machine = copy.deepcopy(
+            _machine([_template("state_discriminated->coherence_measured", "sq.t1")])
+        )
+        machine["action_semantics"]["fns"]["sq.t1"] = "unknown"
+        result = self._read_accept(
+            {"allow_execute": False, "allow_set_params": False}, machine=machine
+        )
+        self.assertEqual(result["action_kind"], "unknown")
+        self.assertEqual(result["decision"], "hold")
+        self.assertEqual(result["branch"], "G4")
+        self.assertTrue(result["requires_authorization"])
+        self.assertEqual(
+            sorted(result["authorization"]["needs_any"]),
+            ["allow_execute", "allow_set_params"],
+        )
+
+    # ---- 配置是真源 ----
+
+    def test_config_override_changes_verdict(self):
+        """把 sq.t1 在配置里改成 write，同一份输入就该被 G4 拦下。"""
+        machine = copy.deepcopy(_machine([_template("state_discriminated->coherence_measured", "sq.t1")]))
+        machine["action_semantics"]["fns"]["sq.t1"] = "write"
+        result = self._read_accept({"allow_execute": False, "allow_set_params": False}, machine=machine)
+        self.assertEqual(result["decision"], "hold")
+        self.assertEqual(result["branch"], "G4")
+        self.assertEqual(result["action_kind"], "write")
+
+    def test_default_kind_from_config(self):
+        """配置把 default_kind 改成 read 时，未登记动作也按 read 处理。"""
+        sem = self._semantics(default_kind="read")
+        self.assertEqual(_action_kind(sem, {"fn": "sq.brand_new"}), "read")
+
+    def test_kinds_needs_any_from_config(self):
+        """kinds 的 needs_any 可被配置改掉（例如 write 要求两个闸门都开）。"""
+        sem = self._semantics(kinds={"write": {"needs_any": ["allow_execute", "allow_set_params"]}})
+        auth = _authorization_for(
+            sem, {"fn": "sq.piamp"}, {"allow_execute": True, "allow_set_params": False}
+        )
+        self.assertEqual(auth["kind"], "write")
+        self.assertFalse(auth["satisfied"])
+        self.assertEqual(auth["missing"], ["allow_set_params"])
+
+    # ---- 不误伤 G3 / G0 ----
+
+    def test_g3_not_blocked_by_gate(self):
+        """G3 只是产出候选 qwf，闸门关着也照样 ask_llm。"""
+        result = route(
+            _record("unknown"),
+            [{"fn": "sq.spectroscopy"}],
+            criteria={"version": "1.0.0"},
+            history={},
+            environment={"actuation": {"allow_execute": False, "allow_set_params": False},
+                         "now": NOW},
+            machine=_machine(templates=[]),
+        )
+        self.assertEqual(result["decision"], "ask_llm")
+        self.assertFalse(result["requires_authorization"])
 
 
 class TestRouterInvariants(unittest.TestCase):

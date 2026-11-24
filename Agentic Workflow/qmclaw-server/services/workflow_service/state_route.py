@@ -39,7 +39,11 @@ quantum_service 按当前态的边表自动生成候选）。
 
       {"status": "completed", "decision": "accept"|"ask_llm", "branch": "G1"|"G2"|"G3",
        "state": "unknown", "action": {"fn": "sq.spectroscopy", "params": {}, "edge_id": "..."},
-       "allowed_edges": [...], "source": "template"|"llm", "route": {...摘要...}}
+       "allowed_edges": [...], "source": "template"|"llm",
+       "action_kind": "read"|"write"|"execute"|"unknown", "route": {...摘要...}}
+
+  只读动作（``action_kind == "read"``）的 accept 不需要写授权；写参数 / 未登记动作
+  在闸门关闭时 Router 会直接给 ``hold``，这个节点拿到的是 ``needs_human``。
 
 * 需要人工（G0/G4、LLM 越界、LLM 未配置）::
 
@@ -164,7 +168,8 @@ def _route_summary(route: Dict[str, Any]) -> Dict[str, Any]:
     """只留可观测字段，避免把整个 candidates 列表塞进节点结果。"""
     keep = ("decision", "branch", "current_state", "allowed_edges", "needs_human",
             "confidence", "reason", "missing", "requires_param_refresh",
-            "requires_authorization", "blocked_by", "template")
+            "requires_authorization", "blocked_by", "template",
+            "action_kind", "authorization")
     return {key: route.get(key) for key in keep if key in route}
 
 
@@ -459,12 +464,14 @@ def execute_state_route(service: Any, node: Any, context: Optional[Dict[str, Any
             "action": action,
             "allowed_edges": allowed_edges,
             "source": source,
+            "action_kind": route.get("action_kind"),
             "requires_param_refresh": bool(route.get("requires_param_refresh")),
             "confidence": route.get("confidence"),
             "route": _route_summary(route),
             "stdout": _render_stdout(
                 route,
                 f"{branch} 直接采用 {action.get('fn')}（{action.get('edge_id')}）"
+                f"，动作写语义 {route.get('action_kind') or 'unknown'}"
                 + ("，参数需重新标定" if route.get("requires_param_refresh") else ""),
             ),
         }

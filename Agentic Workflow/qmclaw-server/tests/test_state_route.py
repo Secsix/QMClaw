@@ -196,6 +196,48 @@ class TestAccept(_PatchMixin, unittest.TestCase):
         sr.execute_state_route(FakeService(), node)
         self.assertEqual(calls[0]["payload"]["actions"], [{"fn": "sq.iqraw"}])
 
+    def test_read_only_accept_surfaces_action_kind(self):
+        """只读动作的 accept 免授权：节点原样采用，并把 action_kind 透出去。"""
+        self._patch_route(
+            _route_accept(
+                fn="sq.t1",
+                edge="state_discriminated->coherence_measured",
+                action_kind="read",
+                authorization={"kind": "read", "needs_any": [], "missing": [],
+                               "satisfied": True, "read_only": True},
+            )
+        )
+        result = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["action"]["fn"], "sq.t1")
+        self.assertEqual(result["action_kind"], "read")
+        self.assertFalse(result["requires_param_refresh"])
+        self.assertEqual(result["route"]["action_kind"], "read")
+        self.assertIn("read", result["stdout"])
+
+    def test_write_accept_without_gate_is_needs_human(self):
+        """写参数动作在闸门关闭时 Router 给 hold，节点必须转人工而不是执行。"""
+        self._patch_route({
+            "success": True,
+            "name": "q0",
+            "decision": "hold",
+            "branch": "G4",
+            "current_state": "freq_locked",
+            "allowed_edges": ["freq_locked->amp_calibrated"],
+            "chosen_action": None,
+            "reason": "该动作是 write，需要 allow_set_params；当前 allow_set_params 未打开",
+            "confidence": 0.9,
+            "needs_human": True,
+            "requires_authorization": True,
+            "gates": [{"gate": "GATE-PRE", "passed": True}],
+        })
+        result = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))
+        self.assertEqual(result["status"], "needs_human")
+        self.assertTrue(result["needs_human"])
+        self.assertEqual(result["branch"], "G4")
+        self.assertTrue(result["requires_authorization"])
+        self.assertIsNone(result.get("action"))
+
     def test_accept_without_chosen_action_fails(self):
         self._patch_route(_route_accept(chosen_action=None))
         result = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))

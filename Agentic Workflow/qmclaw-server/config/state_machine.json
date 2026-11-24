@@ -1,6 +1,6 @@
 {
   "_doc": "量子测控状态机的结构真源（边表 A(s) / 每态 TTL / 三道闸门参数 / 模板库）。设计稿见 docs/STATE_MACHINE_DESIGN.md。**阈值不在这里**——指标阈值的唯一真源是 config/lab_criteria.json；本文件只放结构，改阈值不要动本文件。",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "updated": "2026-11-24",
   "authority": "structure-only: 状态定义 / 合法边 A(s) / 状态 TTL / 闸门参数 / 模板库",
   "criteria_source": "config/lab_criteria.json",
@@ -241,6 +241,31 @@
       "description": "状态已过期：now > expires_at（expires_at 由所处状态的 ttl_s 推出）",
       "on_violation": "block",
       "recovery": "重判状态（读当前台账）后放行"
+    }
+  },
+  "action_semantics": {
+    "_doc": "动作的写语义：决定 Router G4「这条动作的 accept 要不要写授权」。read=只测不写（免授权）；write=把拟合结果写回比特寄存器（要 allow_set_params）；execute=只下发不改参数（要 allow_execute）；未登记的动作落 default_kind（保守，任一闸门打开才放行）。",
+    "default_kind": "unknown",
+    "kinds": {
+      "read": {"description": "纯测量，不改比特寄存器 / 脉幅", "needs_any": []},
+      "write": {"description": "会把拟合结果写回比特寄存器（频率 / 脉幅）", "needs_any": ["allow_set_params"]},
+      "execute": {"description": "只下发执行、不改参数", "needs_any": ["allow_execute"]},
+      "unknown": {"description": "未登记的动作，保守处理", "needs_any": ["allow_execute", "allow_set_params"]}
+    },
+    "fns": {
+      "sq.iqraw": "read",
+      "sq.t1": "read",
+      "sq.ramsey_df": "read",
+      "sq.ramsey": "read",
+      "sq.xeb": "read",
+      "sq.s21": "read",
+      "sq.spectroscopy": "write",
+      "sq.spectroscopy_iq": "write",
+      "sq.pidf": "write",
+      "sq.piamp": "write",
+      "sq.time_rabi": "write",
+      "sq.rabi": "write",
+      "sq.set_pi": "write"
     }
   },
   "templates": [],

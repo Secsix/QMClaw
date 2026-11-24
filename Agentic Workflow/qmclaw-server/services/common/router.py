@@ -22,7 +22,9 @@ G0–G4 的口径见设计稿 §7.4：
   * G2 模板在但参数漂移 → ``accept`` + ``requires_param_refresh: true``。
   * G3 合法边存在但没有适用模板 → ``ask_llm``；LLM 只能在 ``allowed_edges`` 内选，
     产出必须落成 qwf（不变式②）。
-  * G4 越权或连续失败 → ``hold`` + ``needs_human: true``。
+  * G4 越权或连续失败 → ``hold`` + ``needs_human: true``。越权只在**该动作的写语义**
+    需要闸门而闸门没开时成立：只读动作（``action_kind == "read"``）的 accept 免授权，
+    写参数 / 未知动作仍按 ``config/state_machine.json`` 的 ``action_semantics`` 判定。
 
 返回（设计稿 §7.3）::
 
@@ -51,9 +53,94 @@ DEFAULT_SUCCESS_STREAK = 3
 # 同类动作连续失败达多少次就不再让 Router 自己拍板
 DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 
+# 动作的写语义（结构真源 = config/state_machine.json 的 action_semantics）。
+# 配置缺失时用这份内置表兜底，保证 Router 被单独调用时也能判定授权。
+DEFAULT_ACTION_SEMANTICS = {
+    "default_kind": "unknown",
+    "kinds": {
+        "read": {"needs_any": []},
+        "write": {"needs_any": ["allow_set_params"]},
+        "execute": {"needs_any": ["allow_execute"]},
+        "unknown": {"needs_any": ["allow_execute", "allow_set_params"]},
+    },
+    "fns": {
+        "sq.iqraw": "read",
+        "sq.t1": "read",
+        "sq.ramsey_df": "read",
+        "sq.ramsey": "read",
+        "sq.xeb": "read",
+        "sq.s21": "read",
+        "sq.spectroscopy": "write",
+        "sq.spectroscopy_iq": "write",
+        "sq.pidf": "write",
+        "sq.piamp": "write",
+        "sq.time_rabi": "write",
+        "sq.rabi": "write",
+        "sq.set_pi": "write",
+    },
+}
+
 
 def _as_dict(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _action_semantics(machine: Dict[str, Any]) -> Dict[str, Any]:
+    """合并 ``machine["action_semantics"]``：配置优先，缺项取内置兜底。"""
+    merged = {
+        "default_kind": DEFAULT_ACTION_SEMANTICS["default_kind"],
+        "kinds": {k: dict(v) for k, v in DEFAULT_ACTION_SEMANTICS["kinds"].items()},
+        "fns": dict(DEFAULT_ACTION_SEMANTICS["fns"]),
+    }
+    conf = _as_dict(_as_dict(machine).get("action_semantics"))
+    if conf.get("default_kind"):
+        merged["default_kind"] = str(conf["default_kind"])
+    for kind, spec in _as_dict(conf.get("kinds")).items():
+        base = merged["kinds"].get(kind) or {}
+        spec = _as_dict(spec)
+        needs = spec.get("needs_any")
+        if needs is None:
+            needs = base.get("needs_any") or []
+        merged["kinds"][str(kind)] = {"needs_any": [str(x) for x in needs]}
+    for fn, kind in _as_dict(conf.get("fns")).items():
+        merged["fns"][str(fn)] = str(kind)
+    return merged
+
+
+def _normalize_fn(value: Any) -> str:
+    """``sq.t1(q0)`` / ``sq.t1`` → ``sq.t1``（去掉调用括号与首尾空白）。"""
+    text = str(value or "").strip()
+    if "(" in text:
+        text = text.split("(", 1)[0].strip()
+    return text
+
+
+def _action_kind(semantics: Dict[str, Any], action: Any) -> str:
+    """动作 → ``read|write|execute|unknown``（未登记的动作落 ``default_kind``）。"""
+    action = _as_dict(action)
+    fn = _normalize_fn(action.get("fn") or action.get("function"))
+    kinds = _as_dict(semantics.get("kinds"))
+    raw = _as_dict(semantics.get("fns")).get(fn) or semantics.get("default_kind") or "unknown"
+    kind = str(raw)
+    return kind if kind in kinds else "unknown"
+
+
+def _authorization_for(
+    semantics: Dict[str, Any], action: Any, actuation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """动作的写授权判定：kind → ``needs_any``（其中任一闸门打开即满足）。"""
+    kind = _action_kind(semantics, action)
+    spec = _as_dict(_as_dict(semantics.get("kinds")).get(kind))
+    needs = [str(x) for x in (spec.get("needs_any") or [])]
+    flags = _as_dict(actuation)
+    missing = [flag for flag in needs if not bool(flags.get(flag))]
+    return {
+        "kind": kind,
+        "needs_any": needs,
+        "missing": missing,
+        "satisfied": not missing,
+        "read_only": kind == "read",
+    }
 
 
 def _normalize_actions(actions: Any) -> List[Dict[str, Any]]:
@@ -294,9 +381,6 @@ def route(
     templates = machine.get("templates") or []
 
     actuation = _as_dict(env.get("actuation"))
-    allow_execute = bool(actuation.get("allow_execute"))
-    allow_set_params = bool(actuation.get("allow_set_params"))
-    actuation_allowed = allow_execute or allow_set_params
 
     try:
         max_failures = int(env.get("max_consecutive_failures") or DEFAULT_MAX_CONSECUTIVE_FAILURES)
@@ -328,6 +412,8 @@ def route(
         "template": None,
         "candidates": [],
         "llm_task": None,
+        "action_kind": None,
+        "authorization": None,
     }
 
     # ---- 闸门：PRE 逐候选，VER / TTL 是记录级的整体闸门 ------------------
@@ -594,14 +680,25 @@ def route(
         }
         result["reason"] = "合法边存在但模板库里没有适用写法，交 LLM 在合法边内选（产出须落成 qwf）"
 
-    # ---- G4：越权（写授权关闭） ------------------------------------------
-    # 只有「要定案执行」（G1/G2 accept）才需要写授权；G3 只是产出候选 qwf 供人看，
-    # 真要下发时执行层还会再挡一道闸门。
-    if result["decision"] == "accept" and not actuation_allowed:
-        result["decision"] = "hold"
-        result["branch"] = "G4"
-        result["needs_human"] = True
-        result["requires_authorization"] = True
-        result["reason"] = "写授权关闭（allow_execute / allow_set_params 均未打开），需人工授权后重判"
+    # ---- G4：越权（写授权） --------------------------------------------------
+    # 授权口径：accept 要不要授权，看**这条动作**需要哪个闸门（action_semantics）——
+    #   * read（只测不写）→ 不需要授权，accept 直接成立；
+    #   * write / execute / unknown → 按登记的 needs_any 判定（任一打开即满足）。
+    # G3 只是产出候选 qwf 供人看，真要下发时执行层还会再挡一道闸门，故这里不拦。
+    if result["decision"] == "accept":
+        semantics = _action_semantics(machine)
+        auth = _authorization_for(semantics, result["chosen_action"], actuation)
+        result["action_kind"] = auth["kind"]
+        result["authorization"] = auth
+        if not auth["satisfied"]:
+            result["decision"] = "hold"
+            result["branch"] = "G4"
+            result["needs_human"] = True
+            result["requires_authorization"] = True
+            result["reason"] = "该动作是 %s，需要 %s；当前 %s 未打开，需人工授权后重判" % (
+                auth["kind"],
+                " 或 ".join(auth["needs_any"]) or "写授权",
+                " / ".join(auth["missing"]),
+            )
 
     return result
