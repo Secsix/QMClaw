@@ -172,6 +172,7 @@ export default function QCATab() {
       {/* Mode tabs */}
       <div style={{
         display: "flex",
+        flexWrap: "wrap",
         gap: "0.5rem",
         padding: "0.75rem",
         borderBottom: "1px solid #1e293b",
@@ -258,6 +259,7 @@ export default function QCATab() {
                     disabled={loading}
                     style={{
                       flex: 1,
+                      minWidth: 0,
                       padding: "0.75rem 1rem",
                       background: "#1e293b",
                       border: "1px solid #334155",

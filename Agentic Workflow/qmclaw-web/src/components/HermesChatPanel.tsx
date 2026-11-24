@@ -1144,11 +1144,13 @@ export default function HermesChatPanel() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.4rem",
           }}>
             <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
               超时: {approvalCountdown}s
             </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button
                 onClick={() => handleApprovalResponse("approve")}
                 style={{
@@ -1335,6 +1337,7 @@ export default function HermesChatPanel() {
           disabled={running}
           style={{
             flex: 1,
+            minWidth: 0,
             background: "#1e293b",
             border: "1px solid #334569",
             borderRadius: "0.5rem",

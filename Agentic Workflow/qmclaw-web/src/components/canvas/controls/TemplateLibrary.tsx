@@ -110,7 +110,7 @@ const TemplateLibrary = memo(({ onClose }: Props) => {
       position: 'absolute',
       bottom: '16px',
       left: '16px',
-      width: '280px',
+      width: 'min(280px, calc(100% - 32px))',
       maxHeight: '300px',
       background: '#0f172a',
       border: '1px solid #1e293b',

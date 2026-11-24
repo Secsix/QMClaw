@@ -91,7 +91,11 @@ const NodeConfigPanel = memo(({ nodeId, onClose, onRunNode }: Props) => {
         position: 'absolute',
         top: '16px',
         right: '16px',
-        width: '320px',
+        // 窄侧栏（400~480px）下不能固定 320px，否则几乎盖满画布
+        width: 'min(320px, calc(100% - 32px))',
+        maxHeight: 'calc(100% - 32px)',
+        display: 'flex',
+        flexDirection: 'column',
         background: '#0f172a',
         border: '1px solid #1e293b',
         borderRadius: '12px',
@@ -195,7 +199,8 @@ const NodeConfigPanel = memo(({ nodeId, onClose, onRunNode }: Props) => {
       {/* Content */}
       <div style={{
         padding: '16px',
-        maxHeight: 'calc(100vh - 300px)',
+        flex: 1,
+        minHeight: 0,
         overflowY: 'auto',
       }}>
         {activeTab === 'config' ? (

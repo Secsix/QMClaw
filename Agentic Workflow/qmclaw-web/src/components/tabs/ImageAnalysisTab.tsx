@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
+import useViewport from '@/hooks/useViewport';
 import type {
   ExperimentFamily,
   FullAnalysisResult,
@@ -34,6 +35,7 @@ interface AnalysisResult {
 }
 
 export default function ImageAnalysisTab() {
+  const { isNarrow } = useViewport();
   // 状态
   const [image, setImage] = useState<string | null>(null); // base64
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -304,9 +306,17 @@ export default function ImageAnalysisTab() {
       </div>
 
       {/* 主内容区 */}
-      <div style={styles.main}>
+      <div style={{
+        ...styles.main,
+        // 窄侧栏下左右两栏改为上下堆叠
+        flexDirection: isNarrow ? 'column' : 'row',
+        overflowY: isNarrow ? 'auto' : 'hidden',
+      }}>
         {/* 左侧：图像上传 */}
-        <div style={styles.leftPanel}>
+        <div style={{
+          ...styles.leftPanel,
+          ...(isNarrow ? { width: '100%', borderRight: 'none', borderBottom: '1px solid #334155' } : {}),
+        }}>
           <div
             style={{
               ...styles.dropZone,

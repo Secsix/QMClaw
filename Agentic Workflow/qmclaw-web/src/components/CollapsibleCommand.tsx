@@ -115,6 +115,7 @@ export default function CollapsibleCommand({
           <span
             style={{
               flex: 1,
+              minWidth: 0,
               fontFamily: "monospace",
               fontSize: "0.75rem",
               color: config.color,

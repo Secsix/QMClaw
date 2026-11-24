@@ -61,7 +61,8 @@ const NodeSearch = memo(({ onClose }: Props) => {
       position: 'absolute',
       top: '16px',
       right: '16px',
-      width: '320px',
+      // 窄侧栏（400~480px）下 320px 会盖满画布
+      width: 'min(320px, calc(100% - 32px))',
       maxHeight: '400px',
       background: '#0f172a',
       border: '1px solid #1e293b',

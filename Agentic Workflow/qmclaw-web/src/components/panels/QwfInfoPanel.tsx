@@ -102,7 +102,8 @@ export default function QwfInfoPanel({ onClose }: Props) {
         position: 'absolute',
         top: '16px',
         right: '16px',
-        width: '380px',
+        // 窄侧栏（400~480px）下 380px 会溢出画布
+        width: 'min(380px, calc(100% - 32px))',
         maxHeight: 'calc(100% - 32px)',
         display: 'flex',
         flexDirection: 'column',

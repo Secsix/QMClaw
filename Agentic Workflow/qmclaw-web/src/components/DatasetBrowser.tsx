@@ -182,6 +182,7 @@ export default function DatasetBrowser() {
               placeholder="Path (e.g. test/20260324)"
               style={{
                 flex: 1,
+                minWidth: 0,
                 padding: "0.25rem 0.4rem",
                 background: "#0f172a",
                 border: "1px solid #334155",

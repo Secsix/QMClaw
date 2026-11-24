@@ -333,7 +333,7 @@ export function CompactSessionManager() {
         <div style={{
           position: "absolute", top: "100%", right: 0, marginTop: "0.5rem",
           background: "#0f172a", border: "1px solid #6366f1",
-          borderRadius: "0.5rem", minWidth: "320px", maxHeight: "400px",
+          borderRadius: "0.5rem", minWidth: "min(320px, calc(100vw - 2rem))", maxHeight: "400px",
           zIndex: 1000, boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
           display: "flex", flexDirection: "column",
         }}>
