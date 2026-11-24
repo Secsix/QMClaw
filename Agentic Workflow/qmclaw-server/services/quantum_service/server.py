@@ -830,6 +830,10 @@ class QuantumService(BaseService):
             return self._handle_qubit_state(data)
         elif path == "/qubit/state_table":
             return self._handle_qubit_state_table(data)
+        elif path == "/qubit/evidence":
+            return self._handle_qubit_evidence(data)
+        elif path == "/qubit/evidence/reset":
+            return self._handle_qubit_evidence_reset(data)
         elif path == "/qubit/pair/state_table":
             return self._handle_qubit_pair_state_table(data)
         elif path == "/qubit/pair/state":
@@ -920,6 +924,181 @@ class QuantumService(BaseService):
             "criteria_version": state.get("criteria_version"),
         }
 
+    # --- 演练证据（manual evidence）：控制台演示通道（BACKLOG O8） ---
+    #
+    # 放这里而不是状态推导里，是因为「证据从哪来」与「证据怎么用」要分开：
+    # 探针内部只负责把演练证据并进 evidence/sources，推导仍旧走 qubit_state.derive_state。
+    # 合流规矩见 services.common.state_evidence.merge_drill_evidence：真实证据优先。
+
+    def _evidence_store(self):
+        from services.common.evidence_store import EvidenceStore
+
+        return EvidenceStore()
+
+    def _drill_evidence(self, qubit: str) -> Dict[str, Any]:
+        """读某个比特的有效演练证据（过期自动剔；读盘失败不让状态接口挂掉）。"""
+        try:
+            store = self._evidence_store()
+        except Exception as exc:  # noqa: BLE001 - 演练通道坏了不能把状态查询带崩
+            _log(f"[evidence] 演练证据库不可用：{exc}")
+            return {"values": {}, "sources": {}, "entries": [], "available": False, "error": str(exc)}
+        try:
+            entries = store.entries(str(qubit))
+            return {
+                "values": {str(e.get("key")): e.get("value") for e in entries},
+                "sources": store.sources(str(qubit)),
+                "entries": entries,
+                "available": True,
+                "path": store.path,
+            }
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[evidence] 读取演练证据失败：{exc}")
+            return {"values": {}, "sources": {}, "entries": [], "available": False, "error": str(exc)}
+
+    @staticmethod
+    def _drill_summary(values: Dict[str, Any], sources: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "count": len(values or {}),
+            "keys": sorted((values or {}).keys()),
+            "entries": sources or {},
+        }
+
+    def _merge_drill(self, qubit: str, evidence, sources, conflicts):
+        """单比特：真实证据 + 演练证据（真实优先），返回 (evidence, sources, conflicts, drill)。"""
+        from services.common.state_evidence import merge_drill_evidence
+
+        drill = self._drill_evidence(qubit)
+        values = drill.get("values") or {}
+        if not values:
+            return evidence, sources, list(conflicts or []), self._drill_summary({}, {})
+        merged, out_sources, drill_conflicts = merge_drill_evidence(
+            evidence, sources, values, drill.get("sources") or {}
+        )
+        return (
+            merged,
+            out_sources,
+            list(conflicts or []) + drill_conflicts,
+            self._drill_summary(values, drill.get("sources") or {}),
+        )
+
+    def _merge_drill_pair(self, qubits: List[str], evidence, sources):
+        """pair：把两个比特各自名下的演练证据都并进来（同 key 先到先得，标清来自哪个比特）。"""
+        from services.common.state_evidence import merge_drill_evidence
+
+        values: Dict[str, Any] = {}
+        drill_sources: Dict[str, Any] = {}
+        for qubit in qubits:
+            drill = self._drill_evidence(qubit)
+            for key, value in (drill.get("values") or {}).items():
+                if key in values:
+                    continue
+                values[key] = value
+                meta = dict((drill.get("sources") or {}).get(key) or {})
+                meta.setdefault("source", "manual")
+                meta["qubit"] = str(qubit)
+                drill_sources[key] = meta
+        if not values:
+            return evidence, sources, [], self._drill_summary({}, {})
+        merged, out_sources, drill_conflicts = merge_drill_evidence(evidence, sources, values, drill_sources)
+        return merged, out_sources, drill_conflicts, self._drill_summary(values, drill_sources)
+
+    #: `/qubit/evidence` 请求里除证据值以外的元字段（其余数值键都可直接当证据写）。
+    EVIDENCE_META_KEYS = ("name", "qubit", "entries", "evidence", "source", "ttl_s", "ttl", "note", "run_id")
+
+    def _handle_qubit_evidence(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """演练证据（manual evidence）的读/写。
+
+        读（不带 entries）::
+
+            {"name": "q0"}  →  {"success": true, "count": 3, "entries": [...]}
+
+        写::
+
+            {"name": "q0", "entries": {"contrast": 0.85}, "source": "manual",
+             "ttl_s": 28800, "note": "演示：iqraw 换算", "run_id": "..."}
+
+        也可以省略 entries，直接把证据键写在顶层（除 EVIDENCE_META_KEYS 外的键）。
+        """
+        from services.common.evidence_store import DEFAULT_SOURCE, DEFAULT_TTL_S
+
+        name = data.get("name") or data.get("qubit") or (data.get("pair") or "")
+        if isinstance(name, list):
+            name = "+".join(str(x) for x in name)
+        name = str(name or "").strip()
+        if not name:
+            return {"success": False, **error_envelope("validation_error", "name (qubit) is required")}
+
+        entries = data.get("entries")
+        if not isinstance(entries, dict) or not entries:
+            entries = data.get("evidence")
+        if not isinstance(entries, dict) or not entries:
+            entries = {
+                key: value
+                for key, value in data.items()
+                if key not in self.EVIDENCE_META_KEYS and not isinstance(value, (dict, list))
+            }
+
+        try:
+            store = self._evidence_store()
+        except Exception as exc:  # noqa: BLE001
+            return {"success": False, **error_envelope("internal_error", f"演练证据库不可用：{exc}")}
+
+        if not entries:
+            items = store.entries(name)
+            return {
+                "success": True,
+                "name": name,
+                "count": len(items),
+                "entries": items,
+                "summary": store.summary(name),
+                "path": store.path,
+            }
+
+        try:
+            ttl_raw = data.get("ttl_s", data.get("ttl", DEFAULT_TTL_S))
+            ttl = float(ttl_raw) if ttl_raw not in (None, "") else DEFAULT_TTL_S
+        except (TypeError, ValueError):
+            return {"success": False, **error_envelope("validation_error", "ttl_s must be a number")}
+        result = store.merge(
+            name,
+            entries,
+            source=str(data.get("source") or DEFAULT_SOURCE),
+            run_id=data.get("run_id"),
+            note=str(data.get("note") or ""),
+            ttl_s=ttl,
+        )
+        if not result.get("ok"):
+            return {
+                "success": False,
+                **error_envelope("internal_error", "演练证据写盘失败（已降级到临时目录）"),
+                "name": name,
+                "written": result.get("entries") or [],
+            }
+        return {
+            "success": True,
+            "name": name,
+            "written": result.get("entries") or [],
+            "count": len(store.entries(name)),
+            "entries": store.entries(name),
+            "summary": store.summary(name),
+            "path": store.path,
+        }
+
+    def _handle_qubit_evidence_reset(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """清空演练证据（给 name 只清该比特，否则清全表）。只影响演练通道，不碰台账。"""
+        name = data.get("name") or data.get("qubit")
+        try:
+            store = self._evidence_store()
+            result = store.reset(str(name) if name else None)
+        except Exception as exc:  # noqa: BLE001
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        return {
+            "success": bool(result.get("ok")),
+            "cleared": result.get("cleared") or [],
+            "removed": result.get("removed") or [],
+            "summary": store.summary(str(name) if name else None),
+        }
+
     def _handle_qubit_state(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """比特状态自查：从执行台账推导证据 → 状态 → 缺什么证据（**只读，不碰硬件**）。
 
@@ -960,6 +1139,10 @@ class QuantumService(BaseService):
         if not isinstance(overrides, dict):
             overrides = None
         evidence, sources = merge_evidence(derived, overrides)
+        # 演练证据（manual）：真实证据优先，只补缺（BACKLOG O8）。
+        evidence, sources, conflicts, drill = self._merge_drill(
+            str(name), evidence, sources, derived.get("conflicts", [])
+        )
         state = derive_state(evidence)
 
         # 状态结论记录（设计稿 §5.2）：结论 = 状态 + 凭据 + 判据版本 + 时效。
@@ -969,7 +1152,7 @@ class QuantumService(BaseService):
             state_result=state,
             evidence=evidence,
             sources=sources,
-            conflicts=derived.get("conflicts", []),
+            conflicts=conflicts,
             criteria_version=state.get("criteria_version"),
         )
         validity = record_validity(record)
@@ -980,7 +1163,8 @@ class QuantumService(BaseService):
             "state": state,
             "evidence": evidence,
             "evidence_sources": sources,
-            "conflicts": derived.get("conflicts", []),
+            "conflicts": conflicts,
+            "drill_evidence": drill,
             "records": {
                 "considered": derived.get("considered", 0),
                 "ignored": derived.get("ignored", 0),
@@ -1021,13 +1205,17 @@ class QuantumService(BaseService):
             derived = evidence_from_records(records, qubit=name)
             scoped = overrides.get(name) if isinstance(overrides, dict) else None
             evidence, sources = merge_evidence(derived, scoped if isinstance(scoped, dict) else None)
+            # 演练证据也要并进来：否则 pair 视图看到的前置态会和 `/qubit/state` 说的不一致
+            evidence, sources, conflicts, _drill = self._merge_drill(
+                name, evidence, sources, derived.get("conflicts", [])
+            )
             state = derive_state(evidence)
             record = build_state_record(
                 qubit=name,
                 state_result=state,
                 evidence=evidence,
                 sources=sources,
-                conflicts=derived.get("conflicts", []),
+                conflicts=conflicts,
                 criteria_version=state.get("criteria_version"),
             )
             rows.append(
@@ -1037,7 +1225,7 @@ class QuantumService(BaseService):
                     "state_index": state.get("state_index"),
                     "description": state.get("description"),
                     "validity": record_validity(record),
-                    "conflicts": derived.get("conflicts", []),
+                    "conflicts": conflicts,
                     "record": record,
                 }
             )
@@ -1097,13 +1285,14 @@ class QuantumService(BaseService):
             [{"qubit": row["qubit"], "state": row["state"]} for row in rows]
         )
         derived, evidence, sources = self._pair_evidence(records, pair["qubits"], data.get("evidence"))
+        evidence, sources, conflicts, drill = self._merge_drill_pair(pair["qubits"], evidence, sources)
         state = derive_pair_state(evidence, prerequisites=prerequisites)
         record = build_pair_record(
             qubits=pair["qubits"],
             state_result=state,
             evidence=evidence,
             sources=sources,
-            conflicts=[],
+            conflicts=conflicts,
             criteria_version=state.get("criteria_version"),
             coupler=pair["coupler"],
         )
@@ -1116,6 +1305,8 @@ class QuantumService(BaseService):
             "derived": derived,
             "evidence": evidence,
             "sources": sources,
+            "conflicts": conflicts,
+            "drill": drill,
             "state": state,
             "record": record,
         }
@@ -1176,6 +1367,8 @@ class QuantumService(BaseService):
             ],
             "evidence": ctx["evidence"],
             "evidence_sources": ctx["sources"],
+            "conflicts": ctx.get("conflicts") or [],
+            "drill_evidence": ctx.get("drill") or {},
             "records": {
                 "considered": ctx["derived"].get("considered", 0),
                 "ignored": ctx["derived"].get("ignored", 0),
@@ -1302,6 +1495,10 @@ class QuantumService(BaseService):
             "prerequisites": ctx["prerequisites"],
             "criteria_version": criteria_version,
             "execution": execution,
+            "evidence": ctx["evidence"],
+            "evidence_sources": ctx["sources"],
+            "conflicts": ctx.get("conflicts") or [],
+            "drill_evidence": ctx.get("drill") or {},
             **decision,
         }
 
@@ -1493,6 +1690,9 @@ class QuantumService(BaseService):
         if not isinstance(overrides, dict):
             overrides = None
         evidence, sources = merge_evidence(derived, overrides)
+        evidence, sources, conflicts, drill = self._merge_drill(
+            str(name), evidence, sources, derived.get("conflicts", [])
+        )
         state = derive_state(evidence)
 
         # 状态结论记录：和 /qubit/state 同一条链路，保证两边看到的态一致
@@ -1501,7 +1701,7 @@ class QuantumService(BaseService):
             state_result=state,
             evidence=evidence,
             sources=sources,
-            conflicts=derived.get("conflicts", []),
+            conflicts=conflicts,
             criteria_version=state.get("criteria_version"),
         )
         machine = load_state_machine()
@@ -1551,6 +1751,10 @@ class QuantumService(BaseService):
             "name": str(name),
             "state": current_state,
             "criteria_version": criteria_version,
+            "evidence": evidence,
+            "evidence_sources": sources,
+            "conflicts": conflicts,
+            "drill_evidence": drill,
             **decision,
         }
 

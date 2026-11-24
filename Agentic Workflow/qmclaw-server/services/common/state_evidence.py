@@ -234,3 +234,52 @@ def merge_evidence(
         evidence[key] = value
         sources[key] = {"source": "request"}
     return evidence, sources
+
+
+def merge_drill_evidence(
+    evidence: Optional[Dict[str, Any]],
+    sources: Optional[Dict[str, Any]] = None,
+    drill_evidence: Optional[Dict[str, Any]] = None,
+    drill_sources: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]:
+    """把「演练证据」并入真实证据，返回 (evidence, sources, conflicts)。
+
+    与 :func:`merge_evidence` 的区别（很关键，别混用）：
+
+    * **真实证据优先** —— 台账里已经有的 key，演练值一律不覆盖；
+    * **保留演练来源** —— ``source`` 原样是 ``manual`` / 脚本给的值，不会被改写成
+      ``request``，评审时能一眼看出「这个数是演练写进来的」；
+    * 被演练值顶掉的真实值若与演练值不同，记进 ``conflicts``（不静默）。
+
+    ``source="request"`` 那种「单次请求的显式覆盖」仍走 :func:`merge_evidence`，
+    两者可以叠加：先 request 覆盖，再并演练证据。
+    """
+    merged = dict(evidence or {})
+    out_sources = dict(sources or {})
+    conflicts: List[Dict[str, Any]] = []
+    for key, value in (drill_evidence or {}).items():
+        if value is None:
+            continue
+        if key in merged:
+            current = merged.get(key)
+            if isinstance(current, (int, float)) and isinstance(value, (int, float)):
+                same = abs(float(current) - float(value)) < 1e-9
+            else:
+                same = current == value
+            if not same:
+                conflicts.append(
+                    {
+                        "key": key,
+                        "kept": current,
+                        "dropped": value,
+                        "kept_source": (out_sources.get(key) or {}).get("source"),
+                        "dropped_source": (drill_sources or {}).get(key, {}).get("source", "manual"),
+                        "reason": "真实证据优先，演练证据被丢弃",
+                    }
+                )
+            continue
+        merged[key] = value
+        meta = dict((drill_sources or {}).get(key) or {})
+        meta.setdefault("source", "manual")
+        out_sources[key] = meta
+    return merged, out_sources, conflicts

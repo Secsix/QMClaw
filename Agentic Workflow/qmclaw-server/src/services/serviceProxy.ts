@@ -292,6 +292,23 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // 演练证据（manual evidence）：控制台演示用的可持久化证据通道（BACKLOG O8）。
+  // 合流时真实证据优先，演练证据只补缺；前端据此标注「这条不是实测」。
+  proxy.get('/quantum/qubit/evidence', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/evidence', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/evidence', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/evidence', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/evidence/reset', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/evidence/reset', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   // 状态机路由判定（纯计算不执行）：候选动作 → 闸门 → 剪枝 → G0–G4 决策。
   // 真源在 services/common/router.py；workflow_service 的 state_route 节点也调它。
   proxy.post('/quantum/qubit/route', async (req, res) => {
