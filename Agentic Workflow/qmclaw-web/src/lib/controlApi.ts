@@ -171,6 +171,48 @@ export interface QubitState {
   /** A(s)：当前态下允许的全部转移边（前向 + 自环 + 回退）。 */
   edges?: StateMachineEdge[];
   record?: Record<string, unknown>;
+  /**
+   * 演练证据（manual evidence，BACKLOG O8）。
+   * 演示脚本写进 data/state_ledger/evidence.json 的证据；真实台账证据优先，
+   * 这里只列「补进来的那些」，前端必须标注来源，不能当成实测。
+   */
+  drill_evidence?: DrillEvidence;
+}
+
+/** 一条演练证据的来源信息（后端 evidence_sources 里对应的那一条）。 */
+export interface DrillEvidenceEntry {
+  source?: string;
+  run_id?: string | null;
+  note?: string;
+  created_at?: number | null;
+  expires_at?: number | null;
+  qubit?: string;
+}
+
+export interface DrillEvidence {
+  count?: number;
+  keys?: string[];
+  entries?: Record<string, DrillEvidenceEntry>;
+}
+
+/** `POST /qubit/evidence` 的返回（写入时带 written，读取时带 entries）。 */
+export interface DrillEvidenceResponse {
+  success?: boolean;
+  name?: string;
+  count?: number;
+  entries?: Array<{
+    key?: string;
+    value?: unknown;
+    source?: string;
+    run_id?: string | null;
+    note?: string;
+    created_at?: number | null;
+    expires_at?: number | null;
+    active?: boolean;
+  }>;
+  written?: Array<Record<string, unknown>>;
+  summary?: Record<string, unknown>;
+  path?: string;
 }
 
 export interface QuantumJob {
@@ -317,6 +359,29 @@ export const controlApi = {
    * 而后端产出的 plotPath 形如 `/plots/xxx.png`（也可能只是文件名）。
    * 语义与 lib/api.ts 的 normalizePlotUrl 保持一致。
    */
+  /**
+   * 演练证据（manual evidence）：演示脚本写，前端只读 + 展示来源。
+   * 传 name 只读/清该比特；不传则清全表（reset）。
+   */
+  drillEvidence: (name: string) =>
+    postJson<DrillEvidenceResponse>("/api/quantum/qubit/evidence", { name }),
+
+  setDrillEvidence: (payload: {
+    name: string;
+    entries: Record<string, unknown>;
+    source?: string;
+    ttl_s?: number;
+    note?: string;
+    run_id?: string;
+  }) =>
+    postJson<DrillEvidenceResponse>("/api/quantum/qubit/evidence", payload),
+
+  resetDrillEvidence: (name?: string) =>
+    postJson<DrillEvidenceResponse>(
+      "/api/quantum/qubit/evidence/reset",
+      name ? { name } : {}
+    ),
+
   plotUrl: (path: string) => {
     if (!path) return "";
     if (path.startsWith("http") || path.startsWith("data:")) return path;

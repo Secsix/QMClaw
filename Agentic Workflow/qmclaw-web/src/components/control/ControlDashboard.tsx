@@ -145,11 +145,12 @@ export default function ControlDashboard() {
 
         <Section
           title="③ 实验动态"
-          subtitle="当前运行中 / 上一个已结束 / 近期作业"
+          subtitle="本次运行的每个节点图 / 当前运行中 / 上一个已结束 / 近期作业"
         >
           <LiveExperimentPanel
             quantumJobs={data.quantumJobs}
             legacyJobs={data.legacyJobs}
+            run={data.activeRun}
           />
         </Section>
 

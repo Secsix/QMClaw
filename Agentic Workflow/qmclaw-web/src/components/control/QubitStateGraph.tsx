@@ -175,6 +175,17 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
     </text>
   );
 
+  // 演练证据（BACKLOG O8）：数量 / 键 / 来源，全部来自后端，前端不推断
+  const drillCount = state?.drill_evidence?.count ?? 0;
+  const drillKeys = state?.drill_evidence?.keys ?? [];
+  const drillSources = Array.from(
+    new Set(
+      Object.values(state?.drill_evidence?.entries ?? {})
+        .map((e) => e?.source ?? "manual")
+        .filter((s): s is string => !!s)
+    )
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
       {/* 时效横幅：过期是 GATE-TTL 会拦动作的唯一信号，放最上面 */}
@@ -201,6 +212,24 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
             <span style={{ color: "var(--qm-err)" }}>
               GATE-TTL 会拦截动作：先重判状态再下发
               {validityReason ? ` · ${validityReason}` : ""}
+            </span>
+          )}
+          {drillCount > 0 && (
+            <span
+              title={`演练证据（非实测）：${drillKeys.join("、")}${
+                drillSources.length ? `\n来源：${drillSources.join("、")}` : ""
+              }\n真实台账证据优先；这些只在 data/state_ledger/evidence.json 里，可用 /qubit/evidence/reset 清空。`}
+              style={{
+                padding: "0 0.4rem",
+                borderRadius: "0.3rem",
+                fontSize: "0.7rem",
+                color: "var(--qm-warn)",
+                border: "1px solid var(--qm-warn)",
+                background: "transparent",
+                cursor: "help",
+              }}
+            >
+              演练证据 {drillCount} 条（{drillSources[0] ?? "manual"}）
             </span>
           )}
           <span style={{ marginLeft: "auto", color: "var(--qm-text-mute)" }}>

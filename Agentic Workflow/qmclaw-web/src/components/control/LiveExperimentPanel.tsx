@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { LegacyJob, QuantumJob } from "@/lib/controlApi";
+import { LegacyJob, QuantumJob, WorkflowRun } from "@/lib/controlApi";
 import { controlApi } from "@/lib/controlApi";
 
 /**
@@ -14,11 +14,27 @@ import { controlApi } from "@/lib/controlApi";
  *
  * 老通道的信息更全（能显示实验名、比特、stdout、图片），所以：
  *   "上一个跑完"优先从老通道里挑最新的已完成作业；老通道没有才退回新通道。
+ *
+ * 第三块「本次运行图」（BACKLOG O8）：工作流每个节点自己产出的图
+ * （run.nodes[].output.plotPath），按节点顺序铺成缩略图，点开看大图。
+ * 这一块和老队列那张图不是一回事：老队列只有"最后一张"，这里能看到
+ * 一次 QWF 里每一步分别画了什么 —— 演示时"状态推进 → 每步都出图"靠它。
  */
 
 interface Props {
   quantumJobs: QuantumJob[];
   legacyJobs: LegacyJob[];
+  /** 当前这次工作流运行（含逐节点 output.plotPath）。 */
+  run?: WorkflowRun | null;
+}
+
+interface NodePlot {
+  nodeId: string;
+  nodeType: string;
+  status: string;
+  duration?: number | null;
+  path: string;
+  src: string;
 }
 
 const RUNNING = ["running", "started", "pending", "queued", "submitted"];
@@ -137,7 +153,11 @@ function JobCard({
   );
 }
 
-export default function LiveExperimentPanel({ quantumJobs, legacyJobs }: Props) {
+export default function LiveExperimentPanel({
+  quantumJobs,
+  legacyJobs,
+  run,
+}: Props) {
   const runningLegacy = useMemo(
     () => orderJobs(legacyJobs).filter((j) => RUNNING.includes((j.status || "").toLowerCase())),
     [legacyJobs]
@@ -163,6 +183,35 @@ export default function LiveExperimentPanel({ quantumJobs, legacyJobs }: Props) 
 
   const running = runningLegacy[0];
 
+  // 本次运行里所有产出图像的节点（保持节点顺序，便于对照 QWF 流程）
+  const nodePlots = useMemo<NodePlot[]>(() => {
+    const out: NodePlot[] = [];
+    for (const node of run?.nodes ?? []) {
+      const path = node.output?.plotPath;
+      if (!path) continue;
+      out.push({
+        nodeId: node.nodeId,
+        nodeType: node.nodeType,
+        status: node.status,
+        duration: node.duration,
+        path,
+        src: controlApi.plotUrl(path),
+      });
+    }
+    return out;
+  }, [run]);
+
+  // 点击放大：Esc 关闭（面板在窄侧栏里，键盘退出比找按钮快）
+  const [zoom, setZoom] = useState<NodePlot | null>(null);
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoom(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoom]);
+
   // 「上一个已结束」优先取老队列（信息更全：实验名/比特/stdout/图），没有再退回新通道。
   const plotSrc = lastLegacy?.plotPath
     ? lastLegacy.plotPath.startsWith("http")
@@ -178,6 +227,81 @@ export default function LiveExperimentPanel({ quantumJobs, legacyJobs }: Props) 
         gap: "0.6rem",
       }}
     >
+      {/* 本次运行逐节点图（BACKLOG O8） */}
+      <JobCard
+        title="本次运行图"
+        badge={run ? `${nodePlots.length} 张` : "none"}
+        accent="var(--qm-accent-2, var(--qm-accent))"
+        meta={
+          run
+            ? [
+                run.workflowName || run.workflowId || run.id,
+                run.status ? `状态 ${run.status}` : "",
+                run.totalDuration != null ? `总耗时 ${run.totalDuration}ms` : "",
+              ].filter(Boolean)
+            : ["还没有工作流运行记录"]
+        }
+        body={
+          nodePlots.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                gap: "0.4rem",
+              }}
+            >
+              {nodePlots.map((plot) => (
+                <button
+                  key={`${plot.nodeId}-${plot.path}`}
+                  type="button"
+                  onClick={() => setZoom(plot)}
+                  title={`${plot.nodeId} · ${plot.nodeType} · ${plot.status}\n${plot.path}\n（点击放大）`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.2rem",
+                    padding: "0.25rem",
+                    border: "1px solid var(--qm-border)",
+                    borderRadius: "0.35rem",
+                    background: "var(--qm-bg-2)",
+                    cursor: "zoom-in",
+                    minWidth: 0,
+                    textAlign: "left",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={plot.src}
+                    alt={`${plot.nodeId} 实验结果图`}
+                    style={{
+                      width: "100%",
+                      borderRadius: "0.25rem",
+                      background: "#fff",
+                      display: "block",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      color: "var(--qm-text-dim)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {plot.nodeId} · {plot.nodeType}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>
+              本次运行没有产出图像（模拟后端可能只给指标；节点 output.plotPath 为空）
+            </span>
+          )
+        }
+      />
+
       {/* 当前正在运行 */}
       <JobCard
         title="当前运行中"
@@ -359,6 +483,76 @@ export default function LiveExperimentPanel({ quantumJobs, legacyJobs }: Props) 
           </div>
         }
       />
+
+      {zoom ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="实验结果图放大"
+          onClick={() => setZoom(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(2, 6, 23, 0.82)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              color: "#e2e8f0",
+              fontSize: "0.78rem",
+              maxWidth: "100%",
+            }}
+          >
+            <strong>{zoom.nodeId}</strong>
+            <span style={{ opacity: 0.75 }}>
+              {zoom.nodeType} · {zoom.status}
+              {zoom.duration != null ? ` · ${zoom.duration}ms` : ""}
+            </span>
+            <span style={{ opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {zoom.path}
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoom(null)}
+              style={{
+                marginLeft: "auto",
+                background: "transparent",
+                color: "#e2e8f0",
+                border: "1px solid rgba(226,232,240,0.4)",
+                borderRadius: "0.3rem",
+                padding: "0.1rem 0.5rem",
+                cursor: "pointer",
+                fontSize: "0.75rem",
+              }}
+            >
+              关闭（Esc）
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={zoom.src}
+            alt={`${zoom.nodeId} 实验结果图（放大）`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "82vh",
+              borderRadius: "0.4rem",
+              background: "#fff",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+            }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
