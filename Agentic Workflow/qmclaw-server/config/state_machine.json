@@ -1,0 +1,248 @@
+{
+  "_doc": "量子测控状态机的结构真源（边表 A(s) / 每态 TTL / 三道闸门参数 / 模板库）。设计稿见 docs/STATE_MACHINE_DESIGN.md。**阈值不在这里**——指标阈值的唯一真源是 config/lab_criteria.json；本文件只放结构，改阈值不要动本文件。",
+  "version": "1.0.0",
+  "updated": "2026-11-24",
+  "authority": "structure-only: 状态定义 / 合法边 A(s) / 状态 TTL / 闸门参数 / 模板库",
+  "criteria_source": "config/lab_criteria.json",
+  "scope_types": ["qubit", "pair"],
+  "edge_kinds": ["forward", "self", "back"],
+  "states": {
+    "unknown": {
+      "index": 0,
+      "description": "还没有任何可信证据（频率/幅度/对比度都没有确认过）",
+      "ttl_s": null,
+      "requires": [],
+      "note": "初始态；没有结论可言，故不过期"
+    },
+    "freq_locked": {
+      "index": 1,
+      "description": "比特频率已确认并锁定（f10 稳定、spectroscopy/pidf 有峰）",
+      "ttl_s": 86400,
+      "requires": ["freq_locked"],
+      "note": "频率最易被静默回写，TTL 取 1 天"
+    },
+    "amp_calibrated": {
+      "index": 2,
+      "description": "π 脉冲幅度已标定（幅度扫描找到最优，回到基态的幅度已知）",
+      "ttl_s": 259200,
+      "requires": ["amp_calibrated"],
+      "note": "幅度随温度/功率漂移，TTL 取 3 天"
+    },
+    "state_discriminated": {
+      "index": 3,
+      "description": "态区分度达标（contrast ≥ unusable 门槛，可读出 0/1）",
+      "ttl_s": 259200,
+      "requires": ["contrast"],
+      "note": "读出链慢漂，TTL 取 3 天"
+    },
+    "coherence_measured": {
+      "index": 4,
+      "description": "相干时间已测出且达标（T1、T2* 均过门槛）",
+      "ttl_s": 1209600,
+      "requires": ["t1_us", "t2_star_us"],
+      "note": "T1/T2 变化慢但仍需定期复核，TTL 取 14 天"
+    },
+    "characterized": {
+      "index": 5,
+      "description": "表征完成（含 XEB 门保真度）",
+      "ttl_s": 2592000,
+      "requires": ["xeb_p", "xeb_gate_fidelity"],
+      "note": "仍需定期复核（读出慢漂），TTL 取 30 天"
+    }
+  },
+  "edges": [
+    {
+      "id": "unknown->freq_locked",
+      "kind": "forward",
+      "from": "unknown",
+      "to": "freq_locked",
+      "action": {
+        "fn": "sq.spectroscopy",
+        "alternatives": ["sq.spectroscopy_iq", "sq.pidf", "sq.ramsey_df"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["freq_locked"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["freq_locked"], "ttl_s": 86400},
+      "note": "四选一；sq.spectroscopy 必须显式给 freq，否则退化成标量崩"
+    },
+    {
+      "id": "freq_locked->amp_calibrated",
+      "kind": "forward",
+      "from": "freq_locked",
+      "to": "amp_calibrated",
+      "action": {
+        "fn": "sq.piamp",
+        "alternatives": ["sq.time_rabi", "sq.rabi", "sq.set_pi"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["amp_calibrated"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["amp_calibrated"], "ttl_s": 259200},
+      "note": "幅度/时长口径的厂商坑见 qubit_state.EVIDENCE_SOURCES 的 note"
+    },
+    {
+      "id": "amp_calibrated->state_discriminated",
+      "kind": "forward",
+      "from": "amp_calibrated",
+      "to": "state_discriminated",
+      "action": {
+        "fn": "sq.iqraw",
+        "alternatives": [],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["contrast"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["contrast"], "ttl_s": 259200},
+      "note": "对比度阈值见 lab_criteria.json:metrics.contrast（0.2/0.4/0.7）"
+    },
+    {
+      "id": "state_discriminated->coherence_measured",
+      "kind": "forward",
+      "from": "state_discriminated",
+      "to": "coherence_measured",
+      "action": {
+        "fn": "sq.t1",
+        "sequence": ["sq.t1", "sq.ramsey_t2"],
+        "alternatives": [],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["t1_us", "t2_star_us"],
+      "max_attempts": 2,
+      "guard": {"evidence": ["t1_us", "t2_star_us"], "ttl_s": 1209600},
+      "note": "一次动作产出两项证据；sq.t1 只测一个 zpa 时必须显式传固定 zpa"
+    },
+    {
+      "id": "coherence_measured->characterized",
+      "kind": "forward",
+      "from": "coherence_measured",
+      "to": "characterized",
+      "action": {
+        "fn": "sq.xeb",
+        "alternatives": [],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["xeb_p", "xeb_gate_fidelity"],
+      "max_attempts": 2,
+      "guard": {"evidence": ["xeb_p", "xeb_gate_fidelity"], "ttl_s": 2592000},
+      "note": "阈值见 lab_criteria.json:metrics.xeb（min_p 0.99 / min_gate_fidelity 0.99）"
+    },
+    {
+      "id": "freq_locked--self--rescan",
+      "kind": "self",
+      "from": "freq_locked",
+      "to": "freq_locked",
+      "action": {
+        "fn": "sq.spectroscopy",
+        "alternatives": ["sq.spectroscopy_iq", "sq.pidf"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["freq_locked"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["freq_locked"], "ttl_s": 86400},
+      "semantic": "判据未达标，同态重试（换扫描窗口/功率重测频率）",
+      "note": "自环必须带 max_attempts；达到上限 → Router 走 G4（连续失败 → HOLD，需人介入）"
+    },
+    {
+      "id": "amp_calibrated--self--resweep",
+      "kind": "self",
+      "from": "amp_calibrated",
+      "to": "amp_calibrated",
+      "action": {
+        "fn": "sq.time_rabi",
+        "alternatives": ["sq.piamp", "sq.rabi"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["amp_calibrated"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["amp_calibrated"], "ttl_s": 259200},
+      "semantic": "幅度未达标，同态重试（重扫 Rabi）"
+    },
+    {
+      "id": "state_discriminated--self--recenter",
+      "kind": "self",
+      "from": "state_discriminated",
+      "to": "state_discriminated",
+      "action": {
+        "fn": "sq.iqraw",
+        "alternatives": [],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["contrast"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["contrast"], "ttl_s": 259200},
+      "semantic": "对比度未达标，同态重试（重定中心/重取云图）"
+    },
+    {
+      "id": "amp_calibrated->freq_locked",
+      "kind": "back",
+      "from": "amp_calibrated",
+      "to": "freq_locked",
+      "action": {
+        "fn": "sq.spectroscopy",
+        "alternatives": ["sq.spectroscopy_iq", "sq.pidf"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["freq_locked"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["freq_locked"], "ttl_s": 86400},
+      "trigger": "频率回写被静默改动 / 频率证据与新读数冲突",
+      "semantic": "状态退化，退回更早态重新标定"
+    },
+    {
+      "id": "coherence_measured->freq_locked",
+      "kind": "back",
+      "from": "coherence_measured",
+      "to": "freq_locked",
+      "action": {
+        "fn": "sq.spectroscopy",
+        "alternatives": ["sq.spectroscopy_iq", "sq.pidf"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["freq_locked"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["freq_locked"], "ttl_s": 86400},
+      "trigger": "漂移超阈（PPT 原图示例）",
+      "semantic": "重测频率后重新逐级推进"
+    },
+    {
+      "id": "state_discriminated->amp_calibrated",
+      "kind": "back",
+      "from": "state_discriminated",
+      "to": "amp_calibrated",
+      "action": {
+        "fn": "sq.piamp",
+        "alternatives": ["sq.time_rabi"],
+        "params_hint": {"qubit": "$qubit"}
+      },
+      "requires": ["amp_calibrated"],
+      "max_attempts": 3,
+      "guard": {"evidence": ["amp_calibrated"], "ttl_s": 259200},
+      "trigger": "幅度漂移导致对比度掉档",
+      "semantic": "重标幅度"
+    }
+  ],
+  "gates": {
+    "PRE": {
+      "id": "GATE-PRE",
+      "description": "前置状态没到位：目标动作所在边的 from 态 ≠ 当前状态",
+      "on_violation": "block",
+      "report": ["current_state", "required_state", "missing_evidence"]
+    },
+    "VER": {
+      "id": "GATE-VER",
+      "description": "判据版本对不上：动作期望的 criteria_version ≠ config/lab_criteria.json 当前 version",
+      "on_version_mismatch": "block",
+      "rerun_criteria_version": null,
+      "note": "on_version_mismatch 改为 rerun 时，命中后自动按当前判据重判一次再放行；默认 block（要求重判）"
+    },
+    "TTL": {
+      "id": "GATE-TTL",
+      "description": "状态已过期：now > expires_at（expires_at 由所处状态的 ttl_s 推出）",
+      "on_violation": "block",
+      "recovery": "重判状态（读当前台账）后放行"
+    }
+  },
+  "templates": [],
+  "_templates_doc": "模板库（P3 落地）：每条模板 = 动作 + 参数 + 适用边 + 成功率估计 + 晋退状态，形态见设计稿 §9.1。P3 之前为空数组。"
+}

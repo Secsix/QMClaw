@@ -917,6 +917,12 @@ class QuantumService(BaseService):
         from services.common.qubit_state import derive_state, evidence_plan
         from services.common.runrecord import RunRecordWriter
         from services.common.state_evidence import evidence_from_records, merge_evidence
+        from services.common.state_machine import (
+            build_state_record,
+            edges_for,
+            record_validity,
+            state_version,
+        )
 
         name = data.get("name") or data.get("qubit")
         if not name:
@@ -938,6 +944,18 @@ class QuantumService(BaseService):
         evidence, sources = merge_evidence(derived, overrides)
         state = derive_state(evidence)
 
+        # 状态结论记录（设计稿 §5.2）：结论 = 状态 + 凭据 + 判据版本 + 时效。
+        # 只增不改：既有键的语义完全不变，下面新增的键只供闸门 / Router / 前端用。
+        record = build_state_record(
+            qubit=str(name),
+            state_result=state,
+            evidence=evidence,
+            sources=sources,
+            conflicts=derived.get("conflicts", []),
+            criteria_version=state.get("criteria_version"),
+        )
+        validity = record_validity(record)
+
         return {
             "success": True,
             "name": str(name),
@@ -952,6 +970,13 @@ class QuantumService(BaseService):
                 "limit": limit,
             },
             "plan": evidence_plan(state["state"]),
+            # --- 新增（设计稿 §10.2）：结构版本 / 时效 / 合法边 A(s) / 结论记录 ---
+            "state_version": state_version(),
+            "expires_at": record.get("expires_at"),
+            "valid": validity.get("valid"),
+            "validity": validity,
+            "edges": edges_for(state["state"]),
+            "record": record,
         }
 
     def _handle_qubit_state_table(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -960,10 +985,14 @@ class QuantumService(BaseService):
         返回状态序列、每个状态的说明、下一步动作、每类证据由哪个实验产出，
         以及"每个状态再往前一步缺哪些证据"。前端的状态转移图直接用这份表，
         避免在前端硬编码状态机（状态机口径只在 `services/common/qubit_state.py`）。
-        """
-        from services.common.qubit_state import state_table
 
-        table = state_table()
+        结构部分（合法边 A(s)、三道闸门、结构版本、每态 TTL）来自
+        `config/state_machine.json`，由 `services/common/state_machine.py` 读取；
+        旧字段一字不改地保留（只增不改）。
+        """
+        from services.common.state_machine import state_table_extended
+
+        table = state_table_extended()
         return {
             "success": True,
             **table,
