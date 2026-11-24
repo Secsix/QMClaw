@@ -24,8 +24,8 @@
   "qiskit": {
     "enabled": true,
     "description": "quantum_service 的 qiskit/Aer 本地模拟后端（与 sq.* 真机后端并列的第三个后端）",
-    "comment": "python_executable 指向装了 qiskit 的解释器。留空则要求 qiskit 装在服务自己的解释器里（进程内执行）；配了别的解释器则走子进程（qiskit_runner）。",
-    "python_executable": "D:\\anaconda3\\envs\\qiskit\\python.exe",
+    "comment": "python_executable 指向装了 qiskit 的解释器。留空则要求 qiskit 装在服务自己的解释器里（进程内执行）；配了别的解释器则走子进程（qiskit_runner）。本机路径写在 config/system.local.json（不入库），它会覆盖本文件。",
+    "python_executable": "",
     "shots": 2000,
     "seed": 42,
     "timeout_s": 120,
@@ -39,8 +39,9 @@
       "timeout": 30
     },
     "session": {
-      "default_user": "LQHL",
-      "default_path": ["test", "20260822_device1"]
+      "_comment": "通用默认值。实验室账号与本机会话路径写在 config/system.local.json（不入库）。",
+      "default_user": "lab-user",
+      "default_path": ["test", "default"]
     },
     "paths": {
       "measure_scripts": null,

@@ -1,9 +1,10 @@
 {
   "session": {
-    "user": "LQHL",
+    "_comment": "通用默认值（GitHub 版）。实验室的 DataVault 账号与本机会话路径写在 config/session.local.json —— 那个文件不入库，且会覆盖本文件。",
+    "user": "lab-user",
     "path": [
       "test",
-      "20260822_device1"
+      "default"
     ]
   }
 }

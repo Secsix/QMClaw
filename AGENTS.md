@@ -15,6 +15,11 @@
 **API Key 说明**：从环境变量读取，不保存在配置文件中
 - `OPENAI_API_KEY`、`MINIMAX_API_KEY`、`ANTHROPIC_API_KEY`、`DEEPSEEK_API_KEY`
 
+**本机覆盖配置（不入库）**：被跟踪的 `config/*.json` 只放通用默认值（不含实验室账号与本机绝对路径）；
+本机差异写同目录的 `config/*.local.json`（`session.local.json` / `system.local.json`），
+查找顺序 `*.local.json` → 被跟踪 `*.json` → 代码默认值（`system.local.json` 深合并）。
+这两个文件已被 `.gitignore` 挡，换机器时按被跟踪文件的结构复制一份改值即可。
+
 ## 离线模式
 
 quantum_service 和 analysis_service 支持离线模式，可在 LabRAD 不可用时使用历史数据：

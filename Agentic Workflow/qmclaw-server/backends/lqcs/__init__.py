@@ -451,22 +451,30 @@ class LQCSBackend:
         return sorted(experiments, key=lambda x: x["name"])
 
     def _load_session_config(self) -> List[str]:
-        """Load session config from file."""
+        """Load session config from file.
+
+        查找顺序：``config/session.local.json``（本机覆盖，不入库）→
+        ``config/session.json``（被跟踪的通用默认值）。
+        """
         if self._session_config_file is None:
             self._session_config_file = (
                 Path(__file__).parent.parent.parent / "config" / "session.json"
             )
 
-        if self._session_config_file.exists():
+        candidates = [self._session_config_file.with_name("session.local.json"),
+                      self._session_config_file]
+        for path in candidates:
+            if not path.exists():
+                continue
             try:
-                with open(self._session_config_file, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 session = config.get("session", {})
                 user = session.get("user", "LQHL")
-                path = session.get("path", ["test", "20260324"])
-                return ["", user] + path
+                path_parts = session.get("path", ["test", "20260324"])
+                return ["", user] + path_parts
             except Exception:
-                pass
+                continue
         return ["", "LQHL", "test", "20260324"]
 
     # ── Backward Compatibility Properties ──────────────────────────────────

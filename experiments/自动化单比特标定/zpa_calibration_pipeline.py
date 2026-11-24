@@ -398,6 +398,7 @@ def run_manifest(manifest,adapter=None,execute=False,dry=False):
     out.mkdir(exist_ok=True,parents=True);entries=cfg['qubits'];bits=[e['bit'] for e in entries]
     if len(bits)!=len(set(bits)):raise ValueError('One current source file per bit is required')
     model_path=Path(cfg.get('model','zpa_v2/model.json'));model_path=model_path if model_path.is_absolute() else manifest_path.parent/model_path
+    if not model_path.exists():raise ValueError('Model file not found: %s (trained models are not committed; pass --model <local model file>)' % model_path)
     model=load_model(model_path);inspections=[]
     # Prepare everything before any hardware call.
     for e in entries:

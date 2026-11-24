@@ -279,6 +279,13 @@ tools/s21_photo_reader/_tmp_test/
 # 单比特标定流水线的运行产物（离线计划 / 干跑 .qwf / 结果与事件）
 /自动化单比特标定/zpa_pipeline_*output*/
 /自动化单比特标定/zpa_pipeline_dry_manifest.json
+# ↑ 上面 4 条是**根锚定**的，只对仓库根下的同名目录生效；
+# 实际数据目录在 experiments/ 下，所以下面补上正确路径（2026-11-24 修正：
+# 原来只写根锚定版本，对 experiments/ 下的文件完全无效）。
+/experiments/自动化单比特标定/out/
+/experiments/自动化单比特标定/model.json
+/experiments/自动化单比特标定/zpa_pipeline_*output*/
+/experiments/自动化单比特标定/zpa_pipeline_dry_manifest.json
 /wfstatus.json
 /_task_data/
 /_progress_append.md
@@ -347,3 +354,63 @@ tools/s21_photo_reader/_tmp_test/
 # --- DSL 论文实验（BE2）产物与工作区：本地私有 ---
 /be2_results/
 /be2_work/
+
+# --- 真机实测数据与训练产物（2026-11-24 出库）---
+# experiments/自动化单比特标定/ 下：原始 S21 测量文件、人工标注、训练出的模型。
+# 这些是现场实测数据（含真实比特 ID 与 DataVault 路径），只留在本机；
+# 代码与流程脚本保留在版本库里。
+/experiments/自动化单比特标定/*.hdf5
+/experiments/自动化单比特标定/actual_manifest_*.json
+/experiments/自动化单比特标定/zpa_interval_labels.json
+/experiments/自动化单比特标定/zpa_interval_model.json
+/experiments/自动化单比特标定/zpa_v2/model.json
+
+# --- 本机部署记录（含本机绝对路径、conda 环境清单、权限排障；仅本地）---
+/docs/DEPLOY_LOCAL.md
+
+# --- 本机覆盖配置（覆盖被跟踪的 config/*.json；实验室标识与本机路径不入库）---
+/Agentic Workflow/qmclaw-server/config/*.local.json
+
+# --- 通用防护（2026-11-24）：常见的本地产物 / 凭据 / 打包物 ---
+# Python 构建与缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+# 测试 / 类型 / 覆盖率缓存
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+# 编辑器与合并残留
+*.orig
+*.rej
+*.bak
+*.swp
+*~
+.idea/
+.vscode/
+# 打包物
+*.zip
+*.tar.gz
+*.tgz
+*.7z
+# 私钥与证书
+*.pem
+*.key
+*.p12
+*.pfx
+# 凭据与进程产物
+credentials.json
+secrets.json
+*.pid
+nohup.out
+.terraform/

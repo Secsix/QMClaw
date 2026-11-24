@@ -463,25 +463,34 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 # ── Session Config ─────────────────────────────────────────────────────────────
 # Import session config module
 SESSION_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config", "session.json")
+# 本机覆盖配置（不入库）：切换会话时写这里，被跟踪的 session.json 保持干净。
+SESSION_LOCAL_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config", "session.local.json")
 
 def _load_session_config():
-    """Load session config from JSON file."""
+    """Load session config from JSON file.
+
+    查找顺序：``session.local.json``（本机覆盖，不入库）→ ``session.json``。
+    """
     default = {'user': 'LQHL', 'path': ['test', '20260324']}
-    try:
-        if os.path.exists(SESSION_CONFIG_FILE):
-            with open(SESSION_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-            return config.get('session', default)
-    except (json.JSONDecodeError, IOError):
-        pass
+    for path in (SESSION_LOCAL_CONFIG_FILE, SESSION_CONFIG_FILE):
+        try:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                section = config.get('session')
+                if isinstance(section, dict) and section.get('user') and section.get('path'):
+                    return section
+                return default
+        except (json.JSONDecodeError, IOError):
+            pass
     return default
 
 def _save_session_config(user: str, path: list):
-    """Save session config to JSON file."""
-    config_dir = os.path.dirname(SESSION_CONFIG_FILE)
+    """Save session config to the local override file (never the tracked one)."""
+    config_dir = os.path.dirname(SESSION_LOCAL_CONFIG_FILE)
     os.makedirs(config_dir, exist_ok=True)
     config = {'session': {'user': user, 'path': path}}
-    with open(SESSION_CONFIG_FILE, 'w', encoding='utf-8') as f:
+    with open(SESSION_LOCAL_CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
 def _get_full_session_path():

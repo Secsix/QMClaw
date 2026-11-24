@@ -110,7 +110,8 @@ def show_gates():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--manifest", type=Path, default=HERE / "actual_manifest_q7_21.json")
+    ap.add_argument("--manifest", type=Path, default=HERE / "zpa_pipeline_manifest.example.json",
+                    help="要预览的 manifest。默认用脱敏后的示例（实测 manifest 不入库）")
     ap.add_argument("--bit", default=None)
     ap.add_argument("--execute", action="store_true", help="真机执行（默认只预览）")
     ap.add_argument("--adapter", default="zpa_lab_adapter_template")

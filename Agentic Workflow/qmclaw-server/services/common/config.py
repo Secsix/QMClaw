@@ -14,17 +14,44 @@ def _server_dir() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def load_system_config() -> Dict[str, Any]:
-    """读取 config/system.json，不存在或损坏时返回空 dict。"""
-    config_file = _server_dir() / "config" / "system.json"
-    if not config_file.exists():
+def _read_json_dict(path: Path) -> Dict[str, Any]:
+    """读一个 JSON 对象；文件缺失或损坏时返回空 dict（不抛异常）。"""
+    if not path.exists():
         return {}
     try:
-        with open(config_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
     except Exception as e:
-        print(f"[Config] Failed to load {config_file}: {e}")
+        print(f"[Config] Failed to load {path}: {e}")
         return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """override 的同名键覆盖 base；两边都是 dict 时递归合并。"""
+    out = dict(base)
+    for key, value in override.items():
+        current = out.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            out[key] = _deep_merge(current, value)
+        else:
+            out[key] = value
+    return out
+
+
+def load_system_config() -> Dict[str, Any]:
+    """读取 config/system.json，并叠加 config/system.local.json（本机覆盖）。
+
+    约定（2026-11-24）：被跟踪的 ``system.json`` 只放**通用默认值**——不含
+    实验室账号、不含本机绝对路径；本机差异写在 ``config/system.local.json``，
+    它**不入库**（见 .gitignore），且优先于 ``system.json`` 生效。
+
+    文件不存在或损坏时返回空 dict（不抛异常）。
+    """
+    config_dir = _server_dir() / "config"
+    data = _read_json_dict(config_dir / "system.json")
+    local = _read_json_dict(config_dir / "system.local.json")
+    return _deep_merge(data, local) if local else data
 
 
 def get_labrad_params() -> Dict[str, Any]:

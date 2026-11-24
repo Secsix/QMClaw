@@ -61,7 +61,9 @@ def main():
 
     labeled = load_labeled_files(directory)
     if not labeled:
-        print("  [SKIP] 未找到标注文件（目录：%s）" % directory)
+        print("  [SKIP] 没有可用的标注文件（目录：%s）" % directory)
+        print("         标注文件 zpa_interval_labels.json 是现场实测数据、**不入库**；"
+              "本机做验收前请把它放回本目录再跑。")
         return 0
 
     for name, path, human in labeled:

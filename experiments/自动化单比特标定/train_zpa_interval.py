@@ -32,7 +32,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import zpa_interval as zi                      # noqa: E402
-from zpa_interval_labels import LABELS, load_labeled_files  # noqa: E402
+from zpa_interval_labels import LABEL_FILE, LABELS, load_labeled_files  # noqa: E402
 
 DEFAULT_SESSION = Path(r"D:\DataVault\LQHL.dir\test.dir\20261113_20qubits.dir")
 MODEL_FILE = HERE / "zpa_interval_model.json"
@@ -200,6 +200,11 @@ def fit_logreg(caches, humans, train_names, test_name):
 # ── 主流程 ────────────────────────────────────────────────────────────────
 def main():
     directory = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SESSION
+    if not LABELS:
+        print("标注文件缺失：%s" % LABEL_FILE)
+        print("  现场人工标注属于实测数据，**不入库**（见 .gitignore）；"
+              "本机训练前请把那份 zpa_interval_labels.json 放回本目录。")
+        return 2
     caches, humans = {}, {}
     for name, path, human in load_labeled_files(directory):
         f, z, db = zi.load_grid(path)

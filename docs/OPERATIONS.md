@@ -463,6 +463,13 @@ DataVault 子会话或写别处，编号仍会缺失 —— 那时以 `dataset_s
 | `session_key(path)` / `same_session(a, b)` | 稳定的会话标识 / 同一会话判定（坏输入一律判不同，不猜） |
 | `load_session_config(config_path=None)` | 返回 `(path, source)`，`source` 为 `config` / `default`；文件缺失、损坏、`path` 为空数组都回默认 |
 
+**本机覆盖配置**（2026-11-24）：查找顺序是
+`config/session.local.json`（本机覆盖，**不入库**）→ `config/session.json`
+（被跟踪的通用默认值）→ 代码内 `DEFAULT_SESSION`。
+实验室的 DataVault 账号与会话路径写在 `session.local.json` 里，
+被跟踪的 `session.json` 只放占位默认值。切换后端时 `job_runner` 写回的也是
+`session.local.json`，不会弄脏版本库里的文件。
+
 **接线**：四个会话接口全部走 `parse_session_path`，非法入参回
 `validation_error` 信封（`status=failed` + `reasonCode=validation_error`）；
 analysis 的 `/connect` 现在会**优先用请求里指定的会话**，没指定才读配置；

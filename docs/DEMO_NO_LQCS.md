@@ -5,8 +5,10 @@
 >
 > 真机机器**不受影响**：LabRAD 在，后端策略照旧走真机通道。
 >
-> 配套文档：真机部署见 [`DEPLOY_LOCAL.md`](DEPLOY_LOCAL.md)，
+> 配套文档：真机部署与排障见 [`REAL_MACHINE.md`](REAL_MACHINE.md)，
 > qiskit 后端细节见 [`qmclaw-server/docs/qiskit_backend.md`](../Agentic%20Workflow/qmclaw-server/docs/qiskit_backend.md)。
+>
+> 本机部署记录（`DEPLOY_LOCAL.md`）只保留在本地，不入库。
 
 ---
 

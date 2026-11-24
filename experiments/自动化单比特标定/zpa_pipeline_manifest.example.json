@@ -1,5 +1,5 @@
 {
-  "datavault_root": "D:\\DataVault\\LQHL.dir\\test.dir",
+  "datavault_root": "D:\\DataVault\\<datavault-user>.dir\\test.dir",
   "model": "zpa_v2\\model.json",
   "out": "zpa_pipeline_example_output_v2",
   "settings": {
@@ -31,12 +31,12 @@
     "xeb_stats": 300
   },
   "qubits": [
-    {"bit": "q23_7", "s21zpa_file": "00731 - q23_7%c S21zpa2d.hdf5"}
+    {"bit": "q0", "s21zpa_file": "00000 - q0%c S21zpa2d.hdf5"}
   ],
   "adapter_config": {
     "route": "qwf",
-    "session": "20261113_20qubits",
-    "datavault_root": "D:\\DataVault\\LQHL.dir\\test.dir",
+    "session": "<datavault-session>",
+    "datavault_root": "D:\\DataVault\\<datavault-user>.dir\\test.dir",
     "bias_limits": [-3.0, 3.0],
     "frequency_unit": "GHz",
     "settle_seconds": 2.0,

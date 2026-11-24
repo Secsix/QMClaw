@@ -33,6 +33,10 @@ DEFAULT_SESSION: List[str] = ["", "LQHL", "test", "20260324"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = _REPO_ROOT / "config" / "session.json"
+# 本机覆盖配置（不入库）：存在时优先于 DEFAULT_CONFIG_PATH 生效。
+# 约定见 .gitignore 与 CLAUDE.md：被跟踪的 session.json 只放通用默认值，
+# 实验室账号（DataVault user）与本机会话路径写在 session.local.json 里。
+LOCAL_CONFIG_PATH = _REPO_ROOT / "config" / "session.local.json"
 
 
 def _clean_parts(parts: Sequence[Any]) -> Tuple[List[str], str]:
@@ -108,32 +112,47 @@ def same_session(a: Any, b: Any) -> bool:
 def load_session_config(
     config_path: Optional[Any] = None,
 ) -> Tuple[List[str], str]:
-    """读 ``config/session.json``，返回 ``(session_path, source)``。
+    """读会话配置，返回 ``(session_path, source)``。
+
+    查找顺序：显式 ``config_path`` → ``config/session.local.json``（本机覆盖，
+    不入库）→ ``config/session.json``（被跟踪的通用默认值）。
 
     ``source`` 为 ``"config"``（读到配置）或 ``"default"``（文件缺失/损坏，
     或配置里的 path 不合法）。**从不抛异常**：连不上设备的锅不该由配置解析背。
     """
-    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    if config_path is not None:
+        candidates = [Path(config_path)]
+    else:
+        candidates = [LOCAL_CONFIG_PATH, DEFAULT_CONFIG_PATH]
+    for path in candidates:
+        parsed = _read_session_file(path)
+        if parsed is not None:
+            return parsed, "config"
+    return list(DEFAULT_SESSION), "default"
+
+
+def _read_session_file(path: Path) -> Optional[List[str]]:
+    """读一个会话配置文件；缺失 / 损坏 / 内容不合法时返回 None。"""
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
     except Exception:
-        return list(DEFAULT_SESSION), "default"
+        return None
     if not isinstance(data, dict):
-        return list(DEFAULT_SESSION), "default"
+        return None
     section = data.get("session") or {}
     if not isinstance(section, dict):
-        return list(DEFAULT_SESSION), "default"
+        return None
     user = section.get("user") or "LQHL"
     tail = section.get("path")
     if tail is None:  # 没写 path 才用历史默认尾段；写了空数组视为配置错误
         tail = ["test", "20260324"]
     if not isinstance(user, str):
-        return list(DEFAULT_SESSION), "default"
+        return None
     if not isinstance(tail, (list, tuple)) or not tail:
-        return list(DEFAULT_SESSION), "default"
+        return None
     candidate = ["", user] + [str(part) for part in tail]
     parsed, error = parse_session_path(candidate)
     if error or parsed is None:
-        return list(DEFAULT_SESSION), "default"
-    return parsed, "config"
+        return None
+    return parsed

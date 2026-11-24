@@ -54,11 +54,40 @@ _registry.discover_backends(_backends_dir)
 print(f"[backends] Discovered backends: {_registry.list_backends()}", file=sys.stderr, flush=True)
 
 
+def _merge_local_override(config: Dict[str, Any], config_path: Path) -> Dict[str, Any]:
+    """叠加同目录的 ``<name>.local.json``（本机覆盖，不入库）。
+
+    约定（2026-11-24）：被跟踪的 ``system.json`` 只放通用默认值，本机差异
+    （实验室账号、本机绝对路径）写在 ``system.local.json`` 里。
+    """
+    local_path = config_path.with_name(config_path.stem + ".local.json")
+    if not local_path.exists():
+        return config
+    try:
+        with open(local_path, "r", encoding="utf-8") as f:
+            local = json.load(f)
+    except Exception as exc:
+        print(f"[backends load_system_config] Failed to load {local_path}: {exc}",
+              file=sys.stderr, flush=True)
+        return config
+    if not isinstance(local, dict):
+        return config
+    merged = dict(config)
+    for key, value in local.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = {**current, **value}
+        else:
+            merged[key] = value
+    return merged
+
+
 def load_system_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     """Load system configuration from JSON file.
 
     Args:
         config_path: Path to system.json. If None, uses default location.
+            同目录下的 ``system.local.json``（本机覆盖，不入库）会被叠加上去。
 
     Returns:
         Configuration dictionary
@@ -68,7 +97,15 @@ def load_system_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
 
     if config_path.exists():
         with open(config_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            try:
+                config = json.load(f)
+            except Exception as exc:
+                print(f"[backends load_system_config] Failed to load {config_path}: {exc}",
+                      file=sys.stderr, flush=True)
+                config = {"system": "lqcs"}
+        if not isinstance(config, dict):
+            config = {"system": "lqcs"}
+        return _merge_local_override(config, config_path)
     print("[backends load_system_config] Config not found, using default", file=sys.stderr, flush=True)
     return {"system": "lqcs"}
 
@@ -235,10 +272,15 @@ def switch_system(
     config = load_system_config(config_path)
     config["system"] = system_name
 
-    # Save new config
+    # Save new config — 写**本机覆盖文件**，不写被跟踪的 system.json
+    # （否则切换后端会弄脏版本库里的配置文件，并把本机值写进去）。
     if config_path is None:
-        config_path = _backends_dir.parent / "config" / "system.json"
-    _registry.save_config(config_path, system_name)
+        save_path = _backends_dir.parent / "config" / "system.local.json"
+    else:
+        save_path = config_path
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
 
     # Shutdown current backend
     current = _registry.current
