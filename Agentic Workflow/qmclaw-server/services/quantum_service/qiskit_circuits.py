@@ -770,6 +770,10 @@ def _build_cz(req: QiskitRequest) -> ExperimentOutcome:
        - `cz_parity` = ⟨X0X1⟩，`cz_fidelity` = (1 - ⟨X0X1⟩)/2（理想 1.0）
 
     counts 键是 little-endian（'01' 表示 q0=1, q1=0），取位用 `_qubit_bit`。
+
+    口径与上游 `vendor/openqwf/qwf/two_qubit_metrics.py` 一致：
+    这里的 `bell_parity` ≡ 上游 `parity_z`，这里的 `cz_parity` ≡ 上游 `parity_x`
+    （理想 CZ 相位实验 parity_x = −1 ⇒ cz_fidelity = (1 − parity_x)/2 = 1.0）。
     """
     error_rate = req.pf("error_rate", 0.01)
     names = req.qubit_list

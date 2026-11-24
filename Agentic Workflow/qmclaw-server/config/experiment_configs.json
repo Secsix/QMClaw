@@ -193,7 +193,17 @@
       "defaultPlotCommand": "qter.fitData({exp_num})",
       "defaultAnalysisCommand": "",
       "available": false,
-      "note": "sq_nodes 里没有 cz.dcz（模块级函数）。真机的 CZ/DCZ 走另一个模块：lqms.measure.tuners.cz_nodes.DCZTuner —— **类方法**形态，要 2 比特 + 1 耦合器（qubits[2] + coupler），当前 DSL/后端链（只会拼 sq.xxx(...)）调不到；qiskit 侧是等价的 Bell 态 + 奇偶校验模拟。详见 vendor_capabilities.two_qubit。",
+      "requires_coupler": true,
+      "coupler_index": 2,
+      "call": {
+        "module": "lqms.measure.tuners.cz_nodes",
+        "class": "DCZTuner",
+        "init": "DCZTuner(qubits, gate_name='DCZGate', overwrite=False)",
+        "method": "tune",
+        "form": "class",
+        "coupler_index": 2
+      },
+      "note": "sq_nodes 里没有 cz.dcz（模块级函数）。真机的 CZ/DCZ 走另一个模块：lqms.measure.tuners.cz_nodes.DCZTuner —— **类方法**形态，要 2 比特 + 1 耦合器（qubits[2] + coupler）。DSL 侧已支持：IR 加了独立 coupler 字段（coupler_index=2 ⇒ 耦合器落在参数列表第 3 位，DCZTuner([q0,q1,c0], ...)），适配器能拼类方法代码（上游 OpenQWF commit 2ca401e 的 CZ 通路改造）。仍未通：本机没有 lqms 运行时 + 设备画像没有 couplers 目录 ⇒ 真机调用还没实测。qiskit 侧是等价的 Bell 态 + 奇偶校验模拟。详见 vendor_capabilities.two_qubit。",
       "metricsToExtract": [
         "cz_fidelity",
         "cz_parity"
@@ -242,13 +252,14 @@
         "sq.drag_calibrate": "zpa_q_m",
         "cz.dcz": "tune"
       },
-      "dsl_support": false,
+      "dsl_support": true,
+      "dsl_support_note": "2026-11-24 上游 OpenQWF 已落地 CZ 通路：IR/RunRequest/compile/host/canvas 全链路有独立 coupler 字段，词表有 call 目标（module/class/init/method/coupler_index），lqcs 适配器能拼类方法代码（DCZTuner([q0,q1,c0], ...)），并有 CZ 扫描点数/运行时长/写副作用三张事实表 + 两比特指标模块 two_qubit_metrics。",
       "dsl_gap": [
-        "后端链只拼 sq.xxx(...) 模块级函数 → 调不到类方法",
-        "DSL 的 qubits 列表描述不了**耦合器**（真机双比特要 2 比特 + 1 耦合器）",
-        "词表里没有对应的 qubits 元数声明"
+        "真机链路未实测：本机没有 lqms 运行时，DCZTuner(...) 生命周期、registry 建键、ZPA 标定前置都没在真机上跑过",
+        "设备画像没有 couplers 目录 ⇒ lint 只能报 W_COUPLER_UNVERIFIED（无法校验耦合器 id 是否存在）",
+        "写副作用登记的键名（ZPA.amp / ZPA.phase）是保守占位，本机未实测真实写键名"
       ],
-      "suggestion": "IR 侧建议加 coupler 字段（qubits [\"q0\",\"q1\"] + coupler \"c0\"），后端再加一条 cz_nodes 适配路径（DCZTuner(...) 生命周期 + registry 建键 + ZPA 标定前置）"
+      "suggestion": "下一步：给 device_profile.json 补 couplers 目录（耦合器 id / fc / 耦合强度），把 lint 的 W_COUPLER_UNVERIFIED 变成真校验；再在有 lqms 的机器上实测 DCZTuner 调谐并回填写键名与运行时长"
     }
   }
 }
