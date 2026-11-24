@@ -818,10 +818,13 @@ def _build_cz(req: QiskitRequest) -> ExperimentOutcome:
     cz_parity = xx
     cz_fidelity = (1.0 - xx) / 2.0
 
+    # x 必须是**数值**：`qiskit_backend._plot_payload` 对 outcome.x 做 float()，
+    # 文字标签会让整次执行 500（其它 builder 也都用具数值 x，文字放 xlabel）。
+    labels = ["Bell state", "CZ phase"]
     return ExperimentOutcome(
-        x=["Bell state", "CZ phase"],
+        x=[0, 1],
         y=[bell_fidelity, cz_fidelity],
-        xlabel=f"Check  [{qa} | {qb}]",
+        xlabel=f"Check  [{qa} | {qb}]  (0={labels[0]}, 1={labels[1]})",
         ylabel="Fidelity",
         plot_type="bar",
         metrics={
@@ -832,7 +835,7 @@ def _build_cz(req: QiskitRequest) -> ExperimentOutcome:
         },
         extra={"counts": cz_counts, "bell_counts": bell_counts,
                "error_rate": error_rate, "qubits": [qa, qb],
-               "qubit_a": qa, "qubit_b": qb},
+               "qubit_a": qa, "qubit_b": qb, "labels": labels},
     )
 
 

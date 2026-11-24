@@ -69,12 +69,13 @@ _DATASET_PROBE_SNIPPET = _DATASET_PROBE_POST
 # 节点配置最终会被拼成 Python 源码交给 quantum_service 的 exec 执行（见
 # `_execute_via_http`）。工作流 JSON 来自前端，也可能来自 LLM 生成的节点，
 # 所以 fn / qubit / 参数名必须严格校验，所有取值必须走 repr 生成字面量：
-#   - fn 只允许 `sq.<snake_case>`，杜绝 `__import__('os').system(...)`
+#   - fn 只允许 `sq.<snake_case>` 或 `cz.<snake_case>`（双比特 CZ 命名空间），
+#     杜绝 `__import__('os').system(...)`
 #   - qubit 只允许字母数字下划线百分号连字符，杜绝 `x', ...)#` 闭合括号
 #   - 参数值一律 `repr()`：`json.dumps` 会生成 true/false/null，不是合法 Python
 #     （嵌套 dict/list 里含 bool/None 时尤为致命）
 
-_SAFE_FN_RE = re.compile(r"^sq\.[a-z][a-z0-9_]*$")
+_SAFE_FN_RE = re.compile(r"^(sq|cz)\.[a-z][a-z0-9_]*$")
 _SAFE_QUBIT_RE = re.compile(r"^[A-Za-z0-9_%\-]+$")
 _SAFE_ARGNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # quantum_service 会把每个比特名注入 exec 的全局变量里（`exec_globals[qname] = qobj`），
@@ -635,7 +636,7 @@ class WorkflowService(BaseService):
             raw_fn = str(config.get("fn", "sq.iqraw") or "").strip()
             if not _SAFE_FN_RE.match(raw_fn):
                 return {
-                    "error": f"invalid experiment fn {raw_fn!r}: expected 'sq.<snake_case>'",
+                    "error": f"invalid experiment fn {raw_fn!r}: expected 'sq.<snake_case>' or 'cz.<snake_case>'",
                     "status": "failed",
                 }
             fn = raw_fn
@@ -670,13 +671,28 @@ class WorkflowService(BaseService):
             if not qubits and qubit:
                 qubits = [qubit]
             params = {k: self._resolve_vars(v, context or {}) for k, v in (config.get("params") or {}).items()}
+            # ── 耦合器（2026-11-24 双比特 CZ）：可调耦合器门要 2 比特 + 1 耦合器 ──
+            # 耦合器是**独立的 IR 字段**（不进 qubits）：词表里 requires_coupler=true
+            # 的实验（cz.dcz）必须显式给 coupler，否则上游 validate 报 E_COUPLER_REQUIRED。
+            raw_coupler = str(config.get("coupler", "") or "").strip()
+            coupler = str(self._resolve_vars(raw_coupler, context or {})).strip()
+            if raw_coupler and not coupler:
+                return {
+                    "error": f"unresolved coupler variable in {raw_coupler!r}",
+                    "status": "failed",
+                }
+            if coupler and not _SAFE_QUBIT_RE.match(coupler):
+                return {
+                    "error": f"invalid coupler {coupler!r}: allowed [A-Za-z0-9_%-]",
+                    "status": "failed",
+                }
             # 服务端执行一律不在工作线程里画图：do_plot=True 会拉起 GUI 把微服务卡死
             params.setdefault("do_plot", False)
             try:
                 # 拼代码（含数据集探针）已下沉到 lqcs 适配器：S7 起 server 只做节点包装
                 code = _build_experiment_code(
                     fn, qubit, params, bool(config.get("reportDataset", True)),
-                    qubits=qubits,
+                    qubits=qubits, coupler=coupler or None,
                 )
             except ValueError as exc:
                 return {"error": str(exc), "status": "failed"}
@@ -916,6 +932,9 @@ class WorkflowService(BaseService):
                     "Given the latest experiment results, diagnose the qubit state and decide the NEXT experiment to run. "
                     "Supported experiment functions: sq.t1, sq.ramsey, sq.ramsey_df, sq.iqraw, sq.s21, sq.s21_dis, "
                     "sq.spectroscopy, sq.pulsed_spec, sq.piamp, sq.xeb, sq.allxy, sq.single_shot, sq.swap, sq.drag_calibrate. "
+                    "Two-qubit CZ: cz.dcz (needs an explicit coupler in the node config, "
+                    "simulation-only until the lab coupler is wired) — recommend it only when the "
+                    "symptom is about two-qubit entanglement or a tunable coupler. "
                     "Respond ONLY with JSON: "
                     '{"symptom": "<short diagnosis>", "reasoning": "<why>", "recommendations": [{"fn": "sq.xxx", "reason": "<why this experiment>", "params": {}}]} '
                     "Give 1-3 recommendations ordered by priority."

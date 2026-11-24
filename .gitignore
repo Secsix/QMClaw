@@ -19,6 +19,7 @@ Agentic Workflow/qmclaw-server/dist/
 Agentic Workflow/qmclaw-server/data/
 Agentic Workflow/qmclaw-server/logs/
 Agentic Workflow/qmclaw-web/public/plots/
+qwf_out/
 Agentic Workflow/qmclaw-server/config/memory/
 .claude/
 build/

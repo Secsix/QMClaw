@@ -132,6 +132,134 @@ class ExperimentSimulator:
             pass
         return val
 
+    # ── 词表里的"类方法调用目标"索引（class + method → 实验名）──────────────
+    _VENDOR_CALL_CACHE: Optional[Dict[Tuple[str, str], Dict[str, Any]]] = None
+
+    @classmethod
+    def _vendor_call_targets(cls) -> Dict[Tuple[str, str], Dict[str, Any]]:
+        """从实验词表读出 (class, method) → {function, coupler_index} 的索引。
+
+        词表里 cz.dcz 的登记形如::
+
+            "call": {"module": "lqms.measure.tuners.cz_nodes",
+                     "class": "DCZTuner", "method": "tune", "coupler_index": 2}
+
+        真机跑双比特 CZ 时代码是"先构造再调方法"，宿主要靠这张表把代码
+        还原回实验名；表读不到就返回空索引（老行为不变）。
+        """
+        if cls._VENDOR_CALL_CACHE is not None:
+            return cls._VENDOR_CALL_CACHE
+        index: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        cfg = Path(__file__).resolve().parent.parent.parent / "config" / "experiment_configs.json"
+        try:
+            with open(cfg, "r", encoding="utf-8") as f:
+                experiments = (json.load(f) or {}).get("experiments") or {}
+        except Exception:
+            experiments = {}
+        for name, info in experiments.items():
+            call = (info or {}).get("call") or {}
+            cls_name = str(call.get("class") or "").strip()
+            method = str(call.get("method") or "").strip()
+            if not cls_name or not method:
+                continue
+            index[(cls_name, method)] = {
+                "function": name,
+                "coupler_index": call.get("coupler_index"),
+            }
+        cls._VENDOR_CALL_CACHE = index
+        return index
+
+    @staticmethod
+    def _scan_call_args(code: str, open_idx: int) -> Tuple[str, int]:
+        """从 open_idx 处的 '(' 扫到配对的 ')'，返回 (参数表文本, 结束下标)。"""
+        if open_idx < 0 or open_idx >= len(code) or code[open_idx] != "(":
+            return "", -1
+        depth = 0
+        quote = ""
+        for i in range(open_idx, len(code)):
+            ch = code[i]
+            if quote:
+                if ch == quote:
+                    quote = ""
+                continue
+            if ch in "\"'":
+                quote = ch
+                continue
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    return code[open_idx + 1:i], i
+        return code[open_idx + 1:], -1
+
+    @classmethod
+    def _parse_bit_list(cls, literal: str) -> List[str]:
+        """解析比特列表字面量（`[q0, q1, c0]` 或 `['q0', 'q1']`）。"""
+        text = literal.strip()
+        if text.startswith("[") and text.endswith("]"):
+            text = text[1:-1]
+        out: List[str] = []
+        for part in cls._split_call_args(text):
+            name = part.strip().strip("\"'")
+            if name:
+                out.append(name)
+        return out
+
+    @classmethod
+    def _parse_class_call_code(cls, code: str):
+        """解析"类方法形态"的实验代码。
+
+        真机双比特 CZ 的代码形如::
+
+            from lqms.measure.tuners.cz_nodes import DCZTuner
+            _qm_tuner = DCZTuner([q0, q1, c0], gate_name='DCZGate', overwrite=False)
+            _qm_tuner.tune(error_rate=0.01)
+
+        返回 (实验类型, 比特列表, 参数字典)；认不出来返回 None。
+        耦合器是**附加资源**（只对真机有意义），按词表 coupler_index 从比特
+        列表里摘掉，qiskit 侧只留 2 个比特。
+        """
+        imp = re.search(r'from\s+([\w.]+)\s+import\s+(\w+)', code)
+        if not imp:
+            return None
+        cls_name = imp.group(2)
+        assign = re.search(r'(\w+)\s*=\s*' + re.escape(cls_name) + r'\s*\(', code)
+        if not assign:
+            return None
+        var_name = assign.group(1)
+        init_args, _ = cls._scan_call_args(code, code.find("(", assign.end() - 1))
+        parts = cls._split_call_args(init_args)
+        qubits: List[str] = []
+        for idx, part in enumerate(parts):
+            key = part.partition("=")[0].strip()
+            if "=" in part and key.isidentifier():
+                continue  # init 关键字参数（gate_name/overwrite…）不是实验参数
+            if idx == 0:
+                qubits = cls._parse_bit_list(part)
+        method_m = re.search(re.escape(var_name) + r'\s*\.\s*(\w+)\s*\(', code)
+        if not method_m:
+            return None
+        method = method_m.group(1)
+        params: Dict[str, Any] = {}
+        m_args, _ = cls._scan_call_args(code, code.find("(", method_m.end() - 1))
+        for part in cls._split_call_args(m_args):
+            if "=" not in part:
+                continue
+            key, _, value = part.partition("=")
+            key = key.strip()
+            if not key or not key.isidentifier():
+                continue
+            params[key] = cls._parse_kwarg(value)
+        target = cls._vendor_call_targets().get((cls_name, method))
+        if not target:
+            return None
+        coupler_index = target.get("coupler_index")
+        if isinstance(coupler_index, int) and not isinstance(coupler_index, bool):
+            if 0 <= coupler_index < len(qubits):
+                qubits = [q for i, q in enumerate(qubits) if i != coupler_index]
+        return target["function"], qubits, params
+
     @classmethod
     def parse_experiment_code(cls, code: str) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
         """解析实验代码（单比特视图：只返回第一个比特）。
@@ -155,13 +283,21 @@ class ExperimentSimulator:
         Returns:
             (实验类型, 比特名列表, 参数字典) 或 (None, [], None)
         """
-        # 匹配 sq.<exp_name>(<qubit>, ...)
-        match = re.search(r'sq\.(\w+)\s*\(\s*([^,\s)]+)', code)
+        # 真机双比特实验是"类方法形态"（先构造再调方法），先按这种形态试一次
+        class_call = cls._parse_class_call_code(code)
+        if class_call is not None:
+            return class_call
+
+        # 匹配 <ns>.<exp_name>(<qubit>, ...)
+        # 命名空间：sq.* 的实验名是裸名（t1 / ramsey…），cz.* 的实验名保留点号
+        # （qiskit 实验目录的键就是 "cz.dcz"）。
+        match = re.search(r'\b(sq|cz)\.(\w+)\s*\(\s*([^,\s)]+)', code)
         if not match:
             return None, [], None
 
-        exp_name = match.group(1)
-        qubit_name = match.group(2).strip()
+        namespace = match.group(1)
+        exp_name = match.group(2)
+        qubit_name = match.group(3).strip()
         # 多比特：位置参数就是比特名（第一个已在上面拿到）
         qubits: List[str] = [qubit_name]
 
@@ -203,7 +339,11 @@ class ExperimentSimulator:
                 params[key] = cls._parse_kwarg(value)
 
         # 标准化实验名称
-        exp_type = cls.EXP_FUNC_MAP.get(exp_name, exp_name)
+        if namespace == "cz":
+            # 双比特 CZ 命名空间：实验名带前缀（cz.dcz），qiskit 实验目录按这个名字索引
+            exp_type = "cz." + exp_name
+        else:
+            exp_type = cls.EXP_FUNC_MAP.get(exp_name, exp_name)
 
         return exp_type, qubits, params
 
