@@ -397,7 +397,6 @@ nohup.out
 /docs/deploy_diff_tools/check_gated_template.py
 /docs/deploy_diff_tools/e3_tuneup18_edsl.py
 /docs/deploy_diff_tools/express_dsl_check.py
-/docs/deploy_diff_tools/iqraw_contrast_tune.py
 /docs/deploy_diff_tools/live_probe.py
 /docs/deploy_diff_tools/lqms_write_audit.py
 /docs/deploy_diff_tools/qubit_calib_metrics.py
