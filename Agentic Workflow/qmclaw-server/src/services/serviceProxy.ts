@@ -299,6 +299,24 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // pair（双比特 CZ）scope（BACKLOG O5 / 设计稿 §8）：结构与判据可跑，
+  // 执行层 HOLD —— dsl_support=false，DSL 表达不了「2 比特 + 1 耦合器」。
+  proxy.get('/quantum/qubit/pair/state-table', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/pair/state_table', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/qubit/pair/state', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/pair/state', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  // pair 路由判定：非 reject 一律改判 hold/G4 + dsl_gap（不假装可执行）
+  proxy.post('/quantum/qubit/pair/route', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/pair/route', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   // 模板库（BACKLOG O4 / 设计稿 §9）：出厂模板在 config/state_machine.json，
   // 实测成功率与晋退状态在 data/state_ledger/templates.json。这些端点是运维/前端用的，
   // 执行链路里 state_route 节点直接打 :3003，不经这里。

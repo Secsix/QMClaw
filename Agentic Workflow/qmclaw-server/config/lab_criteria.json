@@ -1,7 +1,7 @@
 {
   "_doc": "指标与判据唯一真源（QMClaw Architecture Roadmap §2.5）。指标定义 = 标准算法 + 参数 + 阈值 + 置信度 + 数据列口径。goal / 脚本 / skill 一律引用这里的指标名与阈值，不在别处写死数值。改动请同时更新 .claude/progress.md。",
-  "version": "1.0.0",
-  "updated": "2026-11-09",
+  "version": "1.1.0",
+  "updated": "2026-11-24",
   "authority": {
     "note": "同一指标出现多个阈值时，以本文件的 thresholds 为准；历史值仅作溯源。",
     "contrast_thresholds_history": {
@@ -90,6 +90,42 @@
       "dataset": { "independents": ["k", "m"], "dependents": ["P0", "P1"], "shape": [270, 4] },
       "thresholds": { "min_p": 0.99, "min_gate_fidelity": 0.99 },
       "reference_values": { "q2ld3_ds578": { "p": 0.9965, "error_Pauli_per_cycle": 0.00266, "gate_fidelity": 0.9973 } }
+    },
+
+    "cphase": {
+      "display_name": "条件相位 (CZ cphase)",
+      "algorithm": "cz_nodes 相位扫描/拟合（DCZTuner.sweep_sq_phase / swap11to20_sq_phase）",
+      "definition": "cphase = φ(|11>) - φ(|10>) - φ(|01>)，目标 π",
+      "unit": "rad",
+      "thresholds": { "target": 3.14159, "tolerance_rad": 0.05 },
+      "threshold_semantics": {
+        "target": "目标条件相位 π",
+        "tolerance_rad": "|cphase - π| <= tolerance_rad 才算达标；0.05 rad ≈ 2.9°"
+      },
+      "calibration": "TODO: calibrate —— 先用 0.05 rad 占位（ZI LabOne Q / arXiv:2607.01422 量级的保守值），拿到真机 CZ 数据后校准",
+      "note": "pair scope 用；与单比特指标互不影响"
+    },
+
+    "cz_leakage": {
+      "display_name": "CZ 泄漏 (leakage to |2>)",
+      "algorithm": "cz_nodes.interaction / swap11to20 后的 |2> 能级占比",
+      "unit": "ratio",
+      "thresholds": { "max_leakage": 0.01 },
+      "threshold_semantics": {
+        "max_leakage": "上界；超阈触发回退边 leakage_bounded -> cz_point_found（重选低泄漏工作点）"
+      },
+      "calibration": "TODO: calibrate —— 1% 占位",
+      "note": "pair scope 用"
+    },
+
+    "cz_gate_fidelity": {
+      "display_name": "CZ 门保真度",
+      "algorithm": "cz_nodes.run_xeb / CZXEB / IRB",
+      "unit": "ratio",
+      "thresholds": { "min_fidelity": 0.99 },
+      "threshold_semantics": { "min_fidelity": "下界；低于它退回相位标定（gate_verified -> phase_locked）" },
+      "calibration": "TODO: calibrate —— 0.99 占位",
+      "note": "**命名与单比特 xeb.gate_fidelity 区分**：一个是 CZ 两比特门，一个是单比特随机基准"
     },
 
     "s21_dip": {

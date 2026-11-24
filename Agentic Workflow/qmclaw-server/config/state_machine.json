@@ -1,6 +1,6 @@
 {
   "_doc": "量子测控状态机的结构真源（边表 A(s) / 每态 TTL / 三道闸门参数 / 模板库）。设计稿见 docs/STATE_MACHINE_DESIGN.md。**阈值不在这里**——指标阈值的唯一真源是 config/lab_criteria.json；本文件只放结构，改阈值不要动本文件。",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "updated": "2026-11-24",
   "authority": "structure-only: 状态定义 / 合法边 A(s) / 状态 TTL / 闸门参数 / 模板库",
   "criteria_source": "config/lab_criteria.json",
@@ -222,6 +222,417 @@
       "semantic": "重标幅度"
     }
   ],
+  "pair_states": {
+    "_doc": "双比特 CZ 状态机（pair scope，设计稿 §8.2）。与 states 是两套并列的 scope：载体的『两个比特 + 一条耦合边』，核心证据是 cphase / cz_leakage / cz_gate_fidelity，不是把单比特指标再报一遍。",
+    "pair_ready": {
+      "index": 0,
+      "description": "两比特前置齐备（两个比特都 ≥ amp_calibrated）",
+      "ttl_s": null,
+      "requires": [],
+      "note": "pair scope 的入口态；前置未齐备时状态不会超过它（判据见 services/common/pair_state.py:pair_prerequisites）"
+    },
+    "cz_point_found": {
+      "index": 1,
+      "description": "CZ 工作点已粗定（ZPA 工作点已找到）",
+      "ttl_s": 86400,
+      "requires": ["zpa_point"],
+      "note": "工作点随耦合器/磁通漂移，先保守取 1 天；TTL 待真机校准（TODO: calibrate）"
+    },
+    "phase_locked": {
+      "index": 2,
+      "description": "条件相位 = π（cphase 落在 target±tolerance_rad 内）",
+      "ttl_s": 604800,
+      "requires": ["cphase"],
+      "note": "相位最易被重新标定的幅度/时长带偏；TTL 待真机校准"
+    },
+    "frame_corrected": {
+      "index": 3,
+      "description": "动力学相位已补偿（补偿后残差达标）",
+      "ttl_s": 604800,
+      "requires": ["frame_residual_rad"],
+      "note": "残差与 cphase 共用同一容差口径；TTL 待真机校准"
+    },
+    "leakage_bounded": {
+      "index": 4,
+      "description": "泄漏受控（cz_leakage ≤ 上界）",
+      "ttl_s": 604800,
+      "requires": ["cz_leakage"],
+      "note": "泄漏超阈是回退边 leakage->cz_point 的触发源；TTL 待真机校准"
+    },
+    "gate_verified": {
+      "index": 5,
+      "description": "CZ 门保真度已验证（cz_gate_fidelity ≥ 下界）",
+      "ttl_s": 2592000,
+      "requires": ["cz_gate_fidelity"],
+      "note": "与单比特 xeb.gate_fidelity 是两个口径，别混；TTL 待真机校准"
+    }
+  },
+  "pair_edges": [
+    {
+      "id": "pair_ready->cz_point_found",
+      "kind": "forward",
+      "from": "pair_ready",
+      "to": "cz_point_found",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [
+          "cz.find_zpa_c_half_cycle",
+          "cz.find_zpa_q"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [
+        "zpa_point"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "zpa_point"
+        ],
+        "ttl_s": 86400
+      },
+      "note": "厂商侧能力齐备（cz_nodes.DCZTuner），但 DSL 表达不了『2 比特 + 1 耦合器』→ 执行层 HOLD"
+    },
+    {
+      "id": "cz_point_found->phase_locked",
+      "kind": "forward",
+      "from": "cz_point_found",
+      "to": "phase_locked",
+      "action": {
+        "fn": "cz.sweep_sq_phase",
+        "alternatives": [
+          "cz.swap11to20_sq_phase"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.sweep_sq_phase"
+      },
+      "requires": [
+        "cphase"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "cphase"
+        ],
+        "ttl_s": 604800
+      },
+      "note": "条件相位标定到 π；判据 cphase（阈值见 lab_criteria.json:metrics.cphase，TODO: calibrate）"
+    },
+    {
+      "id": "phase_locked--self--alt",
+      "kind": "self",
+      "from": "phase_locked",
+      "to": "phase_locked",
+      "action": {
+        "fn": "cz.gate_time_m",
+        "alternatives": [
+          "cz.zpa_q_czecho",
+          "cz.zpa_c_czecho"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.gate_time_m"
+      },
+      "requires": [
+        "cphase"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "cphase"
+        ],
+        "ttl_s": 604800
+      },
+      "semantic": "幅度×时长交替迭代（带次数上限）：相位没到 π 就换时长/幅度重扫",
+      "note": "锚点：arXiv:2607.01422 的交替收敛、ZI LabOne Q CZ tuneup。自环次数用尽 → Router 走 G4"
+    },
+    {
+      "id": "phase_locked->frame_corrected",
+      "kind": "forward",
+      "from": "phase_locked",
+      "to": "frame_corrected",
+      "action": {
+        "fn": "cz.sq_phase_xeb",
+        "alternatives": [
+          "cz.run_xeb"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.sq_phase_xeb"
+      },
+      "requires": [
+        "frame_residual_rad"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "frame_residual_rad"
+        ],
+        "ttl_s": 604800
+      },
+      "note": "动力学相位补偿；残差按 cphase 的 tolerance_rad 判"
+    },
+    {
+      "id": "frame_corrected->leakage_bounded",
+      "kind": "forward",
+      "from": "frame_corrected",
+      "to": "leakage_bounded",
+      "action": {
+        "fn": "cz.interaction",
+        "alternatives": [
+          "cz.swap11to20"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.interaction"
+      },
+      "requires": [
+        "cz_leakage"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "cz_leakage"
+        ],
+        "ttl_s": 604800
+      },
+      "note": "泄漏约束校核（|2> 能级占比上界）"
+    },
+    {
+      "id": "leakage_bounded->gate_verified",
+      "kind": "forward",
+      "from": "leakage_bounded",
+      "to": "gate_verified",
+      "action": {
+        "fn": "cz.run_xeb",
+        "alternatives": [
+          "cz.sq_phase_xeb"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.run_xeb"
+      },
+      "requires": [
+        "cz_gate_fidelity"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "cz_gate_fidelity"
+        ],
+        "ttl_s": 2592000
+      },
+      "note": "保真度验证（CZXEB/IRB）；口径与单比特 xeb.gate_fidelity 区分"
+    },
+    {
+      "id": "leakage_bounded->cz_point_found",
+      "kind": "back",
+      "from": "leakage_bounded",
+      "to": "cz_point_found",
+      "action": {
+        "fn": "cz.find_zpa_c_half_cycle",
+        "alternatives": [
+          "cz.find_zpa_q",
+          "cz.initialize_gate"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.find_zpa_c_half_cycle"
+      },
+      "requires": [
+        "zpa_point"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "zpa_point"
+        ],
+        "ttl_s": 86400
+      },
+      "trigger": "泄漏超阈（cz_leakage > max_leakage）",
+      "semantic": "重选低泄漏工作点"
+    },
+    {
+      "id": "gate_verified->phase_locked",
+      "kind": "back",
+      "from": "gate_verified",
+      "to": "phase_locked",
+      "action": {
+        "fn": "cz.sweep_sq_phase",
+        "alternatives": [
+          "cz.swap11to20_sq_phase"
+        ],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.sweep_sq_phase"
+      },
+      "requires": [
+        "cphase"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "cphase"
+        ],
+        "ttl_s": 604800
+      },
+      "trigger": "CZXEB/IRB 掉档（cz_gate_fidelity 低于下界）",
+      "semantic": "退回相位标定重做"
+    },
+    {
+      "id": "cz_point_found->pair_ready",
+      "kind": "back",
+      "from": "cz_point_found",
+      "to": "pair_ready",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [],
+        "ttl_s": null
+      },
+      "trigger": "单比特退化（两个前置比特之一回退到 amp_calibrated 以下）",
+      "semantic": "设计稿 §8.3 的 pair--self--degrade（任意态 → pair_ready）；本表按 from 态展开成 5 条",
+      "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
+    },
+    {
+      "id": "phase_locked->pair_ready",
+      "kind": "back",
+      "from": "phase_locked",
+      "to": "pair_ready",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [],
+        "ttl_s": null
+      },
+      "trigger": "单比特退化（两个前置比特之一回退到 amp_calibrated 以下）",
+      "semantic": "设计稿 §8.3 的 pair--self--degrade（任意态 → pair_ready）；本表按 from 态展开成 5 条",
+      "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
+    },
+    {
+      "id": "frame_corrected->pair_ready",
+      "kind": "back",
+      "from": "frame_corrected",
+      "to": "pair_ready",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [],
+        "ttl_s": null
+      },
+      "trigger": "单比特退化（两个前置比特之一回退到 amp_calibrated 以下）",
+      "semantic": "设计稿 §8.3 的 pair--self--degrade（任意态 → pair_ready）；本表按 from 态展开成 5 条",
+      "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
+    },
+    {
+      "id": "leakage_bounded->pair_ready",
+      "kind": "back",
+      "from": "leakage_bounded",
+      "to": "pair_ready",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [],
+        "ttl_s": null
+      },
+      "trigger": "单比特退化（两个前置比特之一回退到 amp_calibrated 以下）",
+      "semantic": "设计稿 §8.3 的 pair--self--degrade（任意态 → pair_ready）；本表按 from 态展开成 5 条",
+      "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
+    },
+    {
+      "id": "gate_verified->pair_ready",
+      "kind": "back",
+      "from": "gate_verified",
+      "to": "pair_ready",
+      "action": {
+        "fn": "cz.initialize_gate",
+        "alternatives": [],
+        "params_hint": {
+          "qubits": "$qubits",
+          "coupler": "$coupler"
+        },
+        "dsl_support": false,
+        "vendor_method": "DCZTuner.initialize_gate"
+      },
+      "requires": [],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [],
+        "ttl_s": null
+      },
+      "trigger": "单比特退化（两个前置比特之一回退到 amp_calibrated 以下）",
+      "semantic": "设计稿 §8.3 的 pair--self--degrade（任意态 → pair_ready）；本表按 from 态展开成 5 条",
+      "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
+    }
+  ],
+
   "gates": {
     "PRE": {
       "id": "GATE-PRE",
@@ -265,7 +676,20 @@
       "sq.piamp": "write",
       "sq.time_rabi": "write",
       "sq.rabi": "write",
-      "sq.set_pi": "write"
+      "sq.set_pi": "write",
+      "cz.initialize_gate": "write",
+      "cz.find_zpa_c_half_cycle": "write",
+      "cz.find_zpa_q": "write",
+      "cz.sweep_sq_phase": "write",
+      "cz.swap11to20_sq_phase": "write",
+      "cz.gate_time_m": "write",
+      "cz.zpa_q_czecho": "write",
+      "cz.zpa_c_czecho": "write",
+      "cz.tune": "write",
+      "cz.interaction": "read",
+      "cz.swap11to20": "read",
+      "cz.sq_phase_xeb": "read",
+      "cz.run_xeb": "read"
     }
   },
   "templates": [],

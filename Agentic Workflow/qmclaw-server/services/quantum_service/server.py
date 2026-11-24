@@ -830,6 +830,12 @@ class QuantumService(BaseService):
             return self._handle_qubit_state(data)
         elif path == "/qubit/state_table":
             return self._handle_qubit_state_table(data)
+        elif path == "/qubit/pair/state_table":
+            return self._handle_qubit_pair_state_table(data)
+        elif path == "/qubit/pair/state":
+            return self._handle_qubit_pair_state(data)
+        elif path == "/qubit/pair/route":
+            return self._handle_qubit_pair_route(data)
         elif path == "/qubit/route":
             return self._handle_qubit_route(data)
         elif path == "/qubit/templates":
@@ -989,6 +995,314 @@ class QuantumService(BaseService):
             "validity": validity,
             "edges": edges_for(state["state"]),
             "record": record,
+        }
+
+    # --- pair（双比特 CZ）scope：结构 + 判据可跑，执行层留 HOLD（设计稿 §8 / BACKLOG O5） ---
+
+    def _pair_qubit_states(
+        self,
+        records: List[Dict[str, Any]],
+        qubits: List[str],
+        overrides: Any,
+    ) -> List[Dict[str, Any]]:
+        """逐个比特跑与 `/qubit/state` 完全相同的推导链（只读，不写盘）。
+
+        pair 的前置判定要的是「两个比特各自到哪一态」，所以这里复用同一条链路
+        （台账 → 证据 → 状态 → 结论记录），避免 pair 视图与单比特视图对同一比特
+        说出两个不同的状态。
+        """
+        from services.common.qubit_state import derive_state
+        from services.common.state_evidence import evidence_from_records, merge_evidence
+        from services.common.state_machine import build_state_record, record_validity
+
+        rows: List[Dict[str, Any]] = []
+        for qubit in qubits:
+            name = str(qubit)
+            derived = evidence_from_records(records, qubit=name)
+            scoped = overrides.get(name) if isinstance(overrides, dict) else None
+            evidence, sources = merge_evidence(derived, scoped if isinstance(scoped, dict) else None)
+            state = derive_state(evidence)
+            record = build_state_record(
+                qubit=name,
+                state_result=state,
+                evidence=evidence,
+                sources=sources,
+                conflicts=derived.get("conflicts", []),
+                criteria_version=state.get("criteria_version"),
+            )
+            rows.append(
+                {
+                    "qubit": name,
+                    "state": state.get("state"),
+                    "state_index": state.get("state_index"),
+                    "description": state.get("description"),
+                    "validity": record_validity(record),
+                    "conflicts": derived.get("conflicts", []),
+                    "record": record,
+                }
+            )
+        return rows
+
+    def _pair_evidence(self, records: List[Dict[str, Any]], qubits: List[str], overrides: Any):
+        """pair 证据 = 台账里 CZ 类记录 + 调用方显式覆盖（覆盖优先，来源标 override）。"""
+        from services.common.pair_state import evidence_from_pair_records
+
+        derived = evidence_from_pair_records(records, qubits)
+        evidence = dict(derived.get("evidence") or {})
+        sources = {k: dict(v) for k, v in (derived.get("sources") or {}).items()}
+        if isinstance(overrides, dict):
+            flat = overrides.get("pair")
+            merged = flat if isinstance(flat, dict) else overrides
+            for key, value in merged.items():
+                if key in ("pair",):
+                    continue
+                if isinstance(value, dict) and "value" in value:
+                    evidence[str(key)] = value.get("value")
+                    sources[str(key)] = {
+                        "source": "override",
+                        "measured_at": value.get("measured_at"),
+                        "note": value.get("note"),
+                    }
+                else:
+                    evidence[str(key)] = value
+                    sources[str(key)] = {"source": "override"}
+        return derived, evidence, sources
+
+    def _pair_context(self, data: Dict[str, Any]):
+        """公共请求解析：pair 名 / 比特 / 耦合器 / 台账 / 前置 / 状态结论记录。
+
+        返回 ``(error, ctx)``：``error`` 非空时直接把它当响应返回。
+        """
+        from services.common.pair_state import (
+            build_pair_record,
+            derive_pair_state,
+            pair_prerequisites,
+            normalize_pair,
+        )
+        from services.common.runrecord import RunRecordWriter
+
+        try:
+            pair = normalize_pair(data)
+        except ValueError as exc:
+            return {"success": False, **error_envelope("validation_error", str(exc))}, None
+        try:
+            limit = int(data.get("limit", 200))
+        except (TypeError, ValueError):
+            limit = 200
+        limit = max(1, min(limit, 2000))
+
+        records = RunRecordWriter().list_records(limit=limit)
+        rows = self._pair_qubit_states(records, pair["qubits"], data.get("evidence"))
+        prerequisites = pair_prerequisites(
+            [{"qubit": row["qubit"], "state": row["state"]} for row in rows]
+        )
+        derived, evidence, sources = self._pair_evidence(records, pair["qubits"], data.get("evidence"))
+        state = derive_pair_state(evidence, prerequisites=prerequisites)
+        record = build_pair_record(
+            qubits=pair["qubits"],
+            state_result=state,
+            evidence=evidence,
+            sources=sources,
+            conflicts=[],
+            criteria_version=state.get("criteria_version"),
+            coupler=pair["coupler"],
+        )
+        return None, {
+            "pair": pair,
+            "limit": limit,
+            "records": records,
+            "rows": rows,
+            "prerequisites": prerequisites,
+            "derived": derived,
+            "evidence": evidence,
+            "sources": sources,
+            "state": state,
+            "record": record,
+        }
+
+    def _handle_qubit_pair_state_table(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """pair 状态机全表（六态 + 13 条边 + 三个 pair 判据 + 执行能力）。只读。"""
+        from services.common.state_machine import state_table_extended
+
+        try:
+            table = state_table_extended(scope="pair")
+        except Exception as exc:  # noqa: BLE001 - 统一错误语义
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+        return {"success": True, "scope": "pair", **table}
+
+    def _handle_qubit_pair_state(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """pair 状态自查：两比特前置 + CZ 证据 → pair 状态（**只读，不碰硬件**）。
+
+        请求：{"qubits": ["q0","q1"], "coupler": 2, "limit": 200,
+               "evidence": {"pair": {"cphase": 3.14}}}
+        返回：{"success": true, "scope": "pair", "pair": "q0+q1", "state": {...},
+               "prerequisites": {...}, "evidence": {...}, "records": {...},
+               "validity": {...}, "edges": [...], "record": {...}, "execution": {...}}
+        """
+        from services.common.pair_state import execution_capability
+        from services.common.state_machine import (
+            SCOPE_PAIR,
+            edges_for,
+            machine_for_scope,
+            record_validity,
+            state_version,
+        )
+
+        error, ctx = self._pair_context(data)
+        if error:
+            return error
+        assert ctx is not None
+        record = ctx["record"]
+        view = machine_for_scope(SCOPE_PAIR)
+        validity = record_validity(record)
+        state = ctx["state"]
+        return {
+            "success": True,
+            "scope": SCOPE_PAIR,
+            "name": ctx["pair"]["pair"],
+            "pair": ctx["pair"]["pair"],
+            "qubits": ctx["pair"]["qubits"],
+            "coupler": ctx["pair"]["coupler"],
+            "state": state,
+            "prerequisites": ctx["prerequisites"],
+            "qubit_states": [
+                {
+                    "qubit": row["qubit"],
+                    "state": row["state"],
+                    "state_index": row["state_index"],
+                    "validity": row["validity"],
+                }
+                for row in ctx["rows"]
+            ],
+            "evidence": ctx["evidence"],
+            "evidence_sources": ctx["sources"],
+            "records": {
+                "considered": ctx["derived"].get("considered", 0),
+                "ignored": ctx["derived"].get("ignored", 0),
+                "ignored_runs": ctx["derived"].get("ignored_runs", []),
+                "limit": ctx["limit"],
+            },
+            "state_version": state_version(view),
+            "expires_at": record.get("expires_at"),
+            "valid": validity.get("valid"),
+            "validity": validity,
+            "edges": edges_for(state["state"], view),
+            "record": record,
+            "execution": execution_capability(),
+        }
+
+    def _handle_qubit_pair_route(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """pair 路由判定：**能识别、能 hold**（不假装可执行，设计稿 §8.5 / §13 P4）。
+
+        请求：{"qubits": ["q0","q1"], "coupler": 2, "actions": ["cz.sweep_sq_phase"]}
+
+        Router 仍照常判（G0 非法边 / G1 模板 / G2 参数漂移 / G3 问 LLM / G4 hold），
+        但**只要不是 reject，就一律改判成 hold + G4 + needs_human**：厂商 CZ 能力在
+        ``DCZTuner`` 的类方法上，而 DSL 的 qubits 列表描述不了耦合器
+        （``capabilities.two_qubit_vendor.dsl_support = false``）。原判定保留在
+        ``router_decision`` / ``router_branch`` 里，供上游补完 DSL 后对照。
+        """
+        from services.common.pair_state import execution_capability, pair_name
+        from services.common.router import route
+        from services.common.state_machine import (
+            SCOPE_PAIR,
+            edges_for,
+            machine_for_scope,
+        )
+        from services.common.template_store import TemplateStore
+
+        from services.common.metrics import load_criteria
+
+        error, ctx = self._pair_context(data)
+        if error:
+            return error
+        assert ctx is not None
+        record = ctx["record"]
+        qubits = ctx["pair"]["qubits"]
+        coupler = ctx["pair"]["coupler"]
+
+        machine = machine_for_scope(SCOPE_PAIR)
+        # 出厂模板在 config 的 pair 段里（目前为空），实测成功率/晋退状态在
+        # data/state_ledger；合进来 G1/G2 才有可能命中（读盘失败不影响判定）。
+        try:
+            effective = TemplateStore().merged(machine)
+            if effective:
+                machine = dict(machine)
+                machine["templates"] = effective
+        except Exception:  # noqa: BLE001 - 模板库不可用不阻断判定（退化成 G3）
+            pass
+
+        try:
+            criteria_version = load_criteria().get("version")
+        except Exception:  # noqa: BLE001
+            criteria_version = record.get("criteria_version")
+
+        actions = data.get("actions") or data.get("choices")
+        if not actions:
+            actions = [
+                {"fn": edge["action"]["fn"], "edge_id": edge["id"]}
+                for edge in edges_for(record["state"], machine)
+                if edge.get("action", {}).get("fn")
+            ]
+
+        environment = {"actuation": self._actuation_flags(), "machine": machine}
+        decision = route(
+            state=record,
+            actions=actions,
+            criteria=criteria_version,
+            history=self._route_history(ctx["records"]),
+            environment=environment,
+            machine=machine,
+        )
+
+        execution = execution_capability()
+        original = decision.get("decision")
+        original_branch = decision.get("branch")
+        chosen = decision.get("chosen_action")
+        if isinstance(chosen, dict) and isinstance(chosen.get("params"), dict):
+            params = dict(chosen["params"])
+            for key, value in list(params.items()):
+                if value == "$qubits":
+                    params[key] = list(qubits)
+                elif value == "$coupler":
+                    params[key] = coupler
+                elif value == "$qubit":
+                    params[key] = pair_name(qubits)
+            chosen = dict(chosen)
+            chosen["params"] = params
+            decision["chosen_action"] = chosen
+
+        # 只有 reject（G0，非法边/前置不足）原样返回；其余一律 HOLD。
+        if original != "reject":
+            reason = decision.get("reason") or ""
+            decision["router_decision"] = original
+            decision["router_branch"] = original_branch
+            decision["decision"] = "hold"
+            decision["branch"] = "G4"
+            decision["needs_human"] = True
+            decision["requires_dsl_extension"] = bool(execution.get("requires_dsl_extension"))
+            decision["executable"] = bool(execution.get("executable"))
+            decision["dsl_gap"] = execution.get("dsl_gap")
+            decision["blocked_by"] = execution.get("blocked_by")
+            decision["reason"] = (
+                "pair scope 的执行层留 HOLD：CZ 动作落在厂商 DCZTuner 的类方法上，"
+                "DSL 还表达不了「2 比特 + 1 耦合器」（dsl_support=false）。"
+                + ("原判定：" + str(original) + "/" + str(original_branch) + "。" if original else "")
+                + (reason if reason else "")
+            )
+
+        return {
+            "success": True,
+            "scope": SCOPE_PAIR,
+            "name": ctx["pair"]["pair"],
+            "pair": ctx["pair"]["pair"],
+            "qubits": qubits,
+            "coupler": coupler,
+            "state": ctx["state"],
+            "prerequisites": ctx["prerequisites"],
+            "criteria_version": criteria_version,
+            "execution": execution,
+            **decision,
         }
 
     def _route_history(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -147,6 +147,62 @@ def evaluate_xeb(
     return _result("xeb", {"p": p, "gate_fidelity": gate_fidelity}, verdict, th, ok, nxt, criteria)
 
 
+# ── pair scope（双比特 CZ）判据：cphase / cz_leakage / cz_gate_fidelity ────────
+# 设计稿 §8.4：三条判据与单比特判据放在同一份 lab_criteria.json，由同一套程序判定；
+# 但口径各自独立（尤其 cz_gate_fidelity 与单比特 xeb.gate_fidelity 不是一回事）。
+
+
+def evaluate_cphase(value_rad: float, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """条件相位与 π 的偏差是否在容差内（pair scope 用）。"""
+    criteria = criteria or load_criteria()
+    d = metric_def(criteria, "cphase")
+    th = d.get("thresholds") or {}
+    v = float(value_rad)
+    target = float(th.get("target", 3.14159))
+    tol = float(th.get("tolerance_rad", 0.05))
+    resid = abs(v - target)
+    ok = resid <= tol
+    verdict = "locked" if ok else "off_target"
+    nxt = "" if ok else "相位偏离 π 超过 %.3f rad：回到幅度×时长交替迭代（自环 phase_locked--self--alt）" % tol
+    out = _result("cphase", v, verdict, th, ok, nxt, criteria)
+    out["residual_rad"] = round(resid, 6)
+    out["target"] = target
+    out["tolerance_rad"] = tol
+    return out
+
+
+def evaluate_cz_leakage(value: float, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """漏到 |2> 能级的占比是否在上界内（上界越小越好）。"""
+    criteria = criteria or load_criteria()
+    d = metric_def(criteria, "cz_leakage")
+    th = d.get("thresholds") or {}
+    v = float(value)
+    max_leakage = float(th.get("max_leakage", 0.01))
+    ok = v <= max_leakage
+    verdict = "bounded" if ok else "too_leaky"
+    nxt = "" if ok else "泄漏 %.4f 超上界 %.4f：重选低泄漏工作点（回退边 leakage_bounded -> cz_point_found）" % (
+        v,
+        max_leakage,
+    )
+    return _result("cz_leakage", v, verdict, th, ok, nxt, criteria)
+
+
+def evaluate_cz_gate_fidelity(value: float, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """CZ 门保真度是否达下界（与单比特 xeb.gate_fidelity 是两个口径）。"""
+    criteria = criteria or load_criteria()
+    d = metric_def(criteria, "cz_gate_fidelity")
+    th = d.get("thresholds") or {}
+    v = float(value)
+    min_fidelity = float(th.get("min_fidelity", 0.99))
+    ok = v >= min_fidelity
+    verdict = "verified" if ok else "degraded"
+    nxt = "" if ok else "CZ 门保真度 %.4f 低于 %.4f：退回相位标定（回退边 gate_verified -> phase_locked）" % (
+        v,
+        min_fidelity,
+    )
+    return _result("cz_gate_fidelity", v, verdict, th, ok, nxt, criteria)
+
+
 def evaluate(metric: str, value: Any, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """按指标名分发。value 语义：标量（contrast/dmu_sig/t1/t2_star）或 xeb 的 dict。"""
     criteria = criteria or load_criteria()
@@ -163,6 +219,12 @@ def evaluate(metric: str, value: Any, criteria: Optional[Dict[str, Any]] = None)
         if isinstance(value, dict):
             return evaluate_xeb(value.get("p"), value.get("gate_fidelity"), criteria)
         return evaluate_xeb(value, None, criteria)
+    if name == "cphase":
+        return evaluate_cphase(value, criteria)
+    if name == "cz_leakage":
+        return evaluate_cz_leakage(value, criteria)
+    if name == "cz_gate_fidelity":
+        return evaluate_cz_gate_fidelity(value, criteria)
     raise KeyError("未知指标 %r；可用指标：%s" % (name, ", ".join(sorted((criteria.get("metrics") or {}).keys()))))
 
 
@@ -190,6 +252,11 @@ THRESHOLD_ALIASES: Dict[str, Dict[str, str]] = {
         "offset": "max_offset_from_fread_mhz",
         "max_offset_from_fread_mhz": "max_offset_from_fread_mhz",
     },
+    "cphase": {
+        "target": "target", "tolerance": "tolerance_rad", "tolerance_rad": "tolerance_rad",
+    },
+    "cz_leakage": {"max": "max_leakage", "max_leakage": "max_leakage"},
+    "cz_gate_fidelity": {"min": "min_fidelity", "min_fidelity": "min_fidelity"},
 }
 
 # 绑定里的指标名 → lab_criteria 里的指标名（goal.success.criteria 可省，用这个推）
@@ -208,6 +275,9 @@ CRITERIA_NAME_ALIASES: Dict[str, str] = {
     "gate_fidelity": "xeb",
     "s21_dip": "s21_dip",
     "depth_db": "s21_dip",
+    "cphase": "cphase",
+    "cz_leakage": "cz_leakage",
+    "cz_gate_fidelity": "cz_gate_fidelity",
 }
 
 

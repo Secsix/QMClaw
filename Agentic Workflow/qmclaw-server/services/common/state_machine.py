@@ -127,6 +127,10 @@ def _evidence_provenance(
     }
 
 
+#: 公开别名：pair scope 也要把 evidence 整形成"能复核的凭据"，逻辑完全一样。
+evidence_provenance = _evidence_provenance
+
+
 def build_state_record(
     qubit: str,
     state_result: Dict[str, Any],
@@ -210,20 +214,117 @@ def record_validity(
     }
 
 
-def state_table_extended(machine: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+# ---------------------------------------------------------------------------
+# scope 视图（单比特 / 双比特 pair）
+# ---------------------------------------------------------------------------
+#
+# 设计稿 §8.1：CZ 状态机与单比特状态机是**两套并列的 scope**，共享同一套判据引擎与
+# 同一套证据契约，但状态集与边表独立。因此这里的做法不是把 Router / 闸门写两遍，
+# 而是把「结构表」按 scope 取一个视图喂给同一批纯函数：
+#
+#   * qubit scope → machine["states"] / machine["edges"]（历史字段，语义不变）
+#   * pair  scope → machine["pair_states"] / machine["pair_edges"]
+#
+# 这样 ttl_for / all_edges / edges_for / resolve_edges / evaluate_gates / route
+# 一行都不用改，只是吃不同的表。
+
+SCOPE_QUBIT = "qubit"
+SCOPE_PAIR = "pair"
+SCOPES = (SCOPE_QUBIT, SCOPE_PAIR)
+
+_PAIR_STATES_KEY = "pair_states"
+_PAIR_EDGES_KEY = "pair_edges"
+
+
+def machine_for_scope(
+    scope: str,
+    machine: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """取出某个 scope 的结构视图（``states`` / ``edges`` 换成该 scope 自己的）。"""
+    machine = machine or load_state_machine()
+    name = str(scope or SCOPE_QUBIT).strip().lower()
+    if name == SCOPE_QUBIT:
+        return machine
+    if name not in SCOPES:
+        raise ValueError("未知 scope %r；可用：%s" % (scope, ", ".join(SCOPES)))
+    pair_states = machine.get(_PAIR_STATES_KEY) or {}
+    pair_edges = machine.get(_PAIR_EDGES_KEY) or []
+    if not pair_states or not pair_edges:
+        raise ValueError(
+            "结构表里没有 pair scope（缺 %s / %s）" % (_PAIR_STATES_KEY, _PAIR_EDGES_KEY)
+        )
+    view = dict(machine)
+    view["states"] = {k: dict(v) for k, v in pair_states.items() if isinstance(v, dict)}
+    view["edges"] = [dict(e) for e in pair_edges if isinstance(e, dict)]
+    view["scope"] = SCOPE_PAIR
+    return view
+
+
+def pair_machine(machine: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """pair scope 的结构视图（等价于 ``machine_for_scope("pair")``）。"""
+    return machine_for_scope(SCOPE_PAIR, machine)
+
+
+def has_scope(scope: str, machine: Optional[Dict[str, Any]] = None) -> bool:
+    """结构表里是否有这个 scope 的表。"""
+    machine = machine or load_state_machine()
+    name = str(scope or "").strip().lower()
+    if name == SCOPE_QUBIT:
+        return bool(machine.get("states"))
+    if name == SCOPE_PAIR:
+        return bool(machine.get(_PAIR_STATES_KEY)) and bool(machine.get(_PAIR_EDGES_KEY))
+    return False
+
+
+def scope_states(
+    scope: str = SCOPE_QUBIT,
+    machine: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """按 index 排出某个 scope 的状态序列。"""
+    view = machine_for_scope(scope, machine)
+    states = view.get("states") or {}
+    rows = [
+        (int(info.get("index", 0)), name)
+        for name, info in states.items()
+        if isinstance(info, dict)
+    ]
+    return [name for _, name in sorted(rows)]
+
+
+def state_table_extended(
+    machine: Optional[Dict[str, Any]] = None,
+    scope: str = SCOPE_QUBIT,
+) -> Dict[str, Any]:
     """状态机全表 = 旧表（qubit_state.state_table）+ 边表 + 闸门 + 结构版本。
 
     旧表字段**一字不改**地保留在结果里，前端与自检脚本按新表读即可。
     """
+    name = str(scope or SCOPE_QUBIT).strip().lower()
+    machine = machine or load_state_machine()
+
+    if name == SCOPE_PAIR:
+        from services.common.pair_state import state_table_pair
+
+        view = machine_for_scope(SCOPE_PAIR, machine)
+        table = dict(state_table_pair())
+        table["scope"] = SCOPE_PAIR
+        table["edges"] = all_edges(view)
+        table["gates"] = gate_config(machine)
+        table["state_version"] = state_version(machine)
+        table["state_ttl"] = {
+            key: ttl_for(key, view) for key in (view.get("states") or {})
+        }
+        return table
+
     from services.common.qubit_state import state_table
 
-    machine = machine or load_state_machine()
     table = dict(state_table())
+    table["scope"] = SCOPE_QUBIT
     table["edges"] = all_edges(machine)
     table["gates"] = gate_config(machine)
     table["state_version"] = state_version(machine)
     table["state_ttl"] = {
-        name: ttl_for(name, machine) for name in (machine.get("states") or {})
+        key: ttl_for(key, machine) for key in (machine.get("states") or {})
     }
     return table
 
