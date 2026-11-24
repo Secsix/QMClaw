@@ -32,14 +32,17 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
   const missingByState = table?.missing_by_state ?? {};
   const evidenceSources = table?.evidence_sources ?? {};
 
-  const current = state?.state ?? "";
+  // 后端把派生结果放在 `state` 对象里（见 controlApi.ts 的 QubitState 注释）
+  const detail = state?.state ?? null;
+  const current = detail?.state ?? "";
   const currentIndex = useMemo(
     () => states.indexOf(current),
     [states, current]
   );
 
-  const missing = state?.plan?.missing ?? state?.missing_detail ?? [];
-  const nextAction = state?.plan?.next_action ?? state?.next_action ?? "";
+  const missing = state?.plan?.missing ?? detail?.missing_detail ?? [];
+  const nextAction = state?.plan?.next_action ?? detail?.next_action ?? "";
+  const currentDescription = detail?.description ?? descriptions[current] ?? "";
 
   if (states.length === 0) {
     return (
@@ -185,7 +188,7 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
                 fontSize={11}
                 fill="var(--qm-text-dim)"
               >
-                {qubitName}：{descriptions[current] ?? ""}
+                {qubitName}：{currentDescription}
               </text>
               {nextAction && (
                 <text

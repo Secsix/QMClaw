@@ -96,6 +96,7 @@ export default function ControlDashboard() {
         status={runStatus}
         lastUpdated={data.lastUpdated}
         error={data.error}
+        partialErrors={data.partialErrors}
       />
 
       <main

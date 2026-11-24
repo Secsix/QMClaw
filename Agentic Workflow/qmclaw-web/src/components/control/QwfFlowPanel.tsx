@@ -89,42 +89,90 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
     return map;
   }, [run?.nodes]);
 
-  const { nodes, edges } = useMemo(() => {
-    if (!canvas) return { nodes: [] as Node[], edges: [] as Edge[] };
+  const { nodes, edges, fallback } = useMemo(() => {
+    const ns: Node[] = [];
+    const es: Edge[] = [];
+    const canvasNodes = canvas?.nodes ?? [];
 
-    const ns: Node[] = (canvas.nodes ?? []).map((n, idx) => {
-      const rn = statusByNode.get(n.id);
-      const status = rn?.status ?? "pending";
-      const label =
-        n.label ||
-        (n.dsl?.as ? `${n.dsl.as}` : n.dsl?.op || n.type || n.id);
-      return {
-        id: n.id,
+    if (canvasNodes.length > 0) {
+      canvasNodes.forEach((n, idx) => {
+        const rn = statusByNode.get(n.id);
+        const status = rn?.status ?? "pending";
+        const label =
+          n.label ||
+          (n.dsl?.as ? `${n.dsl.as}` : n.dsl?.op || n.type || n.id);
+        ns.push({
+          id: n.id,
+          type: "flowNode",
+          position: n.position ?? { x: 0, y: idx * 90 },
+          data: {
+            label,
+            status,
+            nodeType: n.type || n.dsl?.op || "node",
+            running: (status || "").toLowerCase().includes("run"),
+            duration: rn?.duration ?? null,
+          } satisfies FlowData,
+        });
+      });
+
+      (canvas?.edges ?? []).forEach((e, idx) => {
+        es.push({
+          id: e.id || `edge-${idx}`,
+          source: e.source,
+          target: e.target,
+          animated: false,
+          style: { stroke: "var(--qm-border-strong)", strokeWidth: 1.4 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "var(--qm-border-strong)",
+          },
+        });
+      });
+
+      return { nodes: ns, edges: es, fallback: false };
+    }
+
+    // 画布拿不到（run 的 workflowId 是一次性临时 id）→ 回退用运行节点画链，
+    // 至少保证「当前跑了哪些实验、每个节点什么状态」可见。
+    const runNodes = run?.nodes ?? [];
+    runNodes.forEach((rn, idx) => {
+      const cfg = (rn.input?.config ?? {}) as Record<string, unknown>;
+      const fn = typeof cfg.fn === "string" ? cfg.fn : "";
+      const qubit = typeof cfg.qubit === "string" ? cfg.qubit : "";
+      const label = fn
+        ? `${fn}${qubit ? ` · ${qubit}` : ""}`
+        : rn.nodeId || `node-${idx + 1}`;
+      ns.push({
+        id: rn.nodeId || `run-node-${idx}`,
         type: "flowNode",
-        position: n.position ?? { x: 0, y: idx * 90 },
+        position: { x: 0, y: idx * 90 },
         data: {
           label,
-          status,
-          nodeType: n.type || n.dsl?.op || "node",
-          running: (status || "").toLowerCase().includes("run"),
-          duration: rn?.duration ?? null,
+          status: rn.status || "pending",
+          nodeType: rn.nodeType || "node",
+          running: (rn.status || "").toLowerCase().includes("run"),
+          duration: rn.duration ?? null,
         } satisfies FlowData,
-      };
+      });
+      if (idx > 0) {
+        es.push({
+          id: `run-edge-${idx}`,
+          source: runNodes[idx - 1].nodeId || `run-node-${idx - 1}`,
+          target: rn.nodeId || `run-node-${idx}`,
+          animated: false,
+          style: { stroke: "var(--qm-border-strong)", strokeWidth: 1.4 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "var(--qm-border-strong)",
+          },
+        });
+      }
     });
 
-    const es: Edge[] = (canvas.edges ?? []).map((e, idx) => ({
-      id: e.id || `edge-${idx}`,
-      source: e.source,
-      target: e.target,
-      animated: false,
-      style: { stroke: "var(--qm-border-strong)", strokeWidth: 1.4 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--qm-border-strong)" },
-    }));
+    return { nodes: ns, edges: es, fallback: runNodes.length > 0 };
+  }, [canvas, run, statusByNode]);
 
-    return { nodes: ns, edges: es };
-  }, [canvas, statusByNode]);
-
-  if (!canvas || (canvas.nodes ?? []).length === 0) {
+  if (nodes.length === 0) {
     return (
       <div
         style={{
@@ -139,7 +187,7 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
           borderRadius: "0.5rem",
         }}
       >
-        暂无流程图（当前运行没有关联的 QWF 画布）
+        暂无流程图（当前运行没有关联的 QWF 画布，也没有可回退的运行节点）
       </div>
     );
   }
@@ -148,12 +196,33 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
     <div
       style={{
         height,
+        position: "relative",
         background: "var(--qm-panel)",
         border: "1px solid var(--qm-border)",
         borderRadius: "0.5rem",
         overflow: "hidden",
       }}
     >
+      {fallback ? (
+        <div
+          title="这次运行用的是临时工作流，后端没有对应的 QWF 画布，这里按运行节点顺序回退绘制"
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 8,
+            zIndex: 5,
+            padding: "0.15rem 0.4rem",
+            borderRadius: "0.25rem",
+            border: "1px solid var(--qm-warn)",
+            background: "var(--qm-warn-soft)",
+            color: "var(--qm-warn)",
+            fontSize: "0.65rem",
+            pointerEvents: "none",
+          }}
+        >
+          按运行节点回退绘制
+        </div>
+      ) : null}
       <ReactFlow
         nodes={nodes}
         edges={edges}

@@ -10,6 +10,8 @@ interface Props {
   status: string;
   lastUpdated: number | null;
   error: string | null;
+  /** 部分端点失败（页面仍可用），提示但不遮蔽状态。 */
+  partialErrors?: string[];
 }
 
 export default function ControlHeader({
@@ -20,6 +22,7 @@ export default function ControlHeader({
   status,
   lastUpdated,
   error,
+  partialErrors = [],
 }: Props) {
   return (
     <header
@@ -63,6 +66,22 @@ export default function ControlHeader({
       {lastUpdated ? (
         <span style={{ fontSize: "0.7rem", color: "var(--qm-text-mute)" }}>
           更新于 {new Date(lastUpdated).toLocaleTimeString("zh-CN", { hour12: false })}
+        </span>
+      ) : null}
+
+      {partialErrors.length > 0 ? (
+        <span
+          title={partialErrors.join("\n")}
+          style={{
+            fontSize: "0.7rem",
+            color: "var(--qm-warn)",
+            border: "1px solid var(--qm-warn)",
+            borderRadius: "0.25rem",
+            padding: "0.05rem 0.3rem",
+            cursor: "help",
+          }}
+        >
+          部分降级（{partialErrors.length}）
         </span>
       ) : null}
 

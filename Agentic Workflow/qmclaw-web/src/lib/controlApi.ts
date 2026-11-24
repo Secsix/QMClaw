@@ -57,9 +57,31 @@ export interface MissingEvidence {
   note?: string;
 }
 
-export interface QubitState {
-  success?: boolean;
-  name: string;
+/**
+ * `POST /qubit/state` 的实际返回形状（实测自 services/common/qubit_state.py）：
+ *
+ * {
+ *   "success": true,
+ *   "name": "q0",
+ *   "state": {                       // ← 派生结果，是个**对象**，不是字符串
+ *     "state": "unknown",
+ *     "state_index": 0,
+ *     "description": "…",
+ *     "reasons": [],
+ *     "missing": ["freq_locked"],
+ *     "missing_detail": [{ key, produced_by, note }],
+ *     "next_action": "…",
+ *     "metrics": {},
+ *     "criteria_version": "1.0.0"
+ *   },
+ *   "evidence": {},
+ *   "evidence_sources": {},
+ *   "conflicts": [],
+ *   "records": { "considered": 0, "ignored": 27, "ignored_runs": [...], "limit": 200 },
+ *   "plan": { "state": "unknown", "missing": [{ key, produced_by, note }], "next_action": "…" }
+ * }
+ */
+export interface QubitStateDetail {
   state: string;
   state_index?: number;
   description?: string;
@@ -67,9 +89,23 @@ export interface QubitState {
   missing?: string[];
   missing_detail?: MissingEvidence[];
   next_action?: string;
+  metrics?: Record<string, unknown>;
+  criteria_version?: string;
+}
+
+export interface QubitState {
+  success?: boolean;
+  name: string;
+  state?: QubitStateDetail;
   evidence?: Record<string, unknown>;
   evidence_sources?: Record<string, unknown>;
   conflicts?: unknown[];
+  records?: {
+    considered?: number;
+    ignored?: number;
+    ignored_runs?: string[];
+    limit?: number;
+  };
   plan?: {
     state?: string;
     missing?: MissingEvidence[];
@@ -155,14 +191,43 @@ export interface WorkflowCanvas {
   edges: CanvasEdge[];
 }
 
+/**
+ * 已保存的工作流条目（GET /api/workflows）。
+ * 注意：`id` 才是能取到 canvas 的键；`workflowId` 是 DSL 侧的标识，
+ * 而运行记录里的 workflowId 往往是一次性临时 id，两者不一定相等。
+ */
+export interface SavedWorkflow {
+  id: string;
+  workflowId?: string;
+  name?: string;
+  title?: string;
+  nodeCount?: number;
+}
+
 // ── 端点 ────────────────────────────────────────────────────────────────────
 
 export const controlApi = {
   stateTable: () => getJson<QubitStateTable>("/api/quantum/qubit/state-table"),
 
-  qubits: () => getJson<{ qubits?: string[]; count?: number; source?: string }>(
-    "/api/quantum/qubits"
-  ),
+  /**
+   * 后端返回的是对象数组（{ name, f10, fread, bias_z } …），
+   * 这里统一收敛成比特名字数组，方便下拉框直接使用。
+   */
+  qubits: async () => {
+    const res = await getJson<{
+      qubits?: Array<string | { name?: string }>;
+      count?: number;
+      source?: string;
+    }>("/api/quantum/qubits");
+    const names = (res?.qubits ?? [])
+      .map((q) => (typeof q === "string" ? q : (q?.name ?? "")))
+      .filter((n) => !!n);
+    return {
+      qubits: names,
+      count: res?.count ?? names.length,
+      source: res?.source,
+    };
+  },
 
   qubitState: (name: string) =>
     postJson<QubitState>("/api/quantum/qubit/state", { name }),
@@ -179,5 +244,23 @@ export const controlApi = {
       `/api/workflows/${encodeURIComponent(id)}`
     ),
 
-  plotUrl: (jobId: string) => `${CONTROL_API_BASE}/plot/${jobId}`,
+  /**
+   * 已保存的工作流列表。
+   * 运行记录里的 workflowId 常常是一次性临时 id，取不到 canvas；
+   * 需要用这份列表把它映射到已保存工作流的 id（只有 id 能取到 canvas）。
+   */
+  workflows: () =>
+    getJson<{ ok?: boolean; workflows?: SavedWorkflow[] }>("/api/workflows"),
+
+  /**
+   * 静态图 URL。Express 把 qmclaw-web/public/plots 挂在 `/plots` 下，
+   * 而后端产出的 plotPath 形如 `/plots/xxx.png`（也可能只是文件名）。
+   * 语义与 lib/api.ts 的 normalizePlotUrl 保持一致。
+   */
+  plotUrl: (path: string) => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("data:")) return path;
+    if (path.startsWith("/")) return `${CONTROL_API_BASE}${path}`;
+    return `${CONTROL_API_BASE}/plots/${path}`;
+  },
 };

@@ -28,6 +28,8 @@ export interface ControlData {
   canvas: WorkflowCanvas | null;
   loading: boolean;
   error: string | null;
+  /** 部分端点失败时的降级提示（不阻断其它面板）。 */
+  partialErrors: string[];
   lastUpdated: number | null;
   refresh: () => void;
 }
@@ -43,6 +45,7 @@ export function useControlData(): ControlData {
   const [canvas, setCanvas] = useState<WorkflowCanvas | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [partialErrors, setPartialErrors] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -58,31 +61,49 @@ export function useControlData(): ControlData {
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const [table, qubitList, qJobs, lJobs, runList] = await Promise.all([
-          controlApi.stateTable(),
-          controlApi.qubits().catch(() => ({ qubits: [] as string[] })),
-          controlApi.quantumJobs().catch(() => ({ jobs: [] as QuantumJob[] })),
-          controlApi.legacyJobs().catch(() => [] as LegacyJob[]),
-          controlApi.workflowRuns().catch(() => ({ runs: [] as WorkflowRun[] })),
-        ]);
+      // 用 allSettled：单个端点挂掉（例：后端 python 服务没重启导致 state-table 502）
+      // 不应该把整页数据清空，只有"全部失败"才算致命错误。
+      const results = await Promise.allSettled([
+        controlApi.stateTable(),
+        controlApi.qubits(),
+        controlApi.quantumJobs(),
+        controlApi.legacyJobs(),
+        controlApi.workflowRuns(),
+      ]);
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        setStateTable(table);
-        setQubits(qubitList?.qubits ?? []);
-        setQuantumJobs(qJobs?.jobs ?? []);
-        setLegacyJobs(Array.isArray(lJobs) ? lJobs : []);
-        setRuns(runList?.runs ?? []);
-        setError(null);
-        setLastUpdated(Date.now());
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
+      const labels = ["state-table", "qubits", "quantum-jobs", "legacy-jobs", "workflow-runs"];
+      const partial: string[] = [];
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          partial.push(
+            `${labels[i]}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`
+          );
         }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      });
+
+      const ok = <T,>(i: number, fallback: T): T =>
+        results[i].status === "fulfilled"
+          ? ((results[i] as PromiseFulfilledResult<T>).value ?? fallback)
+          : fallback;
+
+      const table = ok<QubitStateTable | null>(0, null);
+      const qubitList = ok<{ qubits?: string[] }>(1, { qubits: [] });
+      const qJobs = ok<{ jobs?: QuantumJob[] }>(2, { jobs: [] });
+      const lJobs = ok<LegacyJob[]>(3, []);
+      const runList = ok<{ runs?: WorkflowRun[] }>(4, { runs: [] });
+
+      setStateTable(table);
+      setQubits(qubitList?.qubits ?? []);
+      setQuantumJobs(qJobs?.jobs ?? []);
+      setLegacyJobs(Array.isArray(lJobs) ? lJobs : []);
+      setRuns(runList?.runs ?? []);
+      // 全挂才是致命错误；部分失败降级为提示，页面其余部分照常展示。
+      setError(partial.length === results.length ? partial.join("；") : null);
+      setPartialErrors(partial.length === results.length ? [] : partial);
+      setLastUpdated(Date.now());
+      if (!cancelled) setLoading(false);
     };
 
     load();
@@ -135,6 +156,8 @@ export function useControlData(): ControlData {
   }, [runs]);
 
   // 画布：跟着 activeRun 的 workflowId 走，同 id 不重复取。
+  // 注意：运行记录里的 workflowId 往往是一次性临时 id，直接取 canvas 会 404；
+  // 这里先用已保存工作流列表把它映射到 saved id 再取一次。
   useEffect(() => {
     const wfId = activeRun?.workflowId;
     if (!wfId) {
@@ -147,19 +170,38 @@ export function useControlData(): ControlData {
       return;
     }
     let cancelled = false;
-    controlApi
-      .workflowCanvas(wfId)
-      .then((res) => {
-        if (cancelled) return;
-        const c = res?.canvas ?? null;
-        canvasFor.current = { id: wfId, canvas: c };
-        setCanvas(c);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        canvasFor.current = { id: wfId, canvas: null };
-        setCanvas(null);
-      });
+    const load = async () => {
+      let found: WorkflowCanvas | null = null;
+
+      // ① 直接按 workflowId 取
+      try {
+        const res = await controlApi.workflowCanvas(wfId);
+        if ((res?.canvas?.nodes ?? []).length > 0) found = res.canvas ?? null;
+      } catch {
+        /* 下面走映射重试 */
+      }
+
+      // ② 映射到已保存工作流的 id 再取
+      if (!found) {
+        try {
+          const list = await controlApi.workflows();
+          const hit = (list?.workflows ?? []).find(
+            (w) => w.id === wfId || w.workflowId === wfId
+          );
+          if (hit?.id) {
+            const res = await controlApi.workflowCanvas(hit.id);
+            if ((res?.canvas?.nodes ?? []).length > 0) found = res.canvas ?? null;
+          }
+        } catch {
+          /* 拿不到就让面板回退到 run.nodes 链 */
+        }
+      }
+
+      if (cancelled) return;
+      canvasFor.current = { id: wfId, canvas: found };
+      setCanvas(found);
+    };
+    load();
     return () => {
       cancelled = true;
     };
@@ -178,6 +220,7 @@ export function useControlData(): ControlData {
     canvas,
     loading,
     error,
+    partialErrors,
     lastUpdated,
     refresh,
   };

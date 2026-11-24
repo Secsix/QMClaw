@@ -8,6 +8,18 @@
   --color-border: #334155;
 }
 
+/* 浅色主题：这些是 CSS 变量 / CSS 规则（不是 inline style），
+   运行时重映射管不到，必须在这里显式覆盖。 */
+html[data-qm-theme="light"] {
+  --color-primary: #0284c7;
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #b45309;
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+}
+
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 8px;
@@ -26,4 +38,17 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* 浅色主题下的滚动条 */
+html[data-qm-theme="light"] ::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+html[data-qm-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html[data-qm-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

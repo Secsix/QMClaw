@@ -167,7 +167,7 @@ export default function LiveExperimentPanel({ quantumJobs, legacyJobs }: Props) 
   const plotSrc = lastLegacy?.plotPath
     ? lastLegacy.plotPath.startsWith("http")
       ? lastLegacy.plotPath
-      : controlApi.plotUrl(lastLegacy.plotPath.replace(/^\/+/, ""))
+      : controlApi.plotUrl(lastLegacy.plotPath)
     : null;
 
   return (
