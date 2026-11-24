@@ -183,6 +183,21 @@
       "metricsToExtract": [
         "optimal_drag"
       ]
+    },
+    "cz.dcz": {
+      "name": "CZ (DCZ) Gate",
+      "description": "Characterize the two-qubit CZ/DCZ gate — Bell state + CZ phase parity check",
+      "function": "cz.dcz",
+      "qubits": 2,
+      "defaultCommand": "cz.dcz({qubit})",
+      "defaultPlotCommand": "qter.fitData({exp_num})",
+      "defaultAnalysisCommand": "",
+      "available": false,
+      "note": "sq_nodes 里没有 cz.dcz（模块级函数）。真机的 CZ/DCZ 走另一个模块：lqms.measure.tuners.cz_nodes.DCZTuner —— **类方法**形态，要 2 比特 + 1 耦合器（qubits[2] + coupler），当前 DSL/后端链（只会拼 sq.xxx(...)）调不到；qiskit 侧是等价的 Bell 态 + 奇偶校验模拟。详见 vendor_capabilities.two_qubit。",
+      "metricsToExtract": [
+        "cz_fidelity",
+        "cz_parity"
+      ]
     }
   },
 
@@ -224,7 +239,8 @@
       "batch": ["MultiDCZTuner", "SMTRunner"],
       "equivalent_methods": {
         "sq.swap": "swap11to20",
-        "sq.drag_calibrate": "zpa_q_m"
+        "sq.drag_calibrate": "zpa_q_m",
+        "cz.dcz": "tune"
       },
       "dsl_support": false,
       "dsl_gap": [

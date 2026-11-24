@@ -141,6 +141,8 @@ class TestArityTable(unittest.TestCase):
     def test_two_qubit_experiments(self):
         self.assertEqual(qubit_arity("sq.swap"), 2)
         self.assertEqual(qubit_arity("sq.drag_calibrate"), 2)
+        # cz.* 命名空间：双比特 CZ/DCZ，词表里登记为 2 比特
+        self.assertEqual(qubit_arity("cz.dcz"), 2)
 
     def test_unknown_experiment_is_not_blocked(self):
         """词表外的厂商函数不拦（不认识 ≠ 非法）。"""
@@ -227,6 +229,20 @@ class TestTwoQubitVendor(unittest.TestCase):
         self.assertEqual(block.get("class"), "DCZTuner")
         self.assertTrue(block.get("requires_coupler"))
         self.assertIn("swap11to20", block.get("methods") or [])
+
+    def test_capability_readers_expose_cz_methods(self):
+        """上游新增的能力读取接口：厂商到底有多少种 CZ 手法（不是只看 equivalent_methods）。"""
+        from services.workflow_service.dsl.experiments import (
+            two_qubit_experiment_classes,
+            two_qubit_methods,
+        )
+
+        methods = two_qubit_methods()
+        classes = two_qubit_experiment_classes()
+        self.assertIn("swap11to20", methods)
+        self.assertIn("tune", methods)
+        self.assertTrue(classes)
+        self.assertIn("CZEcho", classes)
 
     def test_swap_note_points_to_cz_nodes(self):
         """词表里 swap 的说明要指向真正的真机路径，而不是"真机没有"。"""

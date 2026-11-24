@@ -754,6 +754,84 @@ def _build_swap(req: QiskitRequest) -> ExperimentOutcome:
     )
 
 
+def _build_cz(req: QiskitRequest) -> ExperimentOutcome:
+    """CZ（DCZ）门表征 —— **原生等价**（Bell 态 + CZ 相位 + 奇偶校验）。
+
+    真机上 CZ 是**可调耦合器门**（`cz_nodes.DCZTuner`，2 比特 + 1 耦合器），
+    这里用 qiskit 原生的 `cz` 门做等价模拟：两条线路各测一个奇偶量。
+
+    ① Bell 态检查：H(0) → CX(0,1) → Z 基测量
+       - `bell_fidelity` = P00 + P11（理想 1.0）：两比特同号
+       - `bell_parity`  = ⟨Z0Z1⟩（理想 +1）
+    ② CZ 相位检查：H(0) → CX(0,1) → CZ(0,1) → H(0) → H(1) → Z 基测量
+       末两个 H 把测量基从 Z 换成 X，于是 E[z0·z1] = ⟨X0X1⟩
+       - 理想：CZ 把 |Φ+⟩ 翻成 |Φ−⟩，⟨X0X1⟩ = −1
+       - 没有 CZ 时 |Φ+⟩ 不变，⟨X0X1⟩ = +1（正好把 CZ 去掉就能对照）
+       - `cz_parity` = ⟨X0X1⟩，`cz_fidelity` = (1 - ⟨X0X1⟩)/2（理想 1.0）
+
+    counts 键是 little-endian（'01' 表示 q0=1, q1=0），取位用 `_qubit_bit`。
+    """
+    error_rate = req.pf("error_rate", 0.01)
+    names = req.qubit_list
+    qa = names[0] if names else "q0"
+    qb = names[1] if len(names) > 1 else "q1"
+
+    nm = NoiseModel()
+    if error_rate > 0:
+        nm.add_all_qubit_quantum_error(depolarizing_error(error_rate, 2), ["cx", "cz"])
+
+    # ① Bell 态检查：制备 |Φ+⟩，看两比特是否同号
+    bell_qc = QuantumCircuit(2, 2)
+    bell_qc.h(0)
+    bell_qc.cx(0, 1)
+    bell_qc.measure([0, 1], [0, 1])
+    bell_counts = _aer_counts(bell_qc, req.shots, req.seed, nm)
+    total = float(sum(bell_counts.values())) or 1.0
+    p00 = bell_counts.get("00", 0) / total
+    p11 = bell_counts.get("11", 0) / total
+    p01 = bell_counts.get("01", 0) / total
+    p10 = bell_counts.get("10", 0) / total
+    bell_fidelity = p00 + p11
+    bell_parity = (p00 + p11) - (p01 + p10)
+
+    # ② CZ 相位检查：末两个 H 把测量基换成 X
+    cz_qc = QuantumCircuit(2, 2)
+    cz_qc.h(0)
+    cz_qc.cx(0, 1)
+    cz_qc.cz(0, 1)
+    cz_qc.h(0)
+    cz_qc.h(1)
+    cz_qc.measure([0, 1], [0, 1])
+    cz_counts = _aer_counts(cz_qc, req.shots, req.seed, nm)
+    cz_total = float(sum(cz_counts.values())) or 1.0
+    xx = 0.0
+    for key, c in cz_counts.items():
+        # Z 本征值：|0⟩ → +1，|1⟩ → −1
+        z0 = 1.0 if _qubit_bit(key, 0) == "0" else -1.0
+        z1 = 1.0 if _qubit_bit(key, 1) == "0" else -1.0
+        xx += c * z0 * z1
+    xx /= cz_total
+    cz_parity = xx
+    cz_fidelity = (1.0 - xx) / 2.0
+
+    return ExperimentOutcome(
+        x=["Bell state", "CZ phase"],
+        y=[bell_fidelity, cz_fidelity],
+        xlabel=f"Check  [{qa} | {qb}]",
+        ylabel="Fidelity",
+        plot_type="bar",
+        metrics={
+            "cz_fidelity": cz_fidelity,
+            "cz_parity": cz_parity,
+            "bell_fidelity": bell_fidelity,
+            "bell_parity": bell_parity,
+        },
+        extra={"counts": cz_counts, "bell_counts": bell_counts,
+               "error_rate": error_rate, "qubits": [qa, qb],
+               "qubit_a": qa, "qubit_b": qb},
+    )
+
+
 def _build_xeb(req: QiskitRequest) -> ExperimentOutcome:
     """交叉熵基准 —— 随机 Clifford 序列 vs 理想分布。**原生等价**。
 

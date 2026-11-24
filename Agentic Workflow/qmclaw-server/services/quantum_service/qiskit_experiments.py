@@ -8,12 +8,12 @@ services/quantum_service/qiskit_experiments.py — Qiskit 实验目录与调度
 所以这里只放：
 
 - 数据结构（请求 / 产物 / 实验声明）
-- 实验目录（13 个实验的元数据 + 参数说明）
+- 实验目录（14 个实验的元数据 + 参数说明）
 - 一个**懒加载**调度器：真正执行时才去 import `qiskit_circuits`
 
 需要 qiskit 的线路构造与拟合全部在 `qiskit_circuits.py`。
 
-**实验词表与真机共用**：`config/experiment_configs.json` 里的 13 个实验名
+**实验词表与真机共用**：`config/experiment_configs.json` 里的 14 个实验名
 在 qiskit 后端里是**同名**的，agent / workflow / 前端不需要为 qiskit 另开一套命名。
 `list_specs()` 会把两个来源交叉起来，让调用方一眼看出
 "这个实验真机上能不能做"（`available`）和"qiskit 里是原生态还是等效模型"
@@ -201,6 +201,17 @@ _register(ExperimentSpec(
         "error_rate": {"default": 0.01, "unit": "", "desc": "退极化门误差率"},
     },
     impl=f"{_IMPL_MODULE}:_build_swap",
+))
+
+_register(ExperimentSpec(
+    name="cz.dcz",
+    title="CZ (DCZ) Gate",
+    approximation="exact",
+    description="两比特 CZ 门：Bell 态制备 → CZ 相位 → 奇偶校验（X 基测量）。",
+    params={
+        "error_rate": {"default": 0.01, "unit": "", "desc": "退极化门误差率"},
+    },
+    impl=f"{_IMPL_MODULE}:_build_cz",
 ))
 
 _register(ExperimentSpec(

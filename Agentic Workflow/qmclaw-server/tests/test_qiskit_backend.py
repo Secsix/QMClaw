@@ -3,13 +3,13 @@
 分两类：
 
 1. **不依赖 qiskit**（任何机器都能跑）
-   - 实验目录、覆盖报告（13 个实验必须全覆盖）
+   - 实验目录、覆盖报告（14 个实验必须全覆盖）
    - 目录层与真机词表的 metrics 对齐
    - 入参钳位、未知实验、非法线路等错误路径
    - 目录层在**没装 qiskit 的解释器**里也能 import（子进程验证）
 
 2. **依赖 qiskit**（没装就 skip，不是 fail —— qiskit 是可选依赖）
-   - 13 个实验各跑一遍，断言信封结构与指标
+   - 14 个实验各跑一遍，断言信封结构与指标
 
 跑法：
     python -m pytest tests/test_qiskit_backend.py -v
@@ -44,9 +44,9 @@ from services.quantum_service.qiskit_experiments import (  # noqa: E402
     supported_experiments,
 )
 
-# 真机词表里的 13 个实验 —— 与 config/experiment_configs.json 一致
+# 真机词表里的 14 个实验 —— 与 config/experiment_configs.json 一致
 ALL_EXPERIMENTS = [
-    "t1", "ramsey", "piamp", "xeb", "single_shot", "swap",
+    "t1", "ramsey", "piamp", "xeb", "single_shot", "swap", "cz.dcz",
     "spectroscopy", "pulsed_spec", "s21", "s21_dis", "iqraw",
     "allxy", "drag_calibrate",
 ]
@@ -70,8 +70,8 @@ def _run(experiment: str, **kwargs):
 class TestCatalog(unittest.TestCase):
     """目录层：不依赖 qiskit。"""
 
-    def test_thirteen_experiments_registered(self):
-        self.assertEqual(len(EXPERIMENT_REGISTRY), 13)
+    def test_fourteen_experiments_registered(self):
+        self.assertEqual(len(EXPERIMENT_REGISTRY), 14)
         self.assertEqual(sorted(supported_experiments()), sorted(ALL_EXPERIMENTS))
 
     def test_covers_whole_real_machine_vocabulary(self):
@@ -80,7 +80,7 @@ class TestCatalog(unittest.TestCase):
         self.assertEqual(report["missing_in_qiskit"], [], "qiskit 后端没覆盖全部真机实验")
         self.assertEqual(report["extra_in_qiskit"], [])
         self.assertEqual(report["covered"], report["total"])
-        self.assertEqual(report["total"], 13)
+        self.assertEqual(report["total"], 14)
 
     def test_list_specs_matches_real_metrics(self):
         """每个实验声明的 metrics 必须和真机词表的 metricsToExtract 同名。"""
@@ -177,12 +177,12 @@ class TestRequestHandling(unittest.TestCase):
         self.assertEqual(st["backend"], BACKEND_NAME)
         self.assertIn(st["execution"], ("in_process", "subprocess"))
         self.assertIn("versions", st)
-        self.assertEqual(st["experiments"], 13)
+        self.assertEqual(st["experiments"], 14)
 
 
 @unittest.skipUnless(_qiskit_available(), "qiskit 后端不可用，跳过需要 qiskit 的用例")
 class TestExperiments(unittest.TestCase):
-    """13 个实验各跑一遍。
+    """14 个实验各跑一遍。
 
     断言的是**结构 + 量级**，不是具体数值 —— 具体数值依赖 shots/seed，
     会抖。这里只保证"指标存在、量级合理、信封完整"。
@@ -253,6 +253,30 @@ class TestExperiments(unittest.TestCase):
         """多比特（2026-11-19）：两个比特名要落到线路上，并出现在结果里。"""
         res = qiskit_backend.run({
             "experiment": "swap", "qubit": "q0", "qubits": ["qA", "qB"],
+            "shots": 400, "params": {},
+        })
+        self.assertEqual(res["status"], "qiskit_completed", res.get("error"))
+        self.assertEqual(res["extra"]["qubits"], ["qA", "qB"])
+        self.assertEqual(res["extra"]["qubit_a"], "qA")
+        self.assertEqual(res["extra"]["qubit_b"], "qB")
+        self.assertIn("qA", res["data"]["xlabel"])
+        self.assertIn("qB", res["data"]["xlabel"])
+
+    def test_cz_dcz(self):
+        """双比特 CZ（DCZ）：Bell 态 + CZ 相位 + 奇偶校验。"""
+        res = _run("cz.dcz")
+        self._assert_envelope(res, "cz.dcz")
+        self.assertIn("cz_fidelity", res["metrics"])
+        self.assertIn("cz_parity", res["metrics"])
+        self.assertGreater(res["metrics"]["cz_fidelity"], 0)
+        self.assertLessEqual(res["metrics"]["cz_fidelity"], 1.0)
+        # 正确的 CZ 把 |Φ+⟩ 翻成 |Φ−⟩ → ⟨X0X1⟩ = −1
+        self.assertLess(res["metrics"]["cz_parity"], 0.5)
+
+    def test_cz_dcz_with_explicit_two_qubits(self):
+        """多比特：两个比特名要落到线路上，并出现在结果里。"""
+        res = qiskit_backend.run({
+            "experiment": "cz.dcz", "qubit": "q0", "qubits": ["qA", "qB"],
             "shots": 400, "params": {},
         })
         self.assertEqual(res["status"], "qiskit_completed", res.get("error"))
