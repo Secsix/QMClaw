@@ -244,3 +244,194 @@ class TestDeriveStateRegression(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# P1（BACKLOG O2）：三道闸门求值
+# ---------------------------------------------------------------------------
+
+import copy  # noqa: E402
+
+from services.common.state_machine import (  # noqa: E402
+    action_matches_edge,
+    evaluate_gates,
+    resolve_edges,
+)
+
+
+class TestGateEvaluation(unittest.TestCase):
+    """GATE-PRE / GATE-VER / GATE-TTL：纯计算、只读、不触 IO。"""
+
+    NOW = 1000.0
+
+    def _record(
+        self,
+        state="unknown",
+        criteria_version="1.0.0",
+        expires_in=3600.0,
+        evidence=None,
+    ):
+        return {
+            "qubit": "q0",
+            "scope": {"type": "qubit", "qubits": ["q0"], "coupler": None},
+            "state": state,
+            "state_index": 0,
+            "state_version": "1.0.0",
+            "criteria_version": criteria_version,
+            "evidence": evidence or {},
+            "conflicts": [],
+            "reasons": [],
+            "missing": [],
+            "decided_at": self.NOW,
+            "expires_at": (self.NOW + expires_in) if expires_in is not None else None,
+        }
+
+    # ---- GATE-PRE ----------------------------------------------------
+    def test_pre_blocks_when_state_not_ready(self):
+        result = evaluate_gates(
+            self._record(state="unknown"),
+            {"fn": "sq.piamp"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["decision"], "block")
+        self.assertIn("PRE", result["blocked_by"])
+        self.assertEqual(result["gates"]["PRE"]["violation"], "precondition_not_met")
+        self.assertIn("freq_locked", result["gates"]["PRE"]["detail"]["required_state"])
+
+    def test_pre_blocks_unknown_action(self):
+        result = evaluate_gates(
+            self._record(state="unknown"),
+            {"fn": "sq.not_a_real_function"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["gates"]["PRE"]["violation"], "unknown_action")
+
+    def test_pre_allows_legal_action(self):
+        result = evaluate_gates(
+            self._record(state="unknown"),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["gates"]["PRE"]["ok"])
+        self.assertEqual(result["allowed_edges"], ["unknown->freq_locked"])
+        self.assertEqual(result["blocked_by"], [])
+
+    def test_pre_reports_missing_evidence(self):
+        result = evaluate_gates(
+            self._record(state="unknown", evidence={}),
+            {"fn": "sq.piamp"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        detail = result["gates"]["PRE"]["detail"]
+        self.assertIn("freq_locked", detail["missing_evidence"])
+
+    def test_pre_lists_pending_evidence_for_legal_edge(self):
+        result = evaluate_gates(
+            self._record(state="unknown"),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        pending = result["gates"]["PRE"]["detail"]["pending_evidence"]
+        self.assertIn("freq_locked", pending)
+
+    # ---- GATE-VER ----------------------------------------------------
+    def test_ver_blocks_criteria_version_mismatch(self):
+        result = evaluate_gates(
+            self._record(state="unknown", criteria_version="0.9.0"),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("VER", result["blocked_by"])
+        self.assertEqual(
+            result["gates"]["VER"]["violation"], "record_criteria_version_mismatch"
+        )
+
+    def test_ver_rerun_policy_does_not_block(self):
+        machine = copy.deepcopy(load_state_machine())
+        machine["gates"]["VER"]["on_version_mismatch"] = "rerun"
+        result = evaluate_gates(
+            self._record(state="unknown", criteria_version="0.9.0"),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+            machine=machine,
+        )
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["needs_rerun"])
+        self.assertEqual(result["blocked_by"], [])
+
+    def test_ver_skipped_when_no_version_available(self):
+        result = evaluate_gates(
+            self._record(state="unknown", criteria_version=None),
+            {"fn": "sq.spectroscopy"},
+            criteria_version=None,
+            now=self.NOW,
+        )
+        self.assertTrue(result["gates"]["VER"]["ok"])
+
+    def test_ver_blocks_action_pinned_version(self):
+        result = evaluate_gates(
+            self._record(state="unknown"),
+            {"fn": "sq.spectroscopy", "criteria_version": "0.9.0"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(
+            result["gates"]["VER"]["violation"], "action_criteria_version_mismatch"
+        )
+
+    # ---- GATE-TTL ----------------------------------------------------
+    def test_ttl_blocks_expired_state(self):
+        result = evaluate_gates(
+            self._record(state="freq_locked", expires_in=-1.0),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("TTL", result["blocked_by"])
+        self.assertEqual(result["gates"]["TTL"]["violation"], "state_expired")
+        self.assertTrue(result["gates"]["TTL"]["detail"]["recovery"])
+
+    def test_ttl_allows_state_without_expiry(self):
+        result = evaluate_gates(
+            self._record(state="unknown", expires_in=None),
+            {"fn": "sq.spectroscopy"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertTrue(result["gates"]["TTL"]["ok"])
+        self.assertTrue(result["ok"])
+
+    # ---- 纯函数性 ----------------------------------------------------
+    def test_gates_do_not_mutate_record(self):
+        record = self._record(state="unknown")
+        snapshot = copy.deepcopy(record)
+        evaluate_gates(
+            record,
+            {"fn": "sq.piamp"},
+            criteria_version="1.0.0",
+            now=self.NOW,
+        )
+        self.assertEqual(record, snapshot)
+
+    def test_resolve_edges_separates_legal_and_foreign(self):
+        resolution = resolve_edges({"fn": "sq.spectroscopy"}, "freq_locked")
+        self.assertIn("freq_locked--self--rescan", resolution["legal_ids"])
+        self.assertIn("unknown->freq_locked", [e["id"] for e in resolution["foreign"]])
+
+    def test_action_matches_alternative_function(self):
+        edge = edge_by_id("unknown->freq_locked")
+        self.assertTrue(action_matches_edge({"fn": "sq.pidf"}, edge))
+        self.assertFalse(action_matches_edge({"fn": "sq.iqraw"}, edge))

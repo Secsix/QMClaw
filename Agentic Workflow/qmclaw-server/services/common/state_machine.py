@@ -226,3 +226,253 @@ def state_table_extended(machine: Optional[Dict[str, Any]] = None) -> Dict[str, 
         name: ttl_for(name, machine) for name in (machine.get("states") or {})
     }
     return table
+
+
+# ---------------------------------------------------------------------------
+# 三道闸门求值（P1 / BACKLOG O2）
+# ---------------------------------------------------------------------------
+#
+# 三道闸门（设计稿 §6）：
+#   * GATE-PRE  前置状态没到位 —— 动作所在边的 from 态 ≠ 当前态；
+#   * GATE-VER  判据版本对不上 —— 结论/动作锁定的判据版本 ≠ 当前判据版本；
+#   * GATE-TTL  状态已过期 —— now > expires_at。
+#
+# 纯计算、只读：不连真机、不写台账、不问 LLM。除了读结构表 json 之外没有任何 IO，
+# 所以可以离线单测，也可以放在 Router 前面当「动作下发前的最后一道关」。
+
+
+def _action_fns(action: Optional[Dict[str, Any]]) -> List[str]:
+    fn = (action or {}).get("fn") or (action or {}).get("function")
+    return [str(fn)] if fn else []
+
+
+def action_matches_edge(action: Optional[Dict[str, Any]], edge: Dict[str, Any]) -> bool:
+    """动作是否命中这条边（fn 相同，或 fn 落在 alternatives 里）。"""
+    if not action or not edge:
+        return False
+    edge_action = edge.get("action") or {}
+    candidates = {edge_action.get("fn")}
+    candidates.update(edge_action.get("alternatives") or [])
+    candidates.discard(None)
+    return bool(candidates & set(_action_fns(action)))
+
+
+def resolve_edges(
+    action: Optional[Dict[str, Any]],
+    state: Optional[str] = None,
+    machine: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """把动作解析成候选边（跨态），并区分「在 A(s) 内」与「别的态才有」。
+
+    支持两种动作写法：
+      * `{"edge_id": "unknown->freq_locked"}` —— 直接指定结构边；
+      * `{"fn": "sq.spectroscopy"}` —— 按函数名匹配（含 alternatives）。
+    """
+    machine = machine or load_state_machine()
+    edges = all_edges(machine)
+    edge_id = (action or {}).get("edge_id") or (action or {}).get("edge")
+    if edge_id:
+        candidates = [e for e in edges if e.get("id") == edge_id]
+    else:
+        candidates = [e for e in edges if action_matches_edge(action, e)]
+    legal = [e for e in candidates if state is None or e.get("from") == state]
+    legal_ids = [e.get("id") for e in legal]
+    foreign = [e for e in candidates if e.get("id") not in legal_ids]
+    return {
+        "candidates": candidates,
+        "legal": legal,
+        "legal_ids": legal_ids,
+        "foreign": foreign,
+    }
+
+
+def _evidence_keys(record: Dict[str, Any]) -> List[str]:
+    return list(((record or {}).get("evidence") or {}).keys())
+
+
+def _required_evidence_for_state(
+    state: str,
+    machine: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """某个状态要「算数」所需要的证据键（states[state].requires）。"""
+    machine = machine or load_state_machine()
+    entry = (machine.get("states") or {}).get(state) or {}
+    return list(entry.get("requires") or [])
+
+
+def evaluate_gates(
+    record: Dict[str, Any],
+    action: Optional[Dict[str, Any]] = None,
+    criteria_version: Optional[str] = None,
+    now: Optional[float] = None,
+    machine: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """三道闸门求值：这个动作**能不能下**。
+
+    入参：
+      * `record` —— 状态结论记录（`build_state_record()` 的产物）；
+      * `action` —— 待下发的动作（`{"fn": ...}` 或 `{"edge_id": ...}`）；
+      * `criteria_version` —— 当前判据版本（`config/lab_criteria.json` 的 version）；
+        传 None 时退回用记录里的版本，无法判定就跳过版本核对；
+      * `now` —— 当前时间戳（默认取 `time.time()`）。
+
+    返回：`{"ok", "decision", "current_state", "allowed_edges", "candidate_edges",
+    "gates", "violations", "blocked_by", "needs_rerun", "reason"}`。
+
+    `ok=False` 表示有闸门拦下了动作（`blocked_by` 指出是哪几道）。
+    """
+    machine = machine or load_state_machine()
+    record = record or {}
+    action = action or {}
+    gates_cfg = gate_config(machine)
+    current_state = str(record.get("state") or "unknown")
+    have = set(_evidence_keys(record))
+
+    # ---- GATE-PRE：前置状态没到位 -------------------------------------
+    resolution = resolve_edges(action, current_state, machine)
+    legal = resolution["legal"]
+    candidates = resolution["candidates"]
+    pre_violation: Optional[str] = None
+    pre_detail: Dict[str, Any] = {"current_state": current_state}
+    if not candidates:
+        pre_violation = "unknown_action"
+        pre_detail = {
+            "current_state": current_state,
+            "reason": "该动作不在结构边表内 —— 不能自创第四类边",
+            "action": dict(action),
+            "note": "结构层面的隐法边\uff1bRouter 的 G0 会以 branch=g0 报同一件事",
+        }
+    elif not legal:
+        required_states = sorted({str(e.get("from")) for e in candidates})
+        missing: List[str] = []
+        for name in required_states:
+            for key in _required_evidence_for_state(name, machine):
+                if key not in missing and key not in have:
+                    missing.append(key)
+        pre_violation = "precondition_not_met"
+        pre_detail = {
+            "current_state": current_state,
+            "required_state": required_states,
+            "missing_evidence": missing,
+            "candidate_edges": [e.get("id") for e in candidates],
+            "reason": "动作只在别的态下合法，先把状态推进到 %s" % "、".join(required_states),
+        }
+    else:
+        pending: List[str] = []
+        for edge in legal:
+            for key in edge.get("requires") or []:
+                if key not in pending and key not in have:
+                    pending.append(key)
+        pre_detail = {
+            "current_state": current_state,
+            "allowed_edges": resolution["legal_ids"],
+            "pending_evidence": pending,
+            "reason": "动作在当前态的合法边集合 A(s) 内",
+        }
+
+    # ---- GATE-VER：判据版本对不上 -------------------------------------
+    ver_cfg = gates_cfg.get("VER") or {}
+    policy = str(ver_cfg.get("on_version_mismatch") or "block")
+    current_version = criteria_version if criteria_version is not None else record.get("criteria_version")
+    action_version = action.get("criteria_version")
+    if not action_version:
+        for edge in legal:
+            action_version = ((edge.get("guard") or {}).get("criteria_version"))
+            if action_version:
+                break
+    ver_violation: Optional[str] = None
+    ver_detail: Dict[str, Any] = {
+        "policy": policy,
+        "current_criteria_version": current_version,
+        "record_criteria_version": record.get("criteria_version"),
+        "action_criteria_version": action_version,
+    }
+    if current_version is None:
+        ver_detail["reason"] = "没有当前判据版本可比对，跳过版本核对"
+    else:
+        record_version = record.get("criteria_version")
+        if record_version and record_version != current_version:
+            ver_violation = "record_criteria_version_mismatch"
+            ver_detail["record_mismatch"] = {
+                "record": record_version,
+                "current": current_version,
+            }
+        if action_version and action_version != current_version:
+            if ver_violation is None:
+                ver_violation = "action_criteria_version_mismatch"
+            ver_detail["action_mismatch"] = {
+                "action": action_version,
+                "current": current_version,
+            }
+        if ver_violation is None:
+            ver_detail["reason"] = "判据版本一致"
+
+    # ---- GATE-TTL：状态已过期 -----------------------------------------
+    ttl_cfg = gates_cfg.get("TTL") or {}
+    validity = record_validity(record, now)
+    ttl_violation = "state_expired" if validity.get("expired") else None
+    ttl_detail = {
+        "expires_at": validity.get("expires_at"),
+        "valid": validity.get("valid"),
+        "reason": validity.get("reason"),
+        "recovery": ttl_cfg.get("recovery"),
+    }
+
+    # ---- 汇总 -----------------------------------------------------------
+    violations: List[Dict[str, Any]] = []
+    for gate_id, violation, detail in (
+        ("PRE", pre_violation, pre_detail),
+        ("VER", ver_violation, ver_detail),
+        ("TTL", ttl_violation, ttl_detail),
+    ):
+        if violation is None:
+            continue
+        blocking = True
+        if gate_id == "VER" and policy == "rerun":
+            # 配置成 rerun：命中版本不一致后按当前判据重判一次再放行
+            blocking = False
+        violations.append({
+            "gate": gate_id,
+            "violation": violation,
+            "blocking": blocking,
+            "detail": detail,
+        })
+    blocked_by = [v["gate"] for v in violations if v["blocking"]]
+    ok = not blocked_by
+    if ok and violations:
+        reason = "闸门提示需要重判：%s" % "、".join(v["violation"] for v in violations)
+    elif ok:
+        reason = "三道闸门均通过"
+    else:
+        reason = "被 %s 闸门拦下" % "、".join(blocked_by)
+    return {
+        "ok": ok,
+        "decision": "allow" if ok else "block",
+        "current_state": current_state,
+        "allowed_edges": resolution["legal_ids"],
+        "candidate_edges": [e.get("id") for e in candidates],
+        "gates": {
+            "PRE": {
+                "id": "GATE-PRE",
+                "ok": pre_violation is None,
+                "violation": pre_violation,
+                "detail": pre_detail,
+            },
+            "VER": {
+                "id": "GATE-VER",
+                "ok": ver_violation is None,
+                "violation": ver_violation,
+                "detail": ver_detail,
+            },
+            "TTL": {
+                "id": "GATE-TTL",
+                "ok": ttl_violation is None,
+                "violation": ttl_violation,
+                "detail": ttl_detail,
+            },
+        },
+        "violations": violations,
+        "blocked_by": blocked_by,
+        "needs_rerun": bool(violations) and policy == "rerun",
+        "reason": reason,
+    }
