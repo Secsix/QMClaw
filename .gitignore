@@ -138,14 +138,12 @@ tools/s21_photo_reader/_tmp_test/
 !/memory/MEMORY.md
 /audio_cache/
 /image_cache/
-/new_ctrl/
-/new_templates/
+# 本机一次性产物目录（根级）
 /pairing/
 /hooks/
 /cron/
-/deepagents_cli/
-/lqcs_deploy/
-/measure_scripts/
+# 旧代码与历史脚本（2026-11-24 随仓库重整整体出库；磁盘保留）
+/legacy/
 /skills/*
 !/skills/_shared/
 !/skills/lqms-offline-datavault-plotting/
@@ -228,29 +226,9 @@ tools/s21_photo_reader/_tmp_test/
 # 说明：被忽略的已跟踪文件已用 `git rm --cached` 出库，本地文件仍在。
 # ---------------------------------------------------------------------------
 
-# 根目录一次性排查脚本（只放行 run_all_checks.py 引用的检查脚本族）
+# 根目录一次性排查脚本（脚本族已整体收进 checks/；根目录只留产物）
+# 说明：2026-11-24 重整后检查脚本全在 checks/ 下，这里不再需要根级白名单。
 /_*.py
-!/_phase[0-9]*_check.py
-!/_p[0-9]*_check.py
-!/_syntax_check.py
-!/_docs_paths_check.py
-!/_apply_dataset_ep_check.py
-!/_autorevert*_check.py
-!/_d2_registry_offline_check.py
-!/_derived_key_check.py
-!/_governance_check.py
-!/_registry_ep_check.py
-!/_replay_regression.py
-!/_tq_test_server.py
-!/_wf_test_server.py
-# 上游 2026-11-12 起把 goal 模式自检入库（run_all_checks.py 的 OFFLINE 清单引用它）
-!/_qwf_gen_goal_check.py
-# 上游用 git add -f 强加、白名单里漏掉的 4 个脚本（上游 4fad224 仍未放行 → 新 clone 缺文件）。
-# 本仓库把它们都纳入白名单，保证 clone 下来自检清单与文档引用的文件真实存在。
-!/_p1_diff.py
-!/_gen_spec_qwfs.py
-!/_gen_device_profile.py
-!/_p3_e2e.py
 
 # 根目录一次性产物的数据文件
 /_*.json
@@ -403,3 +381,39 @@ secrets.json
 *.pid
 nohup.out
 .terraform/
+
+# ---------------------------------------------------------------------------
+# 2026-11-24：仓库结构重整后**整体出库**的一次性 / 历史资产（磁盘保留）
+# 出库方式：`git rm --cached <path>`；本文件登记忽略规则，防止 `git add -A` 再捞回来。
+# 需要临时提交其中某个时用 `git add -f <path>` 显式覆盖。
+# ---------------------------------------------------------------------------
+
+# --- 上游合并的一次性验证工具（2026-10 融合过程产物）---
+/docs/merge_verify_tools/
+
+# --- docs/deploy_diff_tools/ 里与上游 OpenQWF 同名的旧分叉 ---
+# 上游 vendor/OpenQWF/tools/ 已提供同名且更新的版本，本仓这份不再跟踪。
+/docs/deploy_diff_tools/_envmeta.py
+/docs/deploy_diff_tools/check_gated_template.py
+/docs/deploy_diff_tools/e3_tuneup18_edsl.py
+/docs/deploy_diff_tools/express_dsl_check.py
+/docs/deploy_diff_tools/iqraw_contrast_tune.py
+/docs/deploy_diff_tools/live_probe.py
+/docs/deploy_diff_tools/lqms_write_audit.py
+/docs/deploy_diff_tools/qubit_calib_metrics.py
+/docs/deploy_diff_tools/run_contrast_workflow.py
+/docs/deploy_diff_tools/workflow_interpreter_selftest.py
+
+# --- 根级本机脚本（含本机绝对路径或零引用，不适合对外）---
+/SOUL.md
+/demo_hermes_verify.py
+/demo_quickstart.py
+/mcp_tools_new.py
+/deploy-local.cmd
+/deploy-local.ps1
+/start-qmclaw.cmd
+/start-qmclaw.ps1
+
+# --- 本地 agent 进度记录（不入库；对外只留 AGENTS.md 约定）---
+/.Codex/
+
