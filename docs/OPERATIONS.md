@@ -9,7 +9,7 @@
 
 | 端口 | 服务 | 作用 | 备注 |
 |---|---|---|---|
-| 3002 | Express (qmclaw-server) | `/sessions/plot` 等 | **不透传 `dataset_index`**，只能画"最新"数据集；要画指定数据集直连 3004 |
+| 3002 | Express (server) | `/sessions/plot` 等 | **不透传 `dataset_index`**，只能画"最新"数据集；要画指定数据集直连 3004 |
 | 3003 | quantum_service | `/execute` `/health` `/qubit/params` `/qubit/registry` `/qubit/set_params` `/qubit/apply_dataset` `/qubit/capabilities` `/qubit/probe_transition` `/qubit/runs` `/qubit/assess` `/qubit/writer` `/qubit/profile` `/qubit/replay` | 真机执行；实验**必须** `do_plot=False` |
 | 3004 | analysis_service | `/connect` `/plot` `/plot/online/v2` | 绘图与拟合都归它 |
 | 3008 | workflow_service | `/workflows/parse_qwf` `/workflows/validate` `/workflows/lint` `/workflows/manifest` | DSL 执行主体 |
@@ -25,7 +25,7 @@ Get-NetTCPConnection -LocalPort 3003,3004,3008,3009 -State Listen | Select-Objec
 taskkill /PID <PID> /F
 
 # 2) 起全套
-python "Agentic Workflow\qmclaw-server\scripts\start_all_services.py"
+python "server\scripts\start_all_services.py"
 ```
 
 启动脚本已设 `MPLBACKEND=Agg`（`scripts/start_all_services.py`），避免 matplotlib 拉起 Qt GUI 把服务卡死。
@@ -39,7 +39,7 @@ python "Agentic Workflow\qmclaw-server\scripts\start_all_services.py"
 默认**关闭**。要跑真机实验/改寄存器，人工开：
 
 ```jsonc
-// Agentic Workflow/qmclaw-server/config/fallback_config.json
+// server/config/fallback_config.json
 "quantum_service": { "actuation": { "allow_execute": true, "allow_set_params": true } }
 ```
 
@@ -290,7 +290,7 @@ D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-d
 - fixture 来源：`:3003/execute` 自动录制（`quantum_service.actuation.replay_auto_record`
   = `off` / `code_only` / `full`，见 §3.4），或 `POST :3003/qubit/replay {"action":"record"}` 手工录。
 - **现在已经有真机 fixture 了**：2026-11-09 之前几轮真机实验已自动录到
-  `Agentic Workflow/qmclaw-server/data/replay-fixtures/`（例如 `fx-*.json`，带真实 `dataset_ids`），
+  `server/data/replay-fixtures/`（例如 `fx-*.json`，带真实 `dataset_ids`），
   跑 `_replay_regression.py` 得到 `verdict=green`、drift=0 —— 说明"厂商实验实际改了什么"
   与"回放层以为它会改什么"目前一致。
 - 录 fixture 的正确姿势（2026-11-09 实测）：
@@ -339,7 +339,7 @@ D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-d
 
 **② 执行生命周期（进度语义，原样保留）**：`success` / `busy` / `offline` /
 `offline_simulated` / `healthy` / `idle` / `running` / `completed` / `cancelled` /
-`rejected` / `pending`。前端的 `qmclaw-web/src/app/page.tsx` 只消费
+`rejected` / `pending`。前端的 `web/src/app/page.tsx` 只消费
 `success` / `busy` / `offline` / `offline_simulated`，所以**这些值一个都不能改**。
 
 **错误信封（`services/common/errors.py: error_envelope()`）**
@@ -381,7 +381,7 @@ D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-d
 
 ### 3.9 LLM 决策的 key / 模型名 / 缺失时怎么退化
 
-`decide` 节点的两家供应商都从 **`Agentic Workflow/qmclaw-server/.env`** 读 key
+`decide` 节点的两家供应商都从 **`server/.env`** 读 key
 （不进 git，换机器要手工拷）：
 
 | 配置名（`config/model_configs.json`） | key 环境变量 | 协议 |
@@ -798,7 +798,7 @@ POST :3003/execute
 | `services/client_proxy.py` | `{wait:true}` |
 | `services/qca_service/adapter.py`、`core/runner.py` | `{wait:true}` |
 | `services/hermes_service/quantum_toolset.py`、`cron.py` | `{wait:true}` |
-| `Agentic Workflow/qmclaw-server/src/index.ts` | 不直连量子 `/execute`（前端直发走 agent），无需改；`/sessions/plot` 与 analysis 的 `/execute` 与量子无关 |
+| `server/src/index.ts` | 不直连量子 `/execute`（前端直发走 agent），无需改；`/sessions/plot` 与 analysis 的 `/execute` 与量子无关 |
 
 **前端**："直接执行"按钮的排队/轮询 UI 属阶段 16b（需另授权），本阶段前端行为不变（它经 agent 走 `wait:true`）。
 
@@ -870,7 +870,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 | `GET /api/quantum/jobs/:id` | `GET :3003/jobs/{id}` | 轮询作业；完成态的 `result` 已带 `dataset_ids / dataset_source / trace_id / execute_mode` |
 | `POST /api/quantum/jobs/:id/abandon` | `POST :3003/jobs/{id}/abandon` | 放弃排队中的作业（尽力而为） |
 
-**前端契约**（`Agentic Workflow/qmclaw-web/src/lib/api.ts`）：
+**前端契约**（`web/src/lib/api.ts`）：
 
 - `isQueuedJob(payload)`：`status === "queued"` 且 `job_id` 非空才算排队；
 - `waitForQuantumJob(jobId, {timeoutMs, intervalMs, onProgress})`：默认 600 s / 800 ms；
@@ -882,7 +882,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
   —— 老页面代码不用改；
 - `runExperiment` / `executeExperiment` 命中 queued 自动轮询；`onProgress` 可选。
 
-**页面**（`qmclaw-web/src/app/page.tsx`）：主执行按钮与自定义命令都传 `onProgress`，
+**页面**（`web/src/app/page.tsx`）：主执行按钮与自定义命令都传 `onProgress`，
 只在相位变化时打一行 `⏳ queued #3 / running / success`，不刷屏。
 
 **边界**：
@@ -1010,7 +1010,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 | `D:\qmclaw\_p3_e2e_tasks\` | E2E 自检的 task 数据目录 | 可写 |
 | `D:\\qmclaw\\_task_data\\` | :3009 任务账本落盘目录（env `QMCLAW_TASK_DATA_DIR`） | 可写（沙箱内起 :3009 必须指到这里，否则 task 存不住 → unknown task） |
 | `docs\`、`\.claude\` | 文档 | 只能用 `edit`/`write` 工具改，bash 不能删 |
-| `Agentic Workflow\...\data\workflow-runs\` | run 记录 | 目录能建，**文件写不进**（沙箱）→ 落档兜底会落到 tempdir |
+| `server\...\data\workflow-runs\` | run 记录 | 目录能建，**文件写不进**（沙箱）→ 落档兜底会落到 tempdir |
 
 ---
 

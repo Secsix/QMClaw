@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-SERVER = Path(__file__).resolve().parents[1] / "Agentic Workflow" / "qmclaw-server"
+SERVER = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER))
 from services.common import memory_store
 from services.agent_service.server import AgentService, AgentTask

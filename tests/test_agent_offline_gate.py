@@ -25,7 +25,7 @@ import json as _json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SERVER = ROOT / "Agentic Workflow" / "qmclaw-server"
+SERVER = ROOT / "server"
 if str(SERVER) not in sys.path:
     sys.path.insert(0, str(SERVER))
 
@@ -302,7 +302,7 @@ class TestRealHttpOfflineProbe(unittest.TestCase):
     """in-process 真实 HTTP 验收：闸门关 + is_offline=True 时离线实验能真跑通。
 
     副作用：会让 quantum_service 生成 1 个离线图（
-    qmclaw-web/public/plots/offline_sim_<exp>_<ts>.png），这是被测链路的正常产物。
+    web/public/plots/offline_sim_<exp>_<ts>.png），这是被测链路的正常产物。
     """
 
     def test_offline_gate_closed_reaches_offline_simulation(self):

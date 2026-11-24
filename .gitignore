@@ -4,28 +4,28 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-Agentic Workflow/images/train/bad/*.png
+images/train/bad/*.png
 *.pth
-Agentic Workflow/images/train/bad/*.png
-Agentic Workflow/images/train/good/*.png
+images/train/bad/*.png
+images/train/good/*.png
 *.bat
 
 cache/
 *.db*
 # Build output
-Agentic Workflow/qmclaw-web/.next/
+web/.next/
 
-Agentic Workflow/qmclaw-server/dist/
-Agentic Workflow/qmclaw-server/data/
-Agentic Workflow/qmclaw-server/logs/
-Agentic Workflow/qmclaw-web/public/plots/
+server/dist/
+server/data/
+server/logs/
+web/public/plots/
 qwf_out/
-Agentic Workflow/qmclaw-server/config/memory/
+server/config/memory/
 .claude/
 build/
 dist/
 offline_data/
-Agentic Workflow/qmclaw-server/config/qubitclient.json
+server/config/qubitclient.json
 
 # Environment (secrets)
 .env
@@ -184,9 +184,9 @@ tools/s21_photo_reader/_tmp_test/
 # 2026-11-06：服务运行时产物
 # ---------------------------------------------------------------------------
 # task_queue 账本默认落盘目录（每个 task 一个 json）
-/Agentic Workflow/config/tasks/
+/server/config/tasks/
 # Next.js 增量编译缓存
-/Agentic Workflow/qmclaw-web/tsconfig.tsbuildinfo
+/web/tsconfig.tsbuildinfo
 # 寄存器快照（本机状态，不是源码）
 /reg_snapshots/
 /t1_fit_q5lu8.png
@@ -194,7 +194,7 @@ tools/s21_photo_reader/_tmp_test/
 /_checks/
 
 # task_queue 账本实际落盘目录（自检 e2e 会生成）
-/Agentic Workflow/qmclaw-server/services/task_queue/data/tasks/
+/server/services/task_queue/data/tasks/
 
 # ---------------------------------------------------------------------------
 # 2026-11-09：一次性排查脚本与产物（q7ld3 / ld3 死因排查系列，不入库）
@@ -336,7 +336,7 @@ tools/s21_photo_reader/_tmp_test/
 /experiments/t1_fit_*.png
 /experiments/自动化单比特标定/zpa_v2/predictions/
 # qca_service 运行期索引库（可再生）
-/Agentic Workflow/qmclaw-server/services/qca_service/data/
+/server/services/qca_service/data/
 # 本机启动备忘（内含本机绝对路径，与 start-qmclaw.cmd 重复）
 /启动命令.txt
 
@@ -358,7 +358,7 @@ tools/s21_photo_reader/_tmp_test/
 /docs/DEPLOY_LOCAL.md
 
 # --- 本机覆盖配置（覆盖被跟踪的 config/*.json；实验室标识与本机路径不入库）---
-/Agentic Workflow/qmclaw-server/config/*.local.json
+/server/config/*.local.json
 
 # --- 通用防护（2026-11-24）：常见的本地产物 / 凭据 / 打包物 ---
 # Python 构建与缓存

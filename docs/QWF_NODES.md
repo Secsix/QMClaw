@@ -63,7 +63,7 @@ read/analyze 属于"真机 + LabRAD"才有的能力。写工作流时要么避�
 - 只有一个失败 → `status=completed` + `degraded=true` + `vlm_errors` 非空
 - 两个都成功 → `degraded=false`
 
-回归测试：`Agentic Workflow/qmclaw-server/tests/test_workflow_vlm_node.py`（3 passed）。
+回归测试：`server/tests/test_workflow_vlm_node.py`（3 passed）。
 
 ## 5. `config/qubitclient.json`（本机缺件，已补模板）
 

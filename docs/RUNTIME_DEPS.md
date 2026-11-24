@@ -95,8 +95,8 @@ Copy-Item -Recurse -Force "D:\semester4\deploy\vendor\Quantum-Calibration-Agent-
 
 | 文件 | 行 | 内容 |
 |---|---|---|
-| `Agentic Workflow/qmclaw-server/services/qca_service/server.py` | 38 | `VENDOR_QCA_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
-| `Agentic Workflow/qmclaw-server/services/qca_service/tools/lab_tool.py` | 17 | `VENDOR_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
+| `server/services/qca_service/server.py` | 38 | `VENDOR_QCA_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
+| `server/services/qca_service/tools/lab_tool.py` | 17 | `VENDOR_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
 
 实测日志（`check_services.py` 输出）已经印证：
 
@@ -124,17 +124,17 @@ VENDOR_DIR = Path(__file__).resolve().parent.parent.parent.parent / "vendor" / "
 
 ### 2.3 离线数据落位 + 建索引
 
-配置 `fallback_config.json` 的 `data_path: "data/offline_data"` 是**相对 qmclaw-server 根**解析的：
+配置 `fallback_config.json` 的 `data_path: "data/offline_data"` 是**相对 server 根**解析的：
 
 ```python
 # services/quantum_service/server.py:227
 offline_path = Path(__file__).parent.parent.parent / self._offline_data_path
 ```
 
-而 `Agentic Workflow/qmclaw-server/data/` 整个目录还不存在（已被 `.gitignore` 忽略，属正常）。
+而 `server/data/` 整个目录还不存在（已被 `.gitignore` 忽略，属正常）。
 
 ```powershell
-$SRV = "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server"
+$SRV = "D:\semester4\QMClaw\server"
 New-Item -ItemType Directory -Force -Path "$SRV\data" | Out-Null
 Copy-Item -Recurse -Force "D:\semester4\deploy\offline_data" "$SRV\data\offline_data"
 
@@ -150,12 +150,12 @@ cd $SRV
 
 ### 2.4 建 `.env`（API Key + 解释器路径）
 
-Express 端从 `qmclaw-server/.env` 读（`src/index.ts:41`，`path.join(__dirname, "..", ".env")`），
+Express 端从 `server/.env` 读（`src/index.ts:41`，`path.join(__dirname, "..", ".env")`），
 Hermes 端也从同一位置读（`hermes_service/server.py:76`）。
 
 ```powershell
-Copy-Item "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server\.env.example" `
-          "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server\.env"
+Copy-Item "D:\semester4\QMClaw\server\.env.example" `
+          "D:\semester4\QMClaw\server\.env"
 ```
 
 然后填写（**至少一个 Key**，因为 `model_configs.json` 里 9 个模型分属 4 个 provider）：
@@ -168,7 +168,7 @@ Copy-Item "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server\.env.example" `
 | `ANTHROPIC_API_KEY` | Claude 3.5 Sonnet | |
 | `PYTHON_BIN` | **指向 §1.1 的解释器** | 不设会回落到 `"python"` 而失败 |
 | `PORT` | Express 端口 | 代码默认 `8080`，但前端 `apiClients.ts` 默认 `3002`、README/CLAUDE.md 也写 3002 → **务必显式设 `PORT=3002`** |
-| `PLOTS_DIR` | 绘图输出目录 | 可选，默认指向 `qmclaw-web/public/plots` |
+| `PLOTS_DIR` | 绘图输出目录 | 可选，默认指向 `web/public/plots` |
 | `QMCLAW_USE_SERVICES` | `true` 启用微服务 | |
 
 ```
@@ -177,23 +177,23 @@ PORT=3002
 ```
 
 > `D:\semester4\QMClaw\.env.example.demo` 是 Hermes 的演示模板，但它放在**仓库根**，而代码读的是
-> `qmclaw-server\.env` —— 内容可以借鉴，位置要放对。
+> `server\.env` —— 内容可以借鉴，位置要放对。
 
 ### 2.5 Node 依赖
 
-Node 运行时本机是 **v24.14.0 / npm 11.9.0**，满足需求（`qmclaw-server` 要 `>=18`；vendor 的
+Node 运行时本机是 **v24.14.0 / npm 11.9.0**，满足需求（`server` 要 `>=18`；vendor 的
 `hermes-agent` 要 `^22.22.0 || ^24.11.0 || >=26.0.0`，npm `<11.10.0 || >=11.17.0`）。
 `deploy\node-v24.20.0-x64.msi` **可以不装**。
 
 项目内目前**没有任何 `node_modules`**，三处都要装：
 
 ```powershell
-cd "D:\semester4\QMClaw\Agentic Workflow\qmclaw-web";    npm install   # next 14.2.35 / react 18.2.0 / @xyflow/react / recharts / socket.io-client / zustand
-cd "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server"; npm install   # express / cors / dotenv / socket.io / tsx / typescript
+cd "D:\semester4\QMClaw\web";    npm install   # next 14.2.35 / react 18.2.0 / @xyflow/react / recharts / socket.io-client / zustand
+cd "D:\semester4\QMClaw\server"; npm install   # express / cors / dotenv / socket.io / tsx / typescript
 cd "D:\semester4\QMClaw\vendor\hermes-agent";            npm install   # 可选：只在要用 Hermes 的 TUI/桌面端时需要
 ```
 
-> `Agentic Workflow\qmclaw-server\run-dev.cmd` 里写死了 `C:\Program Files\AutoClaw\resources\node`，
+> `server\run-dev.cmd` 里写死了 `C:\Program Files\AutoClaw\resources\node`，
 > 本机是 `C:\Program Files\nodejs`。直接 `npm run dev` 即可，或改掉这行。
 
 ---
@@ -216,7 +216,7 @@ cd "D:\semester4\QMClaw\vendor\hermes-agent";            npm install   # 可选�
 | Next.js 前端 | 8081* | — | Node | ✅ |
 | LabRAD 服务 | 7682 | `lqcs` ✅ | 需要**手动启动** | ✅ 包就绪 |
 
-\* `qmclaw-web/package.json` 里是 `next dev -p 8081`，而 CLAUDE.md 写 3001 —— 以 package.json 为准。
+\* `web/package.json` 里是 `next dev -p 8081`，而 CLAUDE.md 写 3001 —— 以 package.json 为准。
 
 `system.json` 声明 LQCS 后端的 `required_packages: ["lqms", "labrad", "pylab"]`，实测三者全部 ✅。
 
@@ -241,7 +241,7 @@ cd "D:\semester4\QMClaw\vendor\hermes-agent";            npm install   # 可选�
 
 ```powershell
 $PY  = "D:\semester4\deploy\qmclaw\qmclaw\python.exe"
-$SRV = "D:\semester4\QMClaw\Agentic Workflow\qmclaw-server"
+$SRV = "D:\semester4\QMClaw\server"
 
 # ① LabRAD（人工操作 GUI）
 & $PY -c "from lqcs.servers_control import run_server_control; run_server_control()"
@@ -256,7 +256,7 @@ cd $SRV
 cd $SRV; npm run dev
 
 # ④ 前端 :8081（另开终端）
-cd "D:\semester4\QMClaw\Agentic Workflow\qmclaw-web"; npm run dev
+cd "D:\semester4\QMClaw\web"; npm run dev
 ```
 
 > 约定：**前后端服务的启停由人操作**，不要交给自动化脚本。
@@ -279,7 +279,7 @@ cd "D:\semester4\QMClaw\Agentic Workflow\qmclaw-web"; npm run dev
 
 - **`qubitclient_service`** 要 `config/qubitclient.json`（本机文件，gitignored）。
   **2026-11-20 已配好并实测跑通 VLM**（`nv-community/Ising-Calibration-1-35B-A3B`）。
-  搜索顺序：`qmclaw-server/config/qubitclient.json` → `Agentic Workflow/vendor/QubitClient/qubitclient.json`
+  搜索顺序：`server/config/qubitclient.json` → `vendor/QubitClient/qubitclient.json`
   → `./qubitclient.json`；模板是 `config/qubitclient.example.json`。
   `qubitclient` 包**不需要** `pip install -e`：`services/qubitclient_service/server.py` 会自动把
   `vendor/QubitClient` 挂上 `sys.path`（`_find_vendor_qubitclient()`）。改配置后

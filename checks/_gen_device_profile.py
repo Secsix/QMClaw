@@ -5,7 +5,7 @@
 因此不会占用硬件通道、不会影响用户正在跑的测控。
 
 用法：
-    D:/anaconda3/envs/lqcs/python.exe _gen_device_profile.py --qubits q1ld3,q2ld3,... --out "Agentic Workflow/qmclaw-server/config/device_profile.json"
+    D:/anaconda3/envs/lqcs/python.exe _gen_device_profile.py --qubits q1ld3,q2ld3,... --out "server/config/device_profile.json"
     # 只看报告不落盘：--dry-run
 """
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parent.parent
-SERVER = ROOT / "Agentic Workflow" / "qmclaw-server"
+SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 
 from services.common.profile import (  # noqa: E402

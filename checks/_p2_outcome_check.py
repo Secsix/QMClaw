@@ -15,7 +15,7 @@ import ast
 import pathlib
 import sys
 
-SERVER = pathlib.Path(r"D:/qmclaw/Agentic Workflow/qmclaw-server")
+SERVER = pathlib.Path(r"D:/qmclaw/server")
 sys.path.insert(0, str(SERVER))
 
 PASS, FAIL = 0, 0

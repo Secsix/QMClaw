@@ -9,10 +9,10 @@ import os
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT = r"D:/qmclaw/Agentic Workflow/qmclaw-server/services/workflow_service"
+ROOT = r"D:/qmclaw/server/services/workflow_service"
 if not os.path.isdir(ROOT):
     # 仓库不在上游写死的 D:/qmclaw 下时，用脚本自身位置兜底
-    ROOT = os.path.join(REPO_ROOT, "Agentic Workflow", "qmclaw-server",
+    ROOT = os.path.join(REPO_ROOT, "server",
                         "services", "workflow_service")
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
@@ -153,7 +153,7 @@ for f in sorted(glob.glob(os.path.join(REPO_ROOT, "qwf_examples", "*.qwf"))) + \
 #      画布往返一次就把目标契约丢了（diff 里是 `$.goal: {...} → 缺失`）。
 EXAMPLES_DIR = os.path.join(REPO_ROOT, "qwf_examples")
 try:
-    sys.path.insert(0, os.path.join(REPO_ROOT, "Agentic Workflow", "qmclaw-server"))
+    sys.path.insert(0, os.path.join(REPO_ROOT, "server"))
     from services.workflow_service import qwf_store  # noqa: E402
 
     found = qwf_store.example_files()

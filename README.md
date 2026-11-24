@@ -189,7 +189,8 @@ qmclaw-skills/
 
 ```
 QMClaw/
-├── Agentic Workflow/   # 主工程：qmclaw-server（Express + Python 服务）/ qmclaw-web（Next.js）
+├── server/            # 后端：Express :3002 + Python 微服务
+├── web/               # 前端：Next.js :8081
 ├── checks/             # 自检脚本（原根目录 49 个 _*.py）+ run_all_checks.py
 ├── experiments/        # 实验脚本与产物：自动化单比特标定 / s21_image / reports / t1_fit
 ├── legacy/             # 历史目录（new_ctrl / new_templates / measure_scripts / ...）

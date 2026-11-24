@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(r"D:/qmclaw")
-SERVER = ROOT / "Agentic Workflow/qmclaw-server" / "services" / "workflow_service"
+SERVER = ROOT / "server" / "services" / "workflow_service"
 sys.path.insert(0, str(SERVER.parent.parent))
 
 PASS, FAIL = 0, 0

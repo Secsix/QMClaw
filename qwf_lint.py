@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SERVER = ROOT / "Agentic Workflow" / "qmclaw-server"
+SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 
 from services.workflow_service.dsl.lint import lint_text  # noqa: E402

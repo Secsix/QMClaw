@@ -37,9 +37,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-# 仓库结构：<repo>/tools/qiskit_smoke.py，<repo>/Agentic Workflow/qmclaw-server/
+# 仓库结构：<repo>/tools/qiskit_smoke.py，<repo>/server/
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_SERVER_DIR = _REPO_ROOT / "Agentic Workflow" / "qmclaw-server"
+_SERVER_DIR = _REPO_ROOT / "server"
 if str(_SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVER_DIR))
 

@@ -1,7 +1,7 @@
 # 测控控制台（/control）实测演示说明
 
 面向 `/control` 页面的一次"能看见状态在动"的演示：状态转移、QWF 流程图变化、
-每一步实验的结果图。配套脚本 `Agentic Workflow/qmclaw-server/tools/demo_control_console.py`。
+每一步实验的结果图。配套脚本 `server/tools/demo_control_console.py`。
 
 ---
 
@@ -52,7 +52,7 @@ curl -s -X POST http://localhost:3002/api/quantum/qubit/evidence -H 'Content-Typ
 curl -s -X POST http://localhost:3002/api/quantum/qubit/evidence/reset -H 'Content-Type: application/json' -d '{"name":"q0"}'
 ```
 
-落盘位置：`Agentic Workflow/qmclaw-server/data/state_ledger/evidence.json`（原子写；目录不可写时降级到临时目录，
+落盘位置：`server/data/state_ledger/evidence.json`（原子写；目录不可写时降级到临时目录，
 响应里的 `path` 会说实际位置）。
 
 **键归一化**：写入时 key 一律 `strip().lower()`（`T1_us` → `t1_us`），避免大小写造出无关键。
@@ -62,7 +62,7 @@ curl -s -X POST http://localhost:3002/api/quantum/qubit/evidence/reset -H 'Conte
 ## 3. 演示剧本
 
 ```bash
-cd "Agentic Workflow/qmclaw-server"
+cd "server"
 
 # 全流程（6 个阶段，每阶段提交一份 QWF → 等运行结束 → 把 metrics 换算成证据写入 → 打印状态转移）
 python tools/demo_control_console.py --qubit q0
@@ -124,7 +124,7 @@ python tools/demo_control_console.py --reset
 ## 5. 验收命令
 
 ```bash
-cd "Agentic Workflow/qmclaw-server"
+cd "server"
 python -m unittest tests.test_evidence_store tests.test_demo_stages tests.test_quantum_evidence_endpoints -v
 # 全套（注意：test_qiskit_backend 里 5 例因实验目录新增 cz.dcz 仍是 13 的旧期望，与本次改动无关）
 python -m unittest discover -s tests -p "test_*.py"
@@ -133,7 +133,7 @@ python -m unittest discover -s tests -p "test_*.py"
 前端类型检查：
 
 ```bash
-cd "Agentic Workflow/qmclaw-web" && npx tsc --noEmit -p tsconfig.json
+cd "web" && npx tsc --noEmit -p tsconfig.json
 ```
 
 ---

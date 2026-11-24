@@ -14,7 +14,7 @@ from scipy.optimize import curve_fit
 
 def get_t1_data(qubit: str):
     """通过 ExperimentSimulator 生成 T1 模拟数据，返回 (t, y, source)"""
-    sys.path.insert(0, r"D:\bishe\QMClaw\Agentic Workflow\qmclaw-server")
+    sys.path.insert(0, r"D:\bishe\QMClaw\server")
     try:
         from services.common.offline_data_provider import OfflineDataProvider
         from services.quantum_service.offline_simulator import ExperimentSimulator

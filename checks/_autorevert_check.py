@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path("D:/qmclaw")
-sys.path.insert(0, str(ROOT / "Agentic Workflow" / "qmclaw-server"))
+sys.path.insert(0, str(ROOT / "server"))
 
 from services.workflow_service.dsl import autorevert as AR  # noqa: E402
 

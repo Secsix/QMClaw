@@ -3,7 +3,7 @@
 
 ## 配置文件
 
-所有配置统一保存在 `qmclaw-server/config/` 目录：
+所有配置统一保存在 `server/config/` 目录：
 
 | 文件 | 说明 |
 |------|------|
@@ -29,7 +29,7 @@ quantum_service 和 analysis_service 支持离线模式，可在 LabRAD 不可�
   - `online`: 强制使用 LabRAD
   - `offline`: 强制使用离线数据
   - `auto`: 自动切换（LabRAD 断开时自动离线）
-- **离线数据**：存放在 `qmclaw-server/data/offline_data/` 目录
+- **离线数据**：存放在 `server/data/offline_data/` 目录
 - **索引生成**：运行 `python -m services.common.offline_data_provider --generate-index`
 
 ## 约定
@@ -42,7 +42,7 @@ quantum_service 和 analysis_service 支持离线模式，可在 LabRAD 不可�
 6. 当一个同样的问题反复出现两次以上，就不要采用直接的思路去解决了，而是增加一些debug信息来辅助解决。
 7. 当需求涉及较多修改时，先制定计划，由用户确认后才能执行。
 8. 计划模式下，或者用户明确让制定计划的时候，需要多向用户提问，详细了解需求。
-9. 当前系统有后端打印日志的过滤器，只有满足特定声明逻辑的日志才能被打印到后端的终端窗口里。所以当你要增加后端日志的时候，需要检查一下后端日志过滤器(Agentic Workflow\qmclaw-server\src\index.ts)。
+9. 当前系统有后端打印日志的过滤器，只有满足特定声明逻辑的日志才能被打印到后端的终端窗口里。所以当你要增加后端日志的时候，需要检查一下后端日志过滤器(server\src\index.ts)。
 10. python用这个C:\Users\lqcs\Programs\Python\Python311\python.exe
 11. **git push 只能由人操作**：任何 `git push`（含 `--force`、子模块 push、tag push）一律不执行，只做本地 commit。
     - 需要推送时，把要推的分支/提交范围告诉用户，由用户自己执行。

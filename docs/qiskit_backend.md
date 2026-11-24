@@ -19,7 +19,7 @@
 
 | 抽象 | 位置 | 和本后端的关​系 |
 |------|------|----------------|
-| `backends.BackendInterface` | `qmclaw-server/backends/` | **无关**。那是 `scripts/job_runner.py` 用的后端进程插件协议（有 register / init_backend / 任务队列 / Ray），`backends/registry.py` 里虽然预留了 `"qiskit": "QiskitBackend"`，但**类不存在**，`config/system.json` 的 `backends.qiskit.enabled` 必须保持 `false` |
+| `backends.BackendInterface` | `server/backends/` | **无关**。那是 `scripts/job_runner.py` 用的后端进程插件协议（有 register / init_backend / 任务队列 / Ray），`backends/registry.py` 里虽然预留了 `"qiskit": "QiskitBackend"`，但**类不存在**，`config/system.json` 的 `backends.qiskit.enabled` 必须保持 `false` |
 | `dsl.backends.BackendAdapter` | `services/workflow_service/dsl/backends/` | **无关**。那是 workflow DSL 的后端适配器，`IMPLEMENTED = False`，S7/S8 还没接线 |
 | `services/quantum_service/` | 本模块 | quantum_service 自己的 `online`/`offline`/`auto` 三态；offline 用 `offline_simulator.py`（历史 HDF5 + 合成数据，**不是**量子模拟），online 用 `labrad_client.py` → `sq.*` |
 
@@ -274,7 +274,7 @@ pip install -r python/requirements-qiskit.txt -i https://mirrors.aliyun.com/pypi
 验证：
 
 ```powershell
-cd "Agentic Workflow\qmclaw-server"
+cd "server"
 # 单测（28 个用例，含 13 个实验各一条）
 & "D:\anaconda3\envs\lqcs\python.exe" -m unittest tests.test_qiskit_backend -v
 
@@ -450,7 +450,7 @@ measure as c1 {
 ### 验证
 
 ```powershell
-cd "Agentic Workflow\qmclaw-server"
+cd "server"
 D:\anaconda3\python.exe -m unittest tests.test_multiqubit_ir -v      # 17 项
 D:\anaconda3\python.exe -m unittest tests.test_qiskit_backend -v     # 30 项
 python qwf_lint.py qwf_examples\07_two_qubit_swap.qwf                # error=0

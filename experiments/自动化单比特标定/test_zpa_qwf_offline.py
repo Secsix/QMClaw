@@ -34,7 +34,7 @@ def check(name, condition, detail=""):
 
 def dsl_available():
     """能不能用仓库里的 DSL 做离线 parse/validate/lint。"""
-    server = HERE.parent / "Agentic Workflow" / "qmclaw-server"
+    server = HERE.parent / "server"
     if not server.is_dir():
         return None
     sys.path.insert(0, str(server))
@@ -115,7 +115,7 @@ def main():
     print("== 4. DSL 离线 parse / validate / lint ==")
     tools = dsl_available()
     if tools is None:
-        print("  [SKIP] 找不到仓库里的 DSL（Agentic Workflow/qmclaw-server）")
+        print("  [SKIP] 找不到仓库里的 DSL（server）")
     else:
         lint_text, parse_qwf, validate = tools
         try:

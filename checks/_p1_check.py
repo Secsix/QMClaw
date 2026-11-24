@@ -9,7 +9,7 @@ import json
 import os
 import sys
 
-ROOT = r"D:/qmclaw/Agentic Workflow/qmclaw-server/services/workflow_service"
+ROOT = r"D:/qmclaw/server/services/workflow_service"
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
 

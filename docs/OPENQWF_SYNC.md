@@ -26,7 +26,7 @@
 | `adapters/`（后端适配器：lqcs / qiskit） | **唯一真源** | `vendor/OpenQWF/adapters/`（submodule，**不入库**） |
 | `services/workflow_service/dsl/` | —— | **兼容门面**（薄壳，见下） |
 | 真机 / qiskit 执行 | 通过 `adapters/lqcs.py` 转发到 `:3003` | `services/quantum_service/`（**实现在这里**） |
-| 词表 / 阈值 / 设备档案 | 通过 `QWF_*` 环境变量读本仓配置 | `qmclaw-server/config/` |
+| 词表 / 阈值 / 设备档案 | 通过 `QWF_*` 环境变量读本仓配置 | `server/config/` |
 
 > 上游是**私有仓**：匿名 `git ls-remote` 会失败，本机靠 git credential helper 拉取，
 > CI 靠 `secrets.OPENQWF_TOKEN`。
@@ -76,7 +76,7 @@ vendor/OpenQWF/     ← 上游仓 submodule（本仓只存一条 160000 指针�
 
 ## 门面规则（硬约束）
 
-`Agentic Workflow/qmclaw-server/services/workflow_service/dsl/` 下：
+`server/services/workflow_service/dsl/` 下：
 
 1. **除了下面这张例外表，所有 `.py` 都必须是一层薄壳**：
 
@@ -116,9 +116,9 @@ vendor/OpenQWF/     ← 上游仓 submodule（本仓只存一条 160000 指针�
 
 | 环境变量 | 本仓取值 | 用途 |
 |---|---|---|
-| `QWF_CONFIG_DIR` | `qmclaw-server/config` | 阈值 / 设备档案 / 词表所在目录 |
-| `QWF_VOCAB_PATH` | `qmclaw-server/config/experiment_configs.json` | 实验词表（13 个实验 + 双比特能力登记） |
-| `QWF_DATA_DIR` | `qmclaw-server/data/workflow-runs` | 兜底落档目录（与 `server.DATA_DIR` 同一个） |
+| `QWF_CONFIG_DIR` | `server/config` | 阈值 / 设备档案 / 词表所在目录 |
+| `QWF_VOCAB_PATH` | `server/config/experiment_configs.json` | 实验词表（13 个实验 + 双比特能力登记） |
+| `QWF_DATA_DIR` | `server/data/workflow-runs` | 兜底落档目录（与 `server.DATA_DIR` 同一个） |
 
 > 环境变量必须在**任何** `import qwf` 之前设好：上游 `qwf/metrics.py`、
 > `qwf/autorevert.py`、`qwf/store.py` 在 import 时就会算路径。
@@ -168,7 +168,7 @@ python tools/sync_openqwf.py --update
 python tools/check_openqwf_drift.py
 
 # 5) 回归网
-python -m pytest "Agentic Workflow/qmclaw-server/tests" -q
+python -m pytest "server/tests" -q
 python qwf_lint.py qwf_examples/*.qwf        # 必须 0 error
 ```
 

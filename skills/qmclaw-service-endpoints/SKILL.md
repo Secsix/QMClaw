@@ -51,7 +51,7 @@ author: QMClaw Contributors
 
 | 端口 | 服务 | 源码 | 职责 |
 |---|---|---|---|
-| 3002 | Express 网关 | `qmclaw-server/src/index.ts` + `src/services/serviceProxy.ts` | 前端唯一入口；`/api/*` 代理到下面各服务 |
+| 3002 | Express 网关 | `server/src/index.ts` + `src/services/serviceProxy.ts` | 前端唯一入口；`/api/*` 代理到下面各服务 |
 | 3003 | **quantum_service** | `services/quantum_service/server.py` | **真机执行**：跑实验、读写寄存器、切会话 |
 | 3004 | **analysis_service** | `services/analysis_service/server.py` | **绘图与拟合**（`:3003` 不画图） |
 | 3005 | agent_service | `services/agent_service/server.py` | 对话、任务、工具、记忆 |
@@ -64,7 +64,7 @@ author: QMClaw Contributors
 | 3012 | hermes_service | `services/hermes_service/server.py` | Hermes Agent、技能、定时任务 |
 
 服务启停**由人操作**（AGENTS.md 第 3 条）：
-`taskkill /PID <旧PID> /F` → `python "D:\qmclaw\Agentic Workflow\qmclaw-server\scripts\start_all_services.py"`
+`taskkill /PID <旧PID> /F` → `python "D:\qmclaw\server\scripts\start_all_services.py"`
 
 ---
 
@@ -289,7 +289,7 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
 
 ## 12. 配置文件、离线模式与运行环境
 
-### 12.1 配置文件（统一在 `qmclaw-server/config/`）
+### 12.1 配置文件（统一在 `server/config/`）
 
 | 文件 | 说明 |
 |---|---|
@@ -306,15 +306,15 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
 - **配置**：`fallback_config.json` 的 `offline_mode` 字段。
 - **切换**：`POST :3003/mode`、`:3004/mode`（Express 代理：`/api/quantum/mode`、`/api/analysis/mode`），
   参数 `{"mode": "online"|"offline"|"auto"}`；`online` 强制 LabRAD、`offline` 强制离线、`auto` 自动切换。
-- **离线数据目录**：`qmclaw-server/data/offline_data/`。
+- **离线数据目录**：`server/data/offline_data/`。
 - **索引生成**：`python -m services.common.offline_data_provider --generate-index`。
 
 ### 12.3 运行环境
 
 - **Python 解释器**：`D:\anaconda3\envs\lqcs\python.exe`（含 lqms + labrad）；
-  调 `services.common.config` 需要 `PYTHONPATH="D:/qmclaw/Agentic Workflow/qmclaw-server"`。
+  调 `services.common.config` 需要 `PYTHONPATH="D:/qmclaw/server"`。
 - **服务启停由人控制**（AGENTS.md 第 3 条）：`taskkill /PID <旧PID> /F` →
-  `python "D:\qmclaw\Agentic Workflow\qmclaw-server\scripts\start_all_services.py"`。
+  `python "D:\qmclaw\server\scripts\start_all_services.py"`。
 - **沙箱限制**：不能写 `config/`、`docs/`、`.claude/`（用 write/edit 工具写）；
   不能在沙箱里 `import lqms` 直连 LabRAD；不能起第二个 Ray 客户端。
 

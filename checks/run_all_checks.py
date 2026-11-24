@@ -90,15 +90,15 @@ ONLINE = [
 
 # 产物来源：类别 -> (源目录, 只收 mtime 在窗口内的 .json)
 ARTIFACT_SOURCES = {
-    "workflow-runs": os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "data", "workflow-runs"),
-    "ledger": os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "services", "task_queue", "data", "tasks"),
+    "workflow-runs": os.path.join(ROOT, "server", "data", "workflow-runs"),
+    "ledger": os.path.join(ROOT, "server", "services", "task_queue", "data", "tasks"),
     "e2e-tasks": os.path.join(ROOT, "_p3_e2e_tasks"),
-    "lane-tasks": os.path.join(ROOT, "Agentic Workflow", "config", "tasks"),
+    "lane-tasks": os.path.join(ROOT, "server", "config", "tasks"),
 }
 # 体积大 / 活的源目录：只在 manifest 里记路径
 EXTERNAL_SOURCES = {
     "datavault": "D:/DataVault/LQHL.dir/test.dir/20251103_LD_SQ.dir",
-    "plots": os.path.join(ROOT, "Agentic Workflow", "qmclaw-web", "public", "plots"),
+    "plots": os.path.join(ROOT, "web", "public", "plots"),
     "reg_snapshots": os.path.join(ROOT, "reg_snapshots"),
 }
 

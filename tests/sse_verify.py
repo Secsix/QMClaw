@@ -4,7 +4,7 @@ SSE 流式传输验证脚本
 这个脚本验证 Server-Sent Events 的流式传输能力。
 可以用两种方式运行：
 1. 启动本地 SSE 服务器并用 curl 测试
-2. 直接测试远程 qmclaw-server 的 SSE 端点
+2. 直接测试远程 server 的 SSE 端点
 """
 
 import asyncio
@@ -122,10 +122,10 @@ async def sse_client_demo():
             print("✅ SSE 流式传输完成!")
 
 
-# ── 测试远程 qmclaw-server ────────────────────────────────────────────────────
+# ── 测试远程 server ────────────────────────────────────────────────────
 
 async def test_remote_sse(base_url: str = "http://localhost:3002"):
-    """测试远程 qmclaw-server 的 Hermes SSE 端点"""
+    """测试远程 server 的 Hermes SSE 端点"""
     import aiohttp
 
     print("=" * 60)
@@ -219,7 +219,7 @@ async def test_remote_sse(base_url: str = "http://localhost:3002"):
 
     except aiohttp.ClientError as e:
         print(f"\n❌ 连接失败: {e}")
-        print("\n请确保 qmclaw-server 正在运行 (默认: http://localhost:3002)")
+        print("\n请确保 server 正在运行 (默认: http://localhost:3002)")
         return False
     except Exception as e:
         print(f"\n❌ 测试失败: {e}")
@@ -240,7 +240,7 @@ def print_curl_test():
 ║  1. 测试本地演示服务器 (需要先启动):                                          ║
 ║     curl -N http://localhost:8080/stream                                      ║
 ║                                                                              ║
-║  2. 测试 qmclaw-server 的 Hermes SSE 端点:                                    ║
+║  2. 测试 server 的 Hermes SSE 端点:                                    ║
 ║     curl -N -X POST http://localhost:3002/api/hermes/chat/stream \\            ║
 ║       -H "Content-Type: application/json" \\                                   ║
 ║       -d '{"message":"你好","model":"MiniMax-M2.7"}'                          ║
@@ -307,7 +307,7 @@ if __name__ == "__main__":
 ║                                                                              ║
 ║  使用方法:                                                                   ║
 ║    python sse_verify.py curl        # 显示 curl 测试命令                     ║
-║    python sse_verify.py remote      # 测试远程 qmclaw-server                 ║
+║    python sse_verify.py remote      # 测试远程 server                 ║
 ║    python sse_verify.py server      # 启动本地 SSE 服务器 (需要 aiohttp)      ║
 ║    python sse_verify.py all         # 显示命令 + 运行远程测试                 ║
 ║                                                                              ║

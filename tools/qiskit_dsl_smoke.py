@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SERVER_ROOT = REPO_ROOT / "Agentic Workflow" / "qmclaw-server"
+SERVER_ROOT = REPO_ROOT / "server"
 SCRIPTS_DIR = REPO_ROOT / "qwf_scripts" / "experiments"
 
 # 门面 setup() 会注入这几个环境变量，指向宿主自己的配置/数据目录：

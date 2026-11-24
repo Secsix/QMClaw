@@ -1,0 +1,41 @@
+# server 演示机依赖（没有部署 lqcs 的电脑）
+#
+# 用途：让**没有真机栈**（无 lqms / lqcs / labrad / ray）的机器也能跑起
+# QMClaw，用 qiskit/Aer 模拟测控实验，支撑演示与日常使用。
+#
+# 与主 requirements.txt 的区别：
+#   主 requirements.txt  包含 lqms / lqcs / labrad / ray 等真机栈依赖，
+#                        在没有实验室网络的机器上装不上（编译失败 / 版本冲突）。
+#   本文件               只有纯 Python 的通用依赖 + qiskit 模拟后端。
+#
+# 装法：
+#     conda create -n qmclaw-demo python=3.11 -y
+#     conda activate qmclaw-demo
+#     pip install -r python/requirements-demo.txt
+#
+# 然后在 config/system.json 里把量子服务的 qiskit 解释器指过来：
+#     "qiskit": { "python_executable": "D:\\anaconda3\\envs\\qmclaw-demo\\python.exe" }
+# 量子服务会自动改走子进程执行（见 services/quantum_service/qiskit_runner.py）。
+#
+# 没装 qiskit 也不影响服务启动：量子服务照常起得来，只是后端策略里
+# qiskit 这一格显示"不可用"，策略会继续往下走（离线回放）。
+
+# ── 通用依赖（主 requirements.txt 里不依赖真机栈的那部分）──────────────
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+httpx>=0.24.0
+requests>=2.31.0
+numpy>=1.24.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+pandas>=2.0.0
+PyYAML>=6.0
+python-dotenv>=1.0.0
+psutil>=5.9.0
+watchdog>=3.0.0
+
+# ── qiskit 模拟后端 ───────────────────────────────────────────────────
+qiskit>=1.0
+qiskit-aer>=0.15

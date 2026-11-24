@@ -18,7 +18,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(r"D:/qmclaw")
-SERVER = ROOT / "Agentic Workflow" / "qmclaw-server"
+SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 
 PASS, FAIL, SKIP = 0, 0, 0

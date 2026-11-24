@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 # 尝试从多个位置加载 .env 文件
 env_paths = [
-    Path(__file__).parent / "Agentic Workflow" / "qmclaw-server" / ".env",
+    Path(__file__).parent / "server" / ".env",
     Path(__file__).parent / ".env",
     Path(__file__).parent / "vendor" / "hermes-agent" / ".env",
 ]

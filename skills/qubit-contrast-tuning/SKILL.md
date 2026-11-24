@@ -125,7 +125,7 @@ python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
 
 ## 七、判据真源与治理（2026-11-09 起）
 
-**判据唯一真源**：`Agentic Workflow/qmclaw-server/config/lab_criteria.json`。
+**判据唯一真源**：`server/config/lab_criteria.json`。
 本节写的门槛只是速查；脚本、goal、报告一律引用该文件里的 `metrics.contrast.thresholds`。
 改了阈值要同时改那个文件和 `.claude/progress.md`，不要在别处另写一套数字。
 

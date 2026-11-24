@@ -335,7 +335,7 @@ python test_zpa_trained_model.py   # 训练出来的模型 vs 人工标注（验
 
 （`test_zpa_pipeline.py` / `test_datavault_live.py` 在新版包 `D:\QMClaw\s21zpa\` 里，本包不带。）
 
-`test_zpa_qwf_offline.py` 会用仓库里的 DSL（`Agentic Workflow/qmclaw-server/services/workflow_service/dsl`）
+`test_zpa_qwf_offline.py` 会用仓库里的 DSL（`server/services/workflow_service/dsl`）
 离线解析并校验生成的 `.qwf`；找不到 DSL 时自动跳过该段，其余检查照跑。
 测试全部使用模拟数据，不会连接真机。
 

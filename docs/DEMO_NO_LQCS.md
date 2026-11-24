@@ -6,7 +6,7 @@
 > 真机机器**不受影响**：LabRAD 在，后端策略照旧走真机通道。
 >
 > 配套文档：真机部署与排障见 [`REAL_MACHINE.md`](REAL_MACHINE.md)，
-> qiskit 后端细节见 [`qmclaw-server/docs/qiskit_backend.md`](../Agentic%20Workflow/qmclaw-server/docs/qiskit_backend.md)。
+> qiskit 后端细节见 [`server/docs/qiskit_backend.md`](../Agentic%20Workflow/server/docs/qiskit_backend.md)。
 >
 > 本机部署记录（`DEPLOY_LOCAL.md`）只保留在本地，不入库。
 
@@ -20,7 +20,7 @@
 lqcs (真机)  →  qiskit (Aer 模拟)  →  offline_sim (历史数据回放)
 ```
 
-唯一配置在 `qmclaw-server/config/fallback_config.json`：
+唯一配置在 `server/config/fallback_config.json`：
 
 ```jsonc
 "quantum_service": {
@@ -60,7 +60,7 @@ lqcs (真机)  →  qiskit (Aer 模拟)  →  offline_sim (历史数据回放)
 ```powershell
 conda create -n qmclaw-demo python=3.11 -y
 conda activate qmclaw-demo
-pip install -r "Agentic Workflow/qmclaw-server/python/requirements-demo.txt"
+pip install -r "server/python/requirements-demo.txt"
 ```
 
 清单里只有通用依赖 + qiskit/qiskit-aer。
@@ -87,8 +87,8 @@ pip install -r "Agentic Workflow/qmclaw-server/python/requirements-demo.txt"
 ### 1.3 Node 依赖
 
 ```powershell
-cd "Agentic Workflow/qmclaw-server"; npm install
-cd "..\qmclaw-web";                 npm install
+cd "server"; npm install
+cd "..\web";                 npm install
 ```
 
 ---
@@ -99,14 +99,14 @@ cd "..\qmclaw-web";                 npm install
 
 ```powershell
 # 1) 各微服务
-cd "Agentic Workflow/qmclaw-server"
+cd "server"
 & "D:\anaconda3\envs\qmclaw-demo\python.exe" -m services.quantum_service.server   # 或走 start_services.py
 
 # 2) Express 网关 :3002
 npm run dev
 
 # 3) Next.js 前端 :8081
-cd ..\qmclaw-web ; npm run dev
+cd ..\web ; npm run dev
 ```
 
 自检（任意一条都行）：
@@ -188,7 +188,7 @@ curl -X POST http://localhost:3003/execute `
 
 演示机上没有真机、也没有历史数据时，`/qubits` 会返回 5 个**演示比特**：
 
-- 文件：`qmclaw-server/config/demo_qubits.json`
+- 文件：`server/config/demo_qubits.json`
 - 返回里 `source: "demo"`，并带一句 `note` 说明数值是占位值
 - 改这个文件就能换比特；把 `enabled` 设成 `false` 就彻底关掉
 
@@ -246,10 +246,10 @@ curl -X POST http://localhost:3003/backends -H "Content-Type: application/json" 
 
 | 文件 | 作用 |
 |---|---|
-| `qmclaw-server/services/quantum_service/backend_policy.py` | 后端策略实现（顺序解析 / 探测 / 缓存 / 报告） |
-| `qmclaw-server/services/quantum_service/qiskit_backend.py` | qiskit 后端（子进程调用） |
-| `qmclaw-server/services/quantum_service/qiskit_experiments.py` | 13 个实验的目录与参数 |
-| `qmclaw-server/config/fallback_config.json` | **唯一**的策略配置 |
-| `qmclaw-server/config/demo_qubits.json` | 演示比特 |
-| `qmclaw-server/python/requirements-demo.txt` | 演示机依赖（无真机栈） |
-| `qmclaw-server/tests/test_backend_policy.py` | 策略与集成测试（28 例） |
+| `server/services/quantum_service/backend_policy.py` | 后端策略实现（顺序解析 / 探测 / 缓存 / 报告） |
+| `server/services/quantum_service/qiskit_backend.py` | qiskit 后端（子进程调用） |
+| `server/services/quantum_service/qiskit_experiments.py` | 13 个实验的目录与参数 |
+| `server/config/fallback_config.json` | **唯一**的策略配置 |
+| `server/config/demo_qubits.json` | 演示比特 |
+| `server/python/requirements-demo.txt` | 演示机依赖（无真机栈） |
+| `server/tests/test_backend_policy.py` | 策略与集成测试（28 例） |

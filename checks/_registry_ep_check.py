@@ -23,7 +23,7 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SERVER = os.path.join(ROOT, "Agentic Workflow", "qmclaw-server", "services",
+SERVER = os.path.join(ROOT, "server", "services",
                       "quantum_service", "server.py")
 SNAP = os.path.join(ROOT, "reg_snapshot.py")
 BASE = os.environ.get("QMCLAW_QUANTUM_URL", "http://127.0.0.1:3003")
