@@ -292,6 +292,13 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // 状态机路由判定（纯计算不执行）：候选动作 → 闸门 → 剪枝 → G0–G4 决策。
+  // 真源在 services/common/router.py；workflow_service 的 state_route 节点也调它。
+  proxy.post('/quantum/qubit/route', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/route', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.post('/quantum/qubit/assess', async (req, res) => {
     const result = await proxyToService('quantum', '/qubit/assess', 'POST', req.body ?? {});
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });

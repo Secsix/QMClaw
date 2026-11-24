@@ -254,6 +254,15 @@ class WorkflowService(BaseService):
             "ask": self._exec_ask,
         }
 
+        # state_route 节点（状态机 Router 接进运行时决策链，见 state_route.py）。
+        # 装不上不影响服务启动：只是少一种节点类型，其它流程照跑。
+        try:
+            from .state_route import install as _install_state_route
+
+            _install_state_route(self)
+        except Exception as _sr_exc:  # pragma: no cover - 装饰性能力
+            _log(f"state_route executor not installed: {_sr_exc}")
+
         # 确保数据目录存在
         _ensure_data_dir()
 
@@ -2269,9 +2278,12 @@ class WorkflowService(BaseService):
 
         执行在守护线程里跑，进度用现有 `/workflows/status` 轮询（节点由 IrExecutor 预建）。
         """
-        from .dsl import IrExecutor, format_diags, ir_hash
+        from .dsl import format_diags, ir_hash
         from .dsl import validate as dsl_validate
         from .dsl.dryrun import DryRunProvider
+        # 本仓子类：把 `decide ... mode "state_route"` 落成 state_route 节点
+        # （vendor 的 OP_TO_NODE 是只读上游副本，不能改，见 state_route.py 模块文档）
+        from .state_route import QmclawIrExecutor as IrExecutor
 
         dry_run = bool(data.get("dryRun") or data.get("dry_run"))
         ir = data.get("ir") or {}
