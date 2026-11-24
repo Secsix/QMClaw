@@ -830,6 +830,8 @@ class QuantumService(BaseService):
             return self._handle_qubit_state(data)
         elif path == "/qubit/state_table":
             return self._handle_qubit_state_table(data)
+        elif path == "/qubit/route":
+            return self._handle_qubit_route(data)
         elif path == "/qubit/writer":
             return self._handle_qubit_writer(data)
         elif path == "/qubit/profile":
@@ -977,6 +979,134 @@ class QuantumService(BaseService):
             "validity": validity,
             "edges": edges_for(state["state"]),
             "record": record,
+        }
+
+    def _route_history(self, records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """从执行台账汇总 Router 用的历史摘要（纯计算，不写盘）。
+
+        返回：
+          * ``attempts`` —— 每个厂商函数的累计尝试次数；
+          * ``consecutive_failures`` —— 末尾连续失败次数；
+          * ``success_streak`` —— 末尾连续成功次数（判定「近期稳定」用）；
+          * ``evidence_ref`` —— 最近若干条 run_id，供评审点回原始数据。
+        """
+        from services.common.state_evidence import functions_of
+
+        ordered = sorted(
+            records or [],
+            key=lambda rec: str(rec.get("started_at") or rec.get("finished_at") or ""),
+        )
+        attempts: Dict[str, int] = {}
+        failures: Dict[str, int] = {}
+        streaks: Dict[str, int] = {}
+        refs: List[str] = []
+        for rec in ordered:
+            ok = str(rec.get("status") or "").lower() in ("success", "completed", "ok")
+            run_id = rec.get("run_id")
+            if run_id and str(run_id) not in refs:
+                refs.append(str(run_id))
+            for fn in functions_of(rec):
+                attempts[fn] = attempts.get(fn, 0) + 1
+                if ok:
+                    streaks[fn] = streaks.get(fn, 0) + 1
+                    failures[fn] = 0
+                else:
+                    streaks[fn] = 0
+                    failures[fn] = failures.get(fn, 0) + 1
+        return {
+            "attempts": attempts,
+            "consecutive_failures": failures,
+            "success_streak": streaks,
+            "evidence_ref": refs[-20:],
+        }
+
+    def _handle_qubit_route(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """路由判定（设计稿 §10.3 / BACKLOG O3 · P2）：候选动作 → 唯一准入判定。
+
+        **纯计算，不执行**：不碰硬件、不写台账、不问 LLM。判到 G3（ask_llm）时，
+        由上层去调 LLM，且只能选 ``allowed_edges`` 里的动作（不变式③）。
+
+        请求：{"name": "q0", "actions": [{"fn": "sq.spectroscopy", "intent": "..."}], "limit": 200}
+        返回：{"success": true, "decision": ..., "branch": ..., "allowed_edges": [...],
+               "chosen_action": {...}, "reason": ..., "gates": [...], "needs_human": ...}
+        """
+        from services.common.metrics import load_criteria
+        from services.common.qubit_state import derive_state
+        from services.common.runrecord import RunRecordWriter
+        from services.common.state_evidence import evidence_from_records, merge_evidence
+        from services.common.state_machine import (
+            build_state_record,
+            edges_for,
+            load_state_machine,
+        )
+        from services.common.router import route
+
+        name = data.get("name") or data.get("qubit")
+        if not name:
+            return {
+                "success": False,
+                **error_envelope("validation_error", "name (qubit) is required"),
+            }
+        try:
+            limit = int(data.get("limit", 200))
+        except (TypeError, ValueError):
+            limit = 200
+        limit = max(1, min(limit, 2000))
+
+        records = RunRecordWriter().list_records(limit=limit)
+        derived = evidence_from_records(records, qubit=str(name))
+        overrides = data.get("evidence")
+        if not isinstance(overrides, dict):
+            overrides = None
+        evidence, sources = merge_evidence(derived, overrides)
+        state = derive_state(evidence)
+
+        # 状态结论记录：和 /qubit/state 同一条链路，保证两边看到的态一致
+        record = build_state_record(
+            qubit=str(name),
+            state_result=state,
+            evidence=evidence,
+            sources=sources,
+            conflicts=derived.get("conflicts", []),
+            criteria_version=state.get("criteria_version"),
+        )
+        machine = load_state_machine()
+        current_state = str(record.get("state") or "unknown")
+
+        actions = data.get("actions")
+        if not isinstance(actions, list) or not actions:
+            # 没给候选动作 → 按当前态的合法边 A(s) 生成候选
+            actions = []
+            for edge in edges_for(current_state, machine):
+                edge_action = edge.get("action") or {}
+                actions.append({
+                    "fn": edge_action.get("fn"),
+                    "edge_id": edge.get("id"),
+                    "intent": edge.get("note") or edge.get("semantic"),
+                })
+
+        try:
+            criteria_version = load_criteria().get("version")
+        except Exception:
+            criteria_version = state.get("criteria_version")
+
+        decision = route(
+            record,
+            actions,
+            criteria={"version": criteria_version},
+            history=self._route_history(records),
+            environment={
+                "actuation": self._actuation_flags(),
+                "machine": machine,
+            },
+            machine=machine,
+        )
+        return {
+            "success": True,
+            "name": str(name),
+            "state": current_state,
+            "criteria_version": criteria_version,
+            **decision,
         }
 
     def _handle_qubit_state_table(self, data: Dict[str, Any]) -> Dict[str, Any]:
