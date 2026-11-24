@@ -31,6 +31,28 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests numpy pyyaml
 
+      - name: 拉取上游 OpenQWF（submodule，私有仓需 token）
+        id: openqwf
+        shell: pwsh
+        env:
+          OPENQWF_TOKEN: ${{ secrets.OPENQWF_TOKEN }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          if (-not $env:OPENQWF_TOKEN) {
+            Write-Host "::notice::没有 OPENQWF_TOKEN：跳过 qwf lint（上游 OpenQWF 是私有仓）"
+            "has_upstream=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          # 把 https://github.com/ 前缀换成带 token 的等价 URL，让 submodule 能拉到私有仓
+          $base = "https://x-access-token:$env:OPENQWF_TOKEN@github.com/"
+          git -c "url.$base.insteadOf=https://github.com/" submodule update --init --recursive vendor/OpenQWF
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::notice::拉取上游 submodule 失败：跳过 qwf lint"
+            "has_upstream=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          "has_upstream=true" >> $env:GITHUB_OUTPUT
+
       - name: 全仓 Python 语法（ast.parse，抓"从来没能 import"的文件）
         run: python checks/_syntax_check.py
 
@@ -41,6 +63,7 @@ jobs:
         run: python checks/_phase19_check.py
 
       - name: qwf 离线体检（受版本控制的产品范例，必须 0 error）
+        if: steps.openqwf.outputs.has_upstream == 'true'
         shell: pwsh
         run: |
           $files = @(git ls-files "qwf_examples/*.qwf" "qwf_scripts/*.qwf" "qwf_scripts/workflows/*.qwf" "qwf_scripts/experiments/*.qwf")
@@ -50,7 +73,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   openqwf-drift:
-    name: 上游 OpenQWF 漂移检查（vendor 副本 vs 上游仓）
+    name: 上游 OpenQWF 漂移检查（submodule 指针 vs 上游仓）
     runs-on: ubuntu-latest
     # 上游是私有仓：没有 OPENQWF_TOKEN 时这一项直接跳过（不阻塞主线）。
     continue-on-error: true
@@ -63,7 +86,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: 克隆上游并逐文件比对
+      - name: 克隆上游并比对指针
         env:
           OPENQWF_TOKEN: ${{ secrets.OPENQWF_TOKEN }}
           GIT_TERMINAL_PROMPT: "0"
@@ -73,7 +96,7 @@ jobs:
             echo "::notice::没有 OPENQWF_TOKEN，跳过上游漂移检查"
             exit 0
           fi
-          BRANCH=$(python -c "import json;print(json.load(open('vendor/openqwf/UPSTREAM.json',encoding='utf-8'))['branch'])")
+          BRANCH=main
           echo "上游分支：$BRANCH"
           git clone --depth 1 --branch "$BRANCH" \
             "https://x-access-token:${OPENQWF_TOKEN}@github.com/Secsix/OpenQWF.git" \

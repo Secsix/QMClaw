@@ -1,196 +1,148 @@
 #!/usr/bin/env python
-"""漂移检查：本地 `vendor/openqwf/` 与上游 `Secsix/OpenQWF` 是否还对得上。
+"""漂移检查：本仓的 OpenQWF submodule 指针 vs 上游 `Secsix/OpenQWF`。
 
-与 `tools/sync_openqwf.py --check` 的区别：
+模型
+----
+本仓以 **submodule** 引用上游（`vendor/OpenQWF`），不保存源码副本，所以「漂移」
+不再是逐文件比对，而是**指针是否落后**：
 
-* `--check`：**只**比本地 vendor 与 `UPSTREAM.json` 的记录（快、离线、不需要仓库权限）；
-  回答的是"本地 vendor 有没有被手工改过"。
-* 本脚本：拿**上游真的内容**来比（需要仓库访问权），回答的是
-  "本地 vendor 是不是已经落后于上游"。
+* **指针落后**：上游 `main` 已经前进，本仓还钉在旧 commit → 跑
+  `python tools/sync_openqwf.py --update` 更新指针。
+* **本地状态不一致**：submodule 未初始化 / 本地 HEAD ≠ 本仓指针 / 工作区有未提交改动。
 
-CI 用它当闸门：上游一有新提交，本仓就被提醒重新同步。
+与 `tools/sync_openqwf.py --check` 的区别：那个是**纯离线**自检（只看本仓与本地
+submodule）；本脚本额外回答「上游是不是已经前进了」（需要仓库访问权或一个本地 clone）。
 
 用法
 ----
-    python tools/check_openqwf_drift.py                # 需要仓库访问权
-    python tools/check_openqwf_drift.py --from <clone> # 用本地 clone 比（无网）
+    python tools/check_openqwf_drift.py                 # 需要仓库访问权
+    python tools/check_openqwf_drift.py --from <clone>  # 用本地 clone 比（无网，CI 常用）
 
-退出码：0 = 无漂移；1 = 有漂移；2 = 无法判定（没权限 / 没 clone）。
+退出码：0 = 无漂移；1 = 有漂移；2 = 无法判定（没权限 / 没 clone / 未初始化）。
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
+import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+from typing import Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-VENDOR_DIR = REPO_ROOT / "vendor" / "openqwf"
-UPSTREAM_META = VENDOR_DIR / "UPSTREAM.json"
+SUBMODULE_PATH = "vendor/OpenQWF"
+SUBMODULE_DIR = REPO_ROOT / "vendor" / "OpenQWF"
+
+
+def submodule_dir():
+    """submodule 实际目录（兼容历史遗留的小写目录名 ``vendor/openqwf``）。"""
+    if SUBMODULE_DIR.exists():
+        return SUBMODULE_DIR
+    legacy = REPO_ROOT / "vendor" / "openqwf"
+    return legacy if legacy.exists() else SUBMODULE_DIR
 UPSTREAM_REPO = "https://github.com/Secsix/OpenQWF.git"
 DEFAULT_BRANCH = "main"
-VENDORED_PACKAGES = ("qwf", "adapters")
-EXCLUDE_NAMES = {"__pycache__", ".pytest_cache"}
-EXCLUDE_SUFFIX = (".pyc", ".pyo", ".pyd")
 
 
-def _git(args, cwd):
-    proc = subprocess.run(["git"] + args, cwd=str(cwd), capture_output=True, text=True)
+def _git(args, cwd: Optional[Path] = None) -> Tuple[int, str, str]:
+    env = dict(os.environ)
+    # 禁止交互式凭据提示：私有仓无凭据时应直接失败，而不是弹窗/写控制台文件
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GCM_INTERACTIVE"] = "never"
+    proc = subprocess.run(
+        ["git"] + list(args),
+        cwd=str(cwd or REPO_ROOT),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
     return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
 
 
-def _sha256(path: Path) -> str:
-    import hashlib
-    h = hashlib.sha256()
-    h.update(_normalized_bytes(path.read_bytes(), path.name))
-    return h.hexdigest()
+def pinned_commit() -> Optional[str]:
+    """本仓记录的 submodule 指针（gitlink → commit）。"""
+    code, out, _ = _git(["ls-tree", "HEAD", "--", SUBMODULE_PATH])
+    if code == 0 and out:
+        parts = out.split()
+        if len(parts) >= 3 and parts[1] == "160000":
+            return parts[2]
+    code, out, _ = _git(["ls-files", "-s", "--", SUBMODULE_PATH])
+    if code == 0 and out:
+        parts = out.split()
+        if len(parts) >= 2 and parts[0] == "160000":
+            return parts[1]
+    return None
 
 
-TEXT_SUFFIX = (".py", ".json", ".toml", ".md", ".txt", ".cfg", ".ini", ".yml", ".yaml")
+def local_head() -> Optional[str]:
+    """本地 submodule 工作区的 HEAD（未初始化时 None）。"""
+    if not (submodule_dir() / ".git").exists():
+        return None
+    code, out, _ = _git(["rev-parse", "HEAD"], cwd=submodule_dir())
+    return out if code == 0 else None
 
 
-def _normalized_bytes(data: bytes, name: str) -> bytes:
-    """文本文件统一成 LF 后再比（上游工作区可能是 CRLF，仓库内容是 LF）。"""
-    if name.lower().endswith(TEXT_SUFFIX) and b"\r\n" in data:
-        return data.replace(b"\r\n", b"\n")
-    return data
+def clone_head(clone_dir: Path) -> Optional[str]:
+    """给定本地 clone 的 HEAD。"""
+    code, out, _ = _git(["rev-parse", "HEAD"], cwd=clone_dir)
+    return out if code == 0 else None
 
 
-def _tree_hashes(root: Path) -> dict:
-    out = {}
-    for pkg in VENDORED_PACKAGES:
-        base = root / pkg
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*")):
-            if not path.is_file():
-                continue
-            if any(part in EXCLUDE_NAMES for part in path.parts):
-                continue
-            if path.name.endswith(EXCLUDE_SUFFIX):
-                continue
-            rel = str(path.relative_to(root)).replace("\\", "/")
-            out[rel] = _sha256(path)
-    return out
+def remote_head(branch: str = DEFAULT_BRANCH) -> Optional[str]:
+    """上游 `branch` 的最新 commit（需要仓库访问权）。"""
+    code, out, _ = _git(
+        ["ls-remote", "--heads", UPSTREAM_REPO, f"refs/heads/{branch}"],
+        cwd=REPO_ROOT,
+    )
+    if code != 0 or not out:
+        return None
+    return out.split()[0]
 
 
-def _git_blob_hashes(repo: Path, ref: str = "HEAD") -> dict:
-    """从 git 仓的 `ref`（默认 HEAD）里取出 vendored 包的 blob 内容并算 sha256。
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="上游 OpenQWF submodule 漂移检查")
+    ap.add_argument("--from", dest="from_clone", type=Path,
+                    help="用本地 clone 目录比对上游 HEAD（无网时用）")
+    ap.add_argument("--branch", default=DEFAULT_BRANCH,
+                    help=f"上游分支（默认 {DEFAULT_BRANCH}）")
+    args = ap.parse_args(argv)
 
-    2026-11-20 起上游 clone 就放在 vendor/openqwf/ 内 —— 直接比目录没有意义
-    （自己跟自己比永远相等），所以改成比 **commit 里的内容**：这样才能回答
-    "vendor 快照是不是已经落后于上游 HEAD"。
-    """
-    out = {}
-    rc, listing, _ = _git(["ls-tree", "-r", "--name-only", ref], repo)
-    if rc != 0:
-        return out
-    for rel in listing.splitlines():
-        rel = rel.replace("\\", "/")
-        if not any(rel == pkg or rel.startswith(pkg + "/") for pkg in VENDORED_PACKAGES):
-            continue
-        proc = subprocess.run(["git", "cat-file", "blob", f"{ref}:{rel}"],
-                              cwd=str(repo), capture_output=True)
-        if proc.returncode != 0:
-            continue
-        data = _normalized_bytes(proc.stdout, rel.split("/")[-1])
-        out[rel] = hashlib.sha256(data).hexdigest()
-    return out
+    pinned = pinned_commit()
+    head = local_head()
 
-
-def main() -> int:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:  # noqa: BLE001
-        pass
-
-    ap = argparse.ArgumentParser(description="检查 vendor/openqwf 与上游的漂移")
-    ap.add_argument("--from", dest="from_path", help="用本地 clone 比（不给就尝试 clone 远端）")
-    ap.add_argument("--branch", default=DEFAULT_BRANCH, help=f"上游分支（默认 {DEFAULT_BRANCH}）")
-    ap.add_argument("--json", action="store_true", help="输出 JSON")
-    args = ap.parse_args()
-
-    if not UPSTREAM_META.exists():
-        print("[X] 缺少 vendor/openqwf/UPSTREAM.json")
-        return 2
-    meta = json.loads(UPSTREAM_META.read_text(encoding="utf-8"))
-    local_hashes = _tree_hashes(VENDOR_DIR)
-
-    tmp = None
-    try:
-        if args.from_path:
-            source = Path(args.from_path).resolve()
-            rc, commit, err = _git(["rev-parse", "HEAD"], source)
-            if rc != 0:
-                print(f"[X] 不是 git 仓：{source}")
-                return 2
-        elif (VENDOR_DIR / ".git").exists():
-            # 2026-11-20 起上游 clone 就放在 vendor/openqwf/ 内，默认直接用它
-            source = VENDOR_DIR
-            rc, commit, err = _git(["rev-parse", "HEAD"], source)
-            if rc != 0:
-                print(f"[X] vendor/openqwf 不是可用的 git 仓：{err}")
-                return 2
-        else:
-            tmp = Path(tempfile.mkdtemp(prefix="openqwf_drift_"))
-            source = tmp / "repo"
-            rc, _, err = _git(["clone", "--depth", "1", "--branch", args.branch,
-                               UPSTREAM_REPO, str(source)], tmp)
-            if rc != 0:
-                print(f"[?] 无法访问上游仓（{err.splitlines()[-1] if err else '未知错误'}）："
-                      "本次跳过漂移检查")
-                return 2
-            _, commit, _ = _git(["rev-parse", "HEAD"], source)
-
-        upstream_hashes = _git_blob_hashes(source)
-    finally:
-        if tmp and tmp.exists():
-            import shutil
-            shutil.rmtree(tmp, ignore_errors=True)
-
-    missing = sorted(set(upstream_hashes) - set(local_hashes))
-    extra = sorted(set(local_hashes) - set(upstream_hashes))
-    changed = sorted(rel for rel in set(local_hashes) & set(upstream_hashes)
-                     if local_hashes[rel] != upstream_hashes[rel])
-    commit_mismatch = bool(meta.get("commit")) and meta.get("commit") != commit
-
-    pending = bool(meta.get("pending_upstream"))
-    result = {
-        "upstreamCommit": commit,
-        "vendoredCommit": meta.get("commit"),
-        "branch": meta.get("branch"),
-        "pendingUpstream": pending,
-        "commitMismatch": commit_mismatch,
-        "missing": missing,
-        "extra": extra,
-        "changed": changed,
-        "drift": bool(missing or extra or changed or commit_mismatch),
-    }
-    if args.json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.from_clone:
+        ref = clone_head(args.from_clone)
+        print(f"上游提交参考：{ref or '(取不到)'}")
     else:
-        print(f"上游提交：{commit}")
-        print(f"已 vendor：{meta.get('commit')}")
-        if pending:
-            print("  （本地含尚未推给上游的改动 —— 属预期，不是漂移）")
-        if commit_mismatch:
-            print("[X] 登记的 commit 与上游 HEAD 不一致（登记信息需刷新）")
-        for rel in missing:
-            print(f"[X] 本地缺失：{rel}")
-        for rel in extra:
-            print(f"[X] 本地多出：{rel}")
-        for rel in changed:
-            print(f"[X] 内容不同：{rel}")
-        if result["drift"]:
-            print("-> 需要重新同步：git -C vendor/openqwf pull && "
-                  "python tools/sync_openqwf.py --refresh")
-        else:
-            print("[OK] vendor 与上游一致")
-    return 1 if result["drift"] else 0
+        ref = remote_head(args.branch)
+        print(f"上游提交参考：{ref or '(取不到，需要仓库访问权)'}")
+
+    if not pinned:
+        print("[X] 本仓没有记录 submodule 指针")
+        return 1
+    if head is None:
+        # submodule 没初始化时，本地自检做不了，但「指针 vs 上游」仍然可以判
+        print("[!] submodule 未初始化：跳过本地自检（git submodule update --init --recursive）")
+    else:
+        if head != pinned:
+            print(f"[X] 本地 HEAD {head[:8]} != 本仓指针 {pinned[:8]}")
+            return 1
+        code, out, _ = _git(["status", "--porcelain"], cwd=submodule_dir())
+        if code == 0 and out:
+            print("[X] submodule 工作区有未提交改动")
+            for line in out.splitlines()[:10]:
+                print(f"    {line}")
+            return 1
+    if not ref:
+        print("[!] 上游状态未知（无权限/无 clone）——只做了本地自检")
+        return 2
+    if ref == pinned:
+        print(f"[OK] 指针与上游一致（{pinned[:8]}）")
+        return 0
+    print(f"[X] 上游已前进：上游 {ref[:8]} != 指针 {pinned[:8]}")
+    print("-> 更新指针：python tools/sync_openqwf.py --update")
+    return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

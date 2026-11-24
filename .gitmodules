@@ -1,3 +1,7 @@
+[submodule "vendor/OpenQWF"]
+	path = vendor/OpenQWF
+	url = https://github.com/Secsix/OpenQWF.git
+	branch = main
 [submodule "vendor/Quantum-Calibration-Agent-Blueprint"]
 	path = vendor/Quantum-Calibration-Agent-Blueprint
 	url = https://github.com/Secsix/Quantum-Calibration-Agent-Blueprint

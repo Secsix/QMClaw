@@ -164,27 +164,15 @@ tools/s21_photo_reader/_tmp_test/
 /.tmp_*/
 /.deploy-logs/
 /.dsh-orders/
-# vendor/ 下只跟踪上游 OpenQWF（QWF DSL 真源）逐字 vendor 的副本：
-# 随仓分发，保证离线可用、且本机改动能追溯到上游 commit。
-# 同步方式见 tools/sync_openqwf.py。
+# ── 2026-11-24：上游 OpenQWF（QWF DSL 真源）改为 submodule ─────────────────
+# vendor/OpenQWF 是 submodule（见 .gitmodules），指向私有仓 Secsix/OpenQWF。
+# 本仓**不再**保存它的逐字副本：指针（commit）由 gitlink 记录，
+# 内容由上游仓自己管。取代码用：
+#     git submodule update --init --recursive vendor/OpenQWF
+# 更新指针用：python tools/sync_openqwf.py --update
+# 注意：submodule 内部的文件不受本仓 .gitignore 约束（由上游自己的 .gitignore 管）。
 /vendor/*
-!/vendor/openqwf/
-/vendor/openqwf/**/__pycache__/
-/vendor/openqwf/**/*.pyc
-# ── 2026-11-20：上游 OpenQWF 的正式 clone 就放在 vendor/openqwf/ 内 ──────────
-# vendor/openqwf/ 现在是一个真实的 git clone（origin = Secsix/OpenQWF），
-# 本仓只跟踪其中的 qwf/ + adapters/ 两个包与 pyproject.toml（逐字副本）；
-# 上游仓自己的 README / docs / examples / config / data / tools 等不进本仓，
-# .git/ 目录同理（嵌套仓的元数据由上游自己管）。
-/vendor/openqwf/.git/
-/vendor/openqwf/.gitignore
-/vendor/openqwf/README.md
-/vendor/openqwf/config/
-/vendor/openqwf/data/
-/vendor/openqwf/docs/
-/vendor/openqwf/examples/
-/vendor/openqwf/tools/
-/vendor/openqwf/f3_*/
+!/vendor/OpenQWF/
 /_qp*/
 
 # 2026-11-20 目录整理：

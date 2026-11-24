@@ -1,4 +1,4 @@
-"""上游 OpenQWF vendor 副本的门面 / 漂移自检。
+"""上游 OpenQWF（submodule）的门面 / 自检。
 
 三类断言：
 
@@ -12,9 +12,10 @@
 3. **双表不漂移** —— 运行期的 `services/common/replay.py` 与上游
    `qwf/vendor_semantics.py` 两份厂商语义表必须逐字段一致。
 
-真正的"上游漂移"（vendor 副本 vs 上游仓）需要能访问上游仓，由
-`tools/check_openqwf_drift.py` + CI 的 `openqwf-drift` 任务负责；
-这里在拿不到上游时**跳过**，不阻塞离线 CI。
+**上游怎么来**：本仓以 **submodule**（`vendor/OpenQWF` → `Secsix/OpenQWF`）引用上游，
+本仓**不保存源码副本**。所以"副本 vs 上游"的逐文件比对没有了，取而代之的是
+"**指针是否落后**"——由 `tools/check_openqwf_drift.py` + CI 的 `openqwf-drift`
+任务负责；这里只做本仓自洽性检查（指针 == 本地 HEAD、工作区干净）。
 """
 
 from __future__ import annotations
@@ -28,12 +29,12 @@ import pytest
 
 SERVER_ROOT = pathlib.Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVER_ROOT.parent.parent
-VENDOR_DIR = REPO_ROOT / "vendor" / "openqwf"
+SUBMODULE_DIR = REPO_ROOT / "vendor" / "openqwf"
 DSL_DIR = SERVER_ROOT / "services" / "workflow_service" / "dsl"
 
 #: 门面里**允许**有实质逻辑的文件（路径 → 原因）
 EXEMPT = {
-    "_upstream.py": "桥接层：找 vendor 目录 + 注入路径环境变量",
+    "_upstream.py": "桥接层：找 submodule 目录 + 注入路径环境变量",
     "__init__.py": "门面入口：跑桥接 + 再导出公开 API",
     "validate.py": "上游把 qubit_arity 收成私有名，这里补回公开名",
     "llm.py": "上游 server_root() 指向上游仓根，这里覆写成本地仓根",
@@ -47,12 +48,43 @@ def _py_files() -> list[pathlib.Path]:
     return sorted(p for p in DSL_DIR.rglob("*.py"))
 
 
-def test_vendor_copy_present():
-    """vendor 副本必须在（没有它门面就没法工作）。"""
-    assert (VENDOR_DIR / "qwf" / "__init__.py").exists(), (
-        f"vendor 副本缺失：{VENDOR_DIR} —— 先跑 python tools/sync_openqwf.py"
+def _git(*args: str) -> str:
+    proc = subprocess.run(
+        ["git", *args], cwd=str(REPO_ROOT), capture_output=True, text=True,
     )
-    assert (VENDOR_DIR / "adapters" / "__init__.py").exists(), "vendor 副本缺 adapters/"
+    return proc.stdout.strip()
+
+
+def test_submodule_present():
+    """上游 submodule 必须就位（没有它门面就没法工作）。"""
+    if not (SUBMODULE_DIR / ".git").exists():
+        pytest.skip("submodule 未初始化（跑 git submodule update --init --recursive）")
+    assert (SUBMODULE_DIR / "qwf" / "__init__.py").exists(), (
+        f"上游 submodule 不完整：{SUBMODULE_DIR}"
+    )
+    assert (SUBMODULE_DIR / "adapters" / "__init__.py").exists(), "上游 submodule 缺 adapters/"
+
+
+def test_pinned_commit_matches_local_head():
+    """本仓记录的指针（gitlink）== 本地 submodule HEAD，且工作区干净。"""
+    if not (SUBMODULE_DIR / ".git").exists():
+        pytest.skip("submodule 未初始化")
+    ls_tree = _git("ls-tree", "HEAD", "--", "vendor/OpenQWF")
+    assert ls_tree, "本仓 HEAD 里没有 vendor/OpenQWF 的 gitlink"
+    mode, kind, sha = ls_tree.split()[0], ls_tree.split()[1], ls_tree.split()[2]
+    assert mode == "160000", f"vendor/OpenQWF 必须是 submodule（160000），实际 {mode} {kind}"
+    local = _git("-C", str(SUBMODULE_DIR), "rev-parse", "HEAD")
+    assert local == sha, f"本地 HEAD {local[:8]} != 本仓指针 {sha[:8]}"
+    status = _git("-C", str(SUBMODULE_DIR), "status", "--porcelain")
+    assert not status, "submodule 工作区有未提交改动：" + "; ".join(status.splitlines()[:10])
+
+
+def test_no_source_copy_in_index():
+    """本仓**不得**再跟踪上游源码文件（只能有一个 gitlink）。"""
+    tracked = _git("ls-files", "--", "vendor/OpenQWF")
+    assert tracked in ("", "vendor/OpenQWF"), (
+        "本仓里出现了上游源码副本条目：\n" + tracked[:500]
+    )
 
 
 def test_facade_has_no_dsl_implementation():
@@ -78,7 +110,7 @@ def test_facade_has_no_dsl_implementation():
 
 def test_facade_modules_are_upstream_objects():
     """门面模块 == 上游模块（同一对象，不是拷贝）。"""
-    import services.workflow_service.dsl as dsl  # 先导入：它负责把 vendor 目录接上
+    import services.workflow_service.dsl as dsl  # 先导入：它负责把 submodule 接上
     import adapters.lqcs  # noqa: F401
     import qwf.const
     import qwf.textdsl.parser
@@ -113,24 +145,12 @@ def test_vendor_semantics_tables_match():
         assert local_table[fn] == upstream_table[fn], f"厂商语义表不一致：{fn}"
 
 
-def test_vendor_files_use_lf_endings():
-    """vendor 副本统一 LF（CRLF 会让 sha256 比对出假漂移）。"""
-    bad = []
-    for path in sorted(VENDOR_DIR.rglob("*")):
-        if not path.is_file() or path.suffix not in (".py", ".toml", ".json", ".md"):
-            continue
-        raw = path.read_bytes()
-        if b"\r\n" in raw:
-            bad.append(path.relative_to(REPO_ROOT).as_posix())
-    assert not bad, "vendor 副本里出现 CRLF：" + ", ".join(bad[:10])
-
-
 @pytest.mark.skipif(
     not os.environ.get("OPENQWF_UPSTREAM_DIR"),
     reason="需要上游工作副本（设 OPENQWF_UPSTREAM_DIR 才跑）",
 )
-def test_vendor_matches_upstream_tree():
-    """vendor 副本 == 上游工作副本（逐文件 sha256，行尾归一）。"""
+def test_pointer_matches_upstream_tree():
+    """本仓指针 == 上游工作副本的 HEAD（拿不到上游就跳过，不阻塞离线 CI）。"""
     upstream = pathlib.Path(os.environ["OPENQWF_UPSTREAM_DIR"]).resolve()
     if not (upstream / "qwf" / "__init__.py").exists():
         pytest.skip(f"{upstream} 不是上游仓副本")
