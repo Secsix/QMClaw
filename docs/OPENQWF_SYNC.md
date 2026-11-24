@@ -139,7 +139,7 @@ DSL ↔ qiskit 的契约是**代码文本 + `config/experiment_configs.json`**�
 
 如果改动**只在本地、暂时不能推上游**：在 `vendor/openqwf/UPSTREAM.json` 里
 把 `pending_upstream` 置 `true` —— 漂移检查会把它标成"属预期，不是漂移"，
-但**必须在 backlog 里登记**（见 `docs/BACKLOG.md` N 组）。
+但**必须在 backlog 里登记**（见本地私有文档 `docs/BACKLOG.md` N 组，不在版本库）。
 
 ## 常见操作
 

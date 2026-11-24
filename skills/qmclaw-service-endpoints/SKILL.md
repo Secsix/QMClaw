@@ -344,7 +344,8 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
   环境变量 `QMCLAW_REQUIRE_TASK=1` 可临时开/关。
 - 带着 task_id 跑实验的正确姿势：先 `POST :3009/task` 建任务（拿 `task.id`）→ 再 `POST :3003/execute` 带 `task_id`；
   或直接走 `POST :3008/workflows/run_ir`（自动建 task + manifest + 票据）。
-- 打开前建议先看 `docs/ARCHITECTURE_ROADMAP.md` §2.1（单写者原则）与 §4（在线升级协议）。
+- 打开前建议先看本地私有设计稿 `docs/ARCHITECTURE_ROADMAP.md` §2.1（单写者原则）与 §4（在线升级协议）。
+  （该文档属私有设计资料，不在公开版本库中。）
 
 ### 13.2 在线升级协议（后台改代码不打断用户实验）
 1. **A 热配置**：`fallback_config.json` / 环境变量，每请求读取 → 改完即生效，不需重启。

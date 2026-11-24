@@ -133,6 +133,8 @@ tools/s21_photo_reader/_tmp_test/
 /sessions/
 /memories/
 /memory/
+# 例外：memory/MEMORY.md 是给 agent 看的显示规范（小、常量），保持入库
+!/memory/MEMORY.md
 /audio_cache/
 /image_cache/
 /new_ctrl/
@@ -286,9 +288,62 @@ tools/s21_photo_reader/_tmp_test/
 # 根目录一次性实验 .qwf（产品范例在 qwf_examples/，不受影响）
 /*.qwf
 
-# 文档口径：本仓库跟踪 docs/ 顶层文档、skills/ 技能包与 AGENTS/CLAUDE 约定文件，
-# 因此**不照搬**上游「GitHub 只留 3 篇文档」的收窄规则（否则本地新增文档会被静默忽略）。
+# 文档口径（2026-11-24 用户决定）：GitHub 上只保留**精简版**——
+# docs/ 里只跟踪「对外可用/运维」类文档（OPERATIONS、DEPLOY_*、REAL_MACHINE、
+# REPO_LAYOUT、RUNTIME_DEPS、OPENQWF_SYNC、ADAPTER_GUIDE、DEMO_NO_LQCS、QWF_NODES、
+# qiskit_backend、用户手册与架构介绍）；
+# **设计/计划/过程类文档一律只留在本地**，见下方「私有设计文档」小节。
 # 未发表的 DSL 论文材料已在上文「未发表的 DSL 论文材料」小节单独忽略，不受影响。
 
 # memsearch 运行数据（本地状态，不入库）
 /.memsearch/
+
+# ---------------------------------------------------------------------------
+# 2026-11-24：私有设计文档 + 本地产物（GitHub 只放精简版）
+# 目标：设计文档只留在本地；推上 GitHub 的版本是精简的运维/使用面。
+# 出库方式：`git rm --cached <path>`（本地文件保留），并在本文件登记忽略规则，
+#           防止以后 `git add -A` 又把设计文档捞回去。
+# 临时需要提交其中某篇时用 `git add -f <path>` 显式覆盖。
+# 历史不动：老提交里的文档仍可翻出（用户 2026-11-24 决定：不重写历史）。
+# ---------------------------------------------------------------------------
+
+# --- 私有设计文档（docs/）---
+# 架构路线图 / 状态机设计 / 单比特自动标定设计
+/docs/*DESIGN*.md
+/docs/*ROADMAP*.md
+# 各类方案与计划（含 proofread / review 副本）
+/docs/*PLAN*.md
+/docs/*_REVIEW.md
+/docs/*_PROOFREAD.md
+# 待办与进度总表（内部管理用）
+/docs/TODO_*.md
+/docs/BACKLOG.md
+# 上游融合过程材料
+/docs/UPSTREAM_*.md
+/docs/SYNC_20261111_MERGE_PLAN.md
+/docs/GIT_HISTORY.md
+# 改动清单 / 需求稿 / 导师对齐纪要
+/docs/CHANGES_VS_SOURCE.md
+/docs/QUBIT_HEALTH_REPORT_REQ.md
+/docs/对齐-进度与待确认.md
+# 融合验证目录里的「合并内容预览 / 归档核查」快照
+/docs/merge_verify_tools/ARCHIVE_CHECK.md
+/docs/merge_verify_tools/MERGED_CONTENT_PREVIEW.md
+
+# --- 本机实验产物与运行数据 ---
+# 真机体检报告（内含 D:\DataVault 数据源路径与实测验活数据）
+/experiments/reports/
+# S21 读数照片 / 比特指派表 / 分析笔记（实验室内部数据）
+/experiments/s21_image/*.png
+/experiments/s21_image/*.csv
+/experiments/s21_image/*.md
+/experiments/t1_fit_*.png
+/experiments/自动化单比特标定/zpa_v2/predictions/
+# qca_service 运行期索引库（可再生）
+/Agentic Workflow/qmclaw-server/services/qca_service/data/
+# 本机启动备忘（内含本机绝对路径，与 start-qmclaw.cmd 重复）
+/启动命令.txt
+
+# --- DSL 论文实验（BE2）产物与工作区：本地私有 ---
+/be2_results/
+/be2_work/

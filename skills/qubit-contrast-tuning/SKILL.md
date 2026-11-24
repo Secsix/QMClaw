@@ -143,7 +143,7 @@ python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
 真机执行走 `:3003/execute` 时，若服务端 `quantum_service.actuation.require_task=true`（热切），
 **必须带 task_id**（先 `POST :3009/task`，或直接走 `:3008/workflows/run_ir`），否则返回
 `status=blocked, reason_code=task_required`。这是"单写者原则"的第一步，见
-`docs/ARCHITECTURE_ROADMAP.md` §2.1。
+`docs/ARCHITECTURE_ROADMAP.md` §2.1（私有设计稿，不在公开版本库）。
 
 ### 三条容易翻车的现场事实
 1. **fread 是逐比特独立的**（`q7ld3.fread`），实验的 auto-update 会静默回写**该比特自己**的 fread
