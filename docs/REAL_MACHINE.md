@@ -1,6 +1,6 @@
 # 真机接通说明（只读联调）
 
-> 本文是运维/联调手册。设计稿 `docs/REAL_MACHINE_PLAN.md` 与待办总表 `docs/BACKLOG.md` 属**私有文档（不在版本库）**，
+> 本文是运维/联调手册。设计稿 `_local/docs/REAL_MACHINE_PLAN.md` 与待办总表 `_local/docs/BACKLOG.md` 属**私有文档（不在版本库）**，
 > 仅存在于本地开发机。
 > **当前阶段：只读联调。写闸门默认关闭，禁止向真机下发实验或改参。**
 
@@ -107,7 +107,7 @@ python "server\scripts\check_readonly_regression.py"
    - `fallback_config.json` → `quantum_service.actuation.allow_execute: true`（`allow_set_params` 同理）
    - 或临时 `$env:QMCLAW_ALLOW_EXECUTE = "1"`
 4. **重启受影响的 Python 服务**（不热重载）
-5. 在本地待办 `docs/BACKLOG.md`（私有文档，不在版本库）或实验日志里**记录**：时间、操作人、打开范围、预计关闭时间
+5. 在本地待办 `_local/docs/BACKLOG.md`（私有文档，不在版本库）或实验日志里**记录**：时间、操作人、打开范围、预计关闭时间
 6. 用完立即改回 `false` 并重启服务
 
 ## 五、故障排查

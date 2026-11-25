@@ -208,13 +208,13 @@ ops = read(ROOT / "docs" / "OPERATIONS.md")
 check("OPERATIONS 有 §3.20", "### 3.20" in ops)
 check("OPERATIONS 提到 start_group.py", "start_group.py" in ops)
 check("OPERATIONS §4 表含 _service_groups_check.py", "_service_groups_check.py" in ops)
-roadmap = read(ROOT / "docs" / "ARCHITECTURE_ROADMAP.md")
+roadmap = read(ROOT / "_local" / "docs" / "ARCHITECTURE_ROADMAP.md")
 if roadmap:
     check("路线图 §3 #6 有阶段 17 注记",
           "阶段 17" in roadmap and "service_groups" in roadmap)
 else:
     skip("路线图 §3 #6 有阶段 17 注记",
-         "docs/ARCHITECTURE_ROADMAP.md not in repo (upstream .gitignore excludes /docs/**/*.md)")
+         "本地私有文档 _local/docs/ARCHITECTURE_ROADMAP.md 不存在（未在本机留档）")
 
 print(f"\n_service_groups_check: PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
 if FAILED:

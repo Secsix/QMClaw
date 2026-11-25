@@ -162,7 +162,7 @@ check("未达终态返回 None（由外层超时兜底）", st is None)
 
 print("[10] 文档在位")
 ops = read(ROOT / "docs" / "OPERATIONS.md")
-road = read(ROOT / "docs" / "ARCHITECTURE_ROADMAP.md")
+road = read(ROOT / "_local" / "docs" / "ARCHITECTURE_ROADMAP.md")
 if ops:
     check("OPERATIONS 有 §3.22", "§3.22" in ops or "3.22" in ops)
 else:

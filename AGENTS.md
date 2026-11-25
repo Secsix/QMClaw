@@ -148,7 +148,7 @@ agent 的长期记忆存放在 `server/config/memory/`，**整个目录都在 `.
 
 - 合并提交 `bf725e9`（父1 = 我方 `3d646c9`，父2 = 上游 `03d838d`），冲突 4 文件 / 6 处已按方案解掉
 - 回退点：`git reset --hard backup/pre-upstream-merge-20261008-202936`
-- 方案全文与 23 项验证清单见 `docs/UPSTREAM_MERGE_PLAN.md`、待办见 `docs/BACKLOG.md`
+- 方案全文与 23 项验证清单见 `_local/docs/UPSTREAM_MERGE_PLAN.md`、待办见 `_local/docs/BACKLOG.md`
   （**均为私有文档，不在版本库**，只在本机保留）
 
 ## 仓库卫生约定
@@ -159,7 +159,7 @@ GitHub 上只保留**精简版**：可复用的代码、对外可用/运维类�
 | 类别 | 例子 | 去向 |
 |------|------|------|
 | 对外可用文档 | `docs/OPERATIONS.md`、`docs/ARCHITECTURE.md`、`README.md` | 入库 |
-| 私有设计文档 | `docs/*DESIGN*.md`、`docs/*PLAN*.md`、`docs/TODO_*.md`、`docs/BACKLOG.md` | 只留本地（`.gitignore` 已登记） |
+| 私有设计文档 | `_local/docs/*DESIGN*.md`、`_local/docs/*PLAN*.md`、`_local/docs/TODO_*.md`、`_local/docs/BACKLOG.md` | 只留本地（`.gitignore` 已登记） |
 | 本机配置 | `server/config/*.local.json`、`server/config/device_profile.json`、`server/config/memory/` | 只留本地 |
 | 过程产物 | `_checks/`、`*.log`、`experiments/reports/`、真机实测数据 | 只留本地 |
 | 临时脚本 | 根级 `_tmp_*.py` / `_c*_edit*.py` 之类批量编辑脚本 | 用完即删，不入库 |

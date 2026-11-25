@@ -1,6 +1,6 @@
 """services/common/capabilities.py — 能力探测（静态 AST，不 import 硬件栈）
 
-为什么需要它（docs/ARCHITECTURE_ROADMAP.md §2.2 / §3 问题⑤）：
+为什么需要它（_local/docs/ARCHITECTURE_ROADMAP.md §2.2 / §3 问题⑤）：
 能力基线（"这台机器上哪些实验函数真的能调"）不能只写死在一台机器上 ——
 2026-11-19 就因为基线过期，把 4 个**真实存在**的函数（spectroscopy_iq /
 time_rabi / iqcenter / impa_gain）误判成"运行时不存在"。

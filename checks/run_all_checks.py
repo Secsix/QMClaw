@@ -104,7 +104,7 @@ def run_one(name: str, outdir: str) -> dict:
         # 上游 .gitignore 排除的脚本（例如 _qwf_gen_goal_check.py）没有入库。
         # 记 SKIP 而不是 FAIL / 崩溃：整套自检不该被一个缺失文件带崩，
         # 理由写进 summary.json 与日志，便于按需补齐。
-        reason = "脚本未入库（被 .gitignore 排除；见本地私有文档 docs/BACKLOG.md）"
+        reason = "脚本未入库（被 .gitignore 排除；见本地私有文档 _local/docs/BACKLOG.md）"
         text = f"[SKIP] {name} 未执行：{reason}\n"
         log_name = name.replace(".py", "") + ".log"
         with open(os.path.join(outdir, log_name), "w", encoding="utf-8") as f:
@@ -278,7 +278,7 @@ def main() -> int:
     print(f"总索引:   {mpath}")
     n_skip = sum(1 for r in results if r.get("status") == "skip")
     if n_skip:
-        print(f"跳过:     {n_skip} 项（缺失上游环境产物，详见各自日志与本地私有文档 docs/BACKLOG.md）")
+        print(f"跳过:     {n_skip} 项（缺失上游环境产物，详见各自日志与本地私有文档 _local/docs/BACKLOG.md）")
     return 0 if all(r["exit_code"] == 0 for r in results) else 1
 
 

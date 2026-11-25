@@ -33,7 +33,7 @@ DOC_FILES = sorted((ROOT / "docs").glob("*.md")) + [
 
 # 文档里合法但本机不存在的路径（历史记录 / 临时产物 / 他人机器）
 EXCEPTIONS = {
-    "D:\\QMClaw\\test_qubit_info.json",   # docs/TODO_RUNTIME.md 的历史示例
+    "D:\\QMClaw\\test_qubit_info.json",   # _local/docs/TODO_RUNTIME.md 的历史示例
     "D:\\qmclaw\\_device_profile.json",   # OPERATIONS §3.4 的**降级输出路径**，正常不存在
 }
 

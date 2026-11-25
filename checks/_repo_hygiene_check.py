@@ -12,7 +12,8 @@
 2. tracked 里没有 > 1 MiB 的大文件（仓里最大的正常文件是 `package-lock.json`
    ~700 KB，所以 1 MiB 是安全线）。
 3. `docs/` 下没有私设计 / 计划 / 进度类文档（DESIGN / PLAN / ROADMAP / TODO /
-   BACKLOG / REVIEW / PROOFREAD / UPSTREAM_ …）。
+   BACKLOG / REVIEW / PROOFREAD / UPSTREAM_ …）—— **同时扫磁盘**，
+   防止私有文档被重新拖回对外文档目录。
 4. 关键目录都有 `README.md`（新来的人能看懂每个目录是干什么的）。
 5. 仓库根只允许白名单里的 `.py`（防止根目录再次长出一堆一次性脚本）。
 6. `.gitignore` 里的关键规则还在（有人手改 .gitignore 时能立刻发现）。
@@ -87,6 +88,7 @@ REQUIRED_IGNORE_RULES = (
     "/docs/*PLAN*.md",
     "/docs/TODO_*.md",
     "/docs/BACKLOG.md",
+    "/_local/",
     "/experiments/reports/",
     "/be2_work/",
     ".Codex/",
@@ -203,8 +205,17 @@ def main() -> int:
         name = Path(rel).name
         if any(Path(name).match(pat) for pat in PRIVATE_DOC_PATTERNS):
             private.append(rel)
-    check("docs/ 下没有私设计/计划/进度类文档", not private,
+    check("docs/ 下没有私设计/计划/进度类文档（tracked）", not private,
           ", ".join(private[:10]))
+    # 磁盘级扫描：私有文档一旦被拖回 docs/ 就要立刻发现（tracked 检查抓不到未入库的）
+    on_disk = []
+    docs_dir = ROOT / "docs"
+    if docs_dir.is_dir():
+        for p in sorted(docs_dir.glob("*.md")):
+            if any(p.match(pat) for pat in PRIVATE_DOC_PATTERNS):
+                on_disk.append(f"docs/{p.name}")
+    check("docs/ 磁盘上也没有私设计/计划/进度类文档", not on_disk,
+          ", ".join(on_disk[:10]) + "（私有文档应放 _local/docs/）")
 
     print("[4] 关键目录有 README")
     missing = []
@@ -246,6 +257,18 @@ def main() -> int:
             hits.append(f"{rel}:{i}: {line.strip()[:90]}")
     check("tracked 文件里没有个人机器绝对路径", not hits,
           f"{len(hits)} 处：" + "; ".join(hits[:5]))
+
+    print("[8] 私有文档收纳区")
+    proc = subprocess.run(["git", "check-ignore", "-q", "_local/docs/"],
+                          cwd=str(ROOT), capture_output=True)
+    check("_local/ 整目录被 .gitignore 忽略", proc.returncode == 0,
+          "git check-ignore 未命中，私有内容可能被提交")
+    local_docs = ROOT / "_local" / "docs"
+    if local_docs.is_dir():
+        n_local = len(list(local_docs.glob("*.md")))
+        check("_local/docs/ 收纳了私有文档", n_local > 0, "目录存在但没有 .md")
+    else:
+        skip("_local/docs/ 收纳了私有文档", "本机未留私有文档副本")
 
     print(f"\n_repo_hygiene_check: PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
     return 1 if FAIL else 0
