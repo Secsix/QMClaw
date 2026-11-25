@@ -7,14 +7,14 @@
 
 跑法：
   PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-    D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_autorevert_check.py
+    python checks/_autorevert_check.py
 """
 import json
 import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path("D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
 
 from services.workflow_service.dsl import autorevert as AR  # noqa: E402

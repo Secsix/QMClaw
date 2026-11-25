@@ -2,7 +2,7 @@
 
 跑法：
     PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-      D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_p3_check.py
+      python checks/_p3_check.py
 
 不碰真机、不启服务：TaskQueueService 的 `/task*` 路由用未绑定方法直接调，
 executor 的 `_queue_post` 由 FakeSvc 转发到同一个路由。
@@ -12,7 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(r"D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 

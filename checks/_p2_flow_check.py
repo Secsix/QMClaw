@@ -2,12 +2,12 @@
 
 跑法：
     PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-      D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_p2_flow_check.py
+      python checks/_p2_flow_check.py
 """
 import sys
 from pathlib import Path
 
-ROOT = Path(r"D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 

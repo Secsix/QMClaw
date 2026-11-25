@@ -112,7 +112,9 @@ def go(text, tag):
     st = run_ir(ir, dry=False)
     print("run:", st.get("status"), "outcome:", json.dumps(st.get("outcome"), ensure_ascii=False)[:200])
     print("nodes:", json.dumps(st.get("node_map"), ensure_ascii=False)[:400])
-    json.dump(st, open(f"D:/qmclaw/_q8_{tag}_result.json", "w", encoding="utf-8"),
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            f"_q8_{tag}_result.json")
+    json.dump(st, open(out_path, "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     return 0
 

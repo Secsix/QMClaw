@@ -6,9 +6,9 @@
 > 改实现请改上游仓（`Secsix/OpenQWF`）并同步 submodule 指针，见 `docs/OPENQWF_SYNC.md`。
 
 用法：
-    python D:/qmclaw/qwf_lint.py a.qwf b.qwf
-    python D:/qmclaw/qwf_lint.py a.qwf --json
-    python D:/qmclaw/qwf_lint.py a.qwf --strict      # 有 warning 也返回非 0
+    python qwf_lint.py a.qwf b.qwf            # 在仓库根执行
+    python qwf_lint.py a.qwf --json
+    python qwf_lint.py a.qwf --strict      # 有 warning 也返回非 0
 
 退出码：0 = 没有 error；1 = 有 error（--strict 时 warning 也算）。
 """

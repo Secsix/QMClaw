@@ -312,9 +312,9 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
 ### 12.3 运行环境
 
 - **Python 解释器**：`D:\anaconda3\envs\lqcs\python.exe`（含 lqms + labrad）；
-  调 `services.common.config` 需要 `PYTHONPATH="D:/qmclaw/server"`。
+  调 `services.common.config` 需要 `PYTHONPATH="<仓库根>/server"`。
 - **服务启停由人控制**（AGENTS.md 第 3 条）：`taskkill /PID <旧PID> /F` →
-  `python "D:\qmclaw\server\scripts\start_all_services.py"`。
+  `python "<仓库根>/server/scripts/start_all_services.py"`。
 - **沙箱限制**：不能写 `config/`、`docs/`、`.Codex/`（用 write/edit 工具写）；
   不能在沙箱里 `import lqms` 直连 LabRAD；不能起第二个 Ray 客户端。
 

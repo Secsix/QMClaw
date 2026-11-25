@@ -2,13 +2,13 @@
 
 跑法：
     PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-      D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_p2_ask_choice_check.py
+      python checks/_p2_ask_choice_check.py
 """
 import ast
 import sys
 from pathlib import Path
 
-ROOT = Path(r"D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server" / "services" / "workflow_service"
 sys.path.insert(0, str(SERVER.parent.parent))
 

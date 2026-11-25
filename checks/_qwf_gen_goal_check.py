@@ -9,8 +9,8 @@
 6. plan 按 rounds 放大预算；
 7. expanded 老写法仍然可解析、可 lowering（等价性）。
 
-跑法（工作区根 D:/qmclaw）：
-    PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 D:/anaconda3/envs/lqcs/python.exe _qwf_gen_goal_check.py
+跑法（仓库根）：
+    PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 python _qwf_gen_goal_check.py
 """
 from __future__ import annotations
 

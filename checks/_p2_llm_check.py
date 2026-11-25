@@ -17,7 +17,7 @@ import os
 import pathlib
 import sys
 
-ROOT = pathlib.Path(r"D:/qmclaw")
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 
@@ -88,10 +88,14 @@ def main() -> int:
         skip("llm_decision_minimax key 来自 .env", "same")
         skip("llm_decision_minimax model 非空", "same")
     else:
-        check("llm_decision provider", cfg_dec.get("provider") == "openai", str(cfg_dec.get("provider")))
+        # provider 取值来自本机 config/qubitclient.json（gitignored，按机器/供应商而定），
+        # 不能写死上游那一套；这里只断言"有 provider 且是已知协议名"。
+        check("llm_decision provider", cfg_dec.get("provider") in
+              ("openai", "anthropic", "deepseek", "minimax"), str(cfg_dec.get("provider")))
         check("llm_decision 有 api_key", bool(cfg_dec.get("api_key")))
         check("llm_decision 有 model", bool(cfg_dec.get("model")))
-        check("llm_decision_minimax provider", cfg_mm.get("provider") == "anthropic",
+        check("llm_decision_minimax provider", cfg_mm.get("provider") in
+              ("openai", "anthropic", "deepseek", "minimax"),
               str(cfg_mm.get("provider")))
         check("llm_decision_minimax key 来自 .env", bool(cfg_mm.get("api_key")),
               "MINIMAX_API_KEY not loaded")

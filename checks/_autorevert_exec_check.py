@@ -10,14 +10,14 @@
 
 跑法：
   PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-    D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_autorevert_exec_check.py
+    python checks/_autorevert_exec_check.py
 """
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(r"D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 

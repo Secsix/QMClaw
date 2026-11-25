@@ -11,7 +11,7 @@
 
 跑法：
     PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-        D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_registry_ep_check.py
+        python checks/_registry_ep_check.py
 """
 import ast
 import io

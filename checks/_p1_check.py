@@ -8,8 +8,9 @@ import glob
 import json
 import os
 import sys
+from pathlib import Path
 
-ROOT = r"D:/qmclaw/server/services/workflow_service"
+ROOT = str(Path(__file__).resolve().parents[1] / "server" / "services" / "workflow_service")
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
 
@@ -142,7 +143,7 @@ check("无 goal 时不放大", plan_plain["totals"]["points"] == 3000
       json.dumps(plan_plain["totals"], ensure_ascii=False))
 
 # ── 5. 既有 .qwf 回归（parse + validate）─────────────────────────
-files = sorted(glob.glob(r"D:/qmclaw/*.qwf"))
+files = sorted(glob.glob(str(Path(__file__).resolve().parents[1] / "*.qwf")))
 for f in files[:5]:
     try:
         text = open(f, encoding="utf-8").read()

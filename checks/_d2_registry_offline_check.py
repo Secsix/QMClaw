@@ -21,7 +21,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-ROOT = Path(r"D:/qmclaw")
+ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 sys.path.insert(0, str(SERVER))
 sys.path.insert(0, str(ROOT))
@@ -73,7 +73,13 @@ class _FakeReg:
 
 def part_a():
     print("[A] 处理器级：_handle_qubit_registry")
-    import lqms.pyle as lqms_pyle
+    try:
+        import lqms.pyle as lqms_pyle
+    except ImportError as e:  # noqa: BLE001
+        # lqms 是实验室内部包（不进版本库），没有它的机器跑不了 A 段，
+        # 记 SKIP 而不是把整个自检判成失败。
+        print(f"  SKIP  A 段需要 lqms 包（本机缺：{e}）")
+        return
 
     class FakeRegistryWrapper:
         def __init__(self, cxn, session):

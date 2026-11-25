@@ -19,7 +19,7 @@ D2 改造（2026-11-06）：**不再自己连 LabRAD**，改走 quantum_service 
                                                         # 回滚（默认全部非 discriminator 键）
   python reg_snapshot.py set   q2ld3 f10=3.6217 PiGate.amp=1.23
 
-快照文件写到 D:/qmclaw/reg_snapshots/<qubit>_<时间戳>.json
+快照文件写到 <仓库根>/reg_snapshots/<qubit>_<时间戳>.json
 """
 import json
 import os
@@ -27,9 +27,13 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 BASE = os.environ.get("QMCLAW_QUANTUM_URL", "http://127.0.0.1:3003")
-SNAP_DIR = os.environ.get("QMCLAW_REG_SNAP_DIR", "D:/qmclaw/reg_snapshots")
+SNAP_DIR = os.environ.get(
+    "QMCLAW_REG_SNAP_DIR",
+    str(Path(__file__).resolve().parent / "reg_snapshots"),
+)
 
 # 这些键每次 iqraw/实验都会自动重写，回滚时默认跳过
 VOLATILE_PREFIX = ("discriminator",)

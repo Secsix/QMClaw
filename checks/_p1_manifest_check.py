@@ -8,8 +8,9 @@ import ast
 import glob
 import os
 import sys
+from pathlib import Path
 
-ROOT = r"D:/qmclaw/server/services/workflow_service"
+ROOT = str(Path(__file__).resolve().parents[1] / "server" / "services" / "workflow_service")
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
 
@@ -194,7 +195,7 @@ except Exception as e:  # noqa: BLE001
     check("validate 接入", False, repr(e))
 
 # ── 16. 既有 .qwf 回归 ─────────────────────────────────────────
-for f in sorted(glob.glob(r"D:/qmclaw/*.qwf")):
+for f in sorted(glob.glob(str(Path(__file__).resolve().parents[1] / "*.qwf"))):
     try:
         r = parse_qwf(open(f, encoding="utf-8").read())
         out, diags = validate(r)

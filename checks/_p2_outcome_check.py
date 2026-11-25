@@ -15,7 +15,7 @@ import ast
 import pathlib
 import sys
 
-SERVER = pathlib.Path(r"D:/qmclaw/server")
+SERVER = pathlib.Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER))
 
 PASS, FAIL = 0, 0

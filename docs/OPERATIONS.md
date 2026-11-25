@@ -971,7 +971,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 | flow 被 needs_human 卡住 | 写操作不在任何票据范围内 | 看 `GET :3009/task/{id}/report` 的 events，或用 `--sign-scope` 重签 |
 | 流程被 quota_exceeded 卡住 | task 的实验额度用尽 | 新建 task，或调高 budgets.experiments |
 | `.qwf` 干跑报 `undefined ref: $d1.symptom` | 干跑时 decide 桩没有 symptom 字段 | 别在 say 里引用 `symptom`（`reasoning` 同理不可引用） |
-| `:3009` 起来但 `POST /task` 返回 taskId，随后所有接口报 `unknown task` | 账本落盘目录写不进去（task 存不住） | 用 `QMCLAW_TASK_DATA_DIR=D:/qmclaw/_task_data` 启动 :3009（该目录在沙箱内可写） |
+| `:3009` 起来但 `POST /task` 返回 taskId，随后所有接口报 `unknown task` | 账本落盘目录写不进去（task 存不住） | 用 `QMCLAW_TASK_DATA_DIR=<仓库根>/_task_data` 启动 :3009（该目录在沙箱内可写） |
 | `:3003` 启动卡在 `ray.init(address='192.0.2.11:6479')` 不返回 | Ray 集群握手在受限沙箱内会挂起（TCP 通但不回包） | 用不受限的运行环境启动 :3003（DSH 里需 `danger-full-access`） |
 | 实验报 `lqcs/servers/device_manager.py prepare_dac_meas: ufunc 'divide' not supported` | 设备层（编译版 lqcs）算 DAC 参数时分母类型不对，与参数无关 | 实验室侧排查/复位设备；同一命令重试无效 |
 | PowerShell `curl` 参数不认识 | PS 5.1 的 `curl` 是 `Invoke-WebRequest` 别名 | 用 `Invoke-RestMethod` 或 `curl.exe`；多行 JSON 写成单行 |

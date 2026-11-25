@@ -16,7 +16,7 @@
 
 跑法：
     PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 \
-        D:/anaconda3/envs/lqcs/python.exe D:/qmclaw/_apply_dataset_ep_check.py
+        python checks/_apply_dataset_ep_check.py
 """
 import io
 import json

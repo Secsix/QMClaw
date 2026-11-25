@@ -9,11 +9,7 @@ import os
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT = r"D:/qmclaw/server/services/workflow_service"
-if not os.path.isdir(ROOT):
-    # 仓库不在上游写死的 D:/qmclaw 下时，用脚本自身位置兜底
-    ROOT = os.path.join(REPO_ROOT, "server",
-                        "services", "workflow_service")
+ROOT = os.path.join(REPO_ROOT, "server", "services", "workflow_service")
 sys.path.insert(0, ROOT)
 sys.dont_write_bytecode = True
 

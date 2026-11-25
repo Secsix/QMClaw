@@ -29,14 +29,14 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 WORKFLOWS_DIR = ROOT_DIR / "data" / "workflows"
 EXAMPLES_DIR = WORKFLOWS_DIR / "examples"
 
-# 仓库根（server → 上两级）：产品示例 `.qwf` 的**真正来源**。
+# 仓库根（server → 上一级）：产品示例 `.qwf` 的**真正来源**。
 #
 # 为什么需要回落：`data/` 整个目录被仓库根 `.gitignore` 排除
 # （`server/data/`），所以放在 `data/workflows/examples/`
 # 里的 `.qwf` 永远进不了版本库；上游真正入库的产品示例在**仓库根**
 # `qwf_examples/`（上游 CI 就是 lint 这个目录，见 .github/workflows/checks.yml）。
 # 运行期目录仍然优先（部署时可以覆盖），找不到时回落到仓库根。
-REPO_ROOT_DIR = ROOT_DIR.parent.parent
+REPO_ROOT_DIR = ROOT_DIR.parent
 REPO_EXAMPLES_DIR = REPO_ROOT_DIR / "qwf_examples"
 
 # 文件名安全：只留字母数字、下划线、连字符、点
