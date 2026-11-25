@@ -94,11 +94,9 @@ tools/s21_photo_reader/_tmp_test/
 /docs/BACKEND_ADAPTERS.md
 
 # 实验与评测代码（规格库 / 渲染器 / 三层判定 / 离线排查 / LLM 回路 / 变异测试）
-/docs/deploy_diff_tools/dsl_*.py
-/docs/deploy_diff_tools/exp2_*.py
-/docs/deploy_diff_tools/spec_render.py
-/docs/deploy_diff_tools/mutation_*.py
-/docs/deploy_diff_tools/expr3_expressiveness.py
+# 2026-11-25：整个 docs/deploy_diff_tools/ 目录一次性诊断脚本整体出库（磁盘保留），
+# 改用目录级规则；仍在用的调参工具已移到 tools/iqraw_contrast_tune.py。
+/docs/deploy_diff_tools/
 
 # 实验产物（CI 报告、LLM 轨迹 JSONL、汇总与分析表）
 /docs/reports/dsl_ci_*.json
@@ -407,17 +405,20 @@ nohup.out
 # --- 上游合并的一次性验证工具（2026-10 融合过程产物）---
 /docs/merge_verify_tools/
 
-# --- docs/deploy_diff_tools/ 里与上游 OpenQWF 同名的旧分叉 ---
-# 上游 vendor/OpenQWF/tools/ 已提供同名且更新的版本，本仓这份不再跟踪。
-/docs/deploy_diff_tools/_envmeta.py
-/docs/deploy_diff_tools/check_gated_template.py
-/docs/deploy_diff_tools/e3_tuneup18_edsl.py
-/docs/deploy_diff_tools/express_dsl_check.py
-/docs/deploy_diff_tools/live_probe.py
-/docs/deploy_diff_tools/lqms_write_audit.py
-/docs/deploy_diff_tools/qubit_calib_metrics.py
-/docs/deploy_diff_tools/run_contrast_workflow.py
-/docs/deploy_diff_tools/workflow_interpreter_selftest.py
+# --- docs/deploy_diff_tools/ 整目录出库（2026-11-25）---
+# 一次性部署差异诊断脚本 + 绑定旧机器绝对路径的校验脚本，全部过程产物。
+# 目录级规则见上方「实验与评测代码」段；其中唯一仍在用的调参工具已移到 tools/。
+/docs/deploy_diff_tools/
+
+# --- 2026-11-25 出库：部署差异报告与一次性自检脚本 ---
+# 部署差异报告（对比另一台机器的 deploy 目录，过程材料）
+/docs/DEPLOY_DIFF.md
+# 阶段 0 离线治理自检（功能与 _service_groups_check / _web_proxy_check 重叠）
+/checks/_governance_check.py
+# 回放回归 CLI（依赖真机 fixture 目录，本机脚本）
+/checks/_replay_regression.py
+# 规格 .qwf 批量生成器（写死本机输出目录与 session 名）
+/checks/_gen_spec_qwfs.py
 
 # --- 根级本机脚本（含本机绝对路径或零引用，不适合对外）---
 /SOUL.md

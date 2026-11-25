@@ -14,6 +14,7 @@
 | `check_openqwf_drift.py` | 离线查指针是否落后上游 `main` | CI 任务 `openqwf-drift` |
 | `qiskit_smoke.py` | qiskit/Aer 后端冒烟 | |
 | `qiskit_dsl_smoke.py` | qiskit + DSL 端到端冒烟 | |
+| `iqraw_contrast_tune.py` | 读出对比度迭代调参（iqraw→piamp→pidf 循环） | 走 `POST :3003/execute`；技能 `skills/qubit-contrast-tuning/` 指向它 |
 | `qubit_health_report/` | 比特健康报告生成 | 见其 `README.md` |
 | `s21_photo_reader/` | S21 照片读取（实验辅助） | 见其 `README.md` |
 | `single_qubit_auto_calibration/` | 单比特自动标定 | 见其 `README.md` |

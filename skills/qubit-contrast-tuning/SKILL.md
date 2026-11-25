@@ -57,17 +57,17 @@ sq.iqraw  ->  sq.piamp  ->  sq.iqraw  ->  sq.pidf  ->  sq.iqraw  ->  sq.piamp
 
 ## 三、脚本
 
-`docs/deploy_diff_tools/iqraw_contrast_tune.py`
+`tools/iqraw_contrast_tune.py`
 
 ```bash
 # 单个比特，扫 ±50 MHz，跑一轮
-python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05
+python tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05
 
 # 连跑三轮观察是否收敛
-python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05 --rounds 3
+python tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05 --rounds 3
 
 # 只看会下发什么，不碰硬件
-python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
+python tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
 ```
 
 脚本行为：

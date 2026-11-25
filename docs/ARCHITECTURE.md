@@ -50,7 +50,7 @@ QmClaw 是一个量子测量控制与分析系统，用于控制 LabRAD 实验�
 ## 目录结构
 
 ```
-D:\qmclaw\
+<仓库根>/
 ├── README.md                    # 本文档
 ├── AGENTS.md                    # 开发约定与进度记录
 ├── 一键启动.cmd                  # ⚡ 一键启动器（推荐）
@@ -96,12 +96,12 @@ D:\qmclaw\
 终端 1 - 后端 (端口 3002)
 
 
-cd D:\qmclaw\server
+cd <仓库根>/server
 & "C:\Program Files\AutoClaw\resources\node\node.exe" node_modules\tsx\dist\cli.mjs src\index.ts
 终端 2 - 前端 (端口 3001)
 
 
-cd D:\qmclaw\web
+cd <仓库根>/web
 set PATH="C:\Program Files\AutoClaw\resources\node;%PATH%"
 npm run dev
 访问地址: http://localhost:3001
@@ -154,7 +154,7 @@ openai          # LLM API 调用
 ```powershell
 $env:PORT = "3002"              # Express 服务器端口
 $env:PYTHON_BIN = "C:\Users\lqcs\Programs\Python\Python311\python.exe"
-$env:PLOTS_DIR = "D:\qmclaw\web\public\plots"
+$env:PLOTS_DIR = "<仓库根>\web\public\plots"
 $env:OPENAI_API_KEY = "your-api-key"  # 用于工作流中的 LLM 决策
 ```
 
@@ -465,7 +465,7 @@ Python 子进程初始化需要约 20 秒（LabRAD 连接）。如果启动失�
 3. `lqms` 库是否正确安装
 
 ### 图表显示问题
-检查 `D:\qmclaw\web\public\plots\` 目录是否存在且可写。
+检查 `web/public/plots/` 目录是否存在且可写。
 
 ## 开发注意事项
 

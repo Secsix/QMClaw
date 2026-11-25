@@ -92,8 +92,7 @@ $env:LABRADPORT = "7682"
 4. 自检：
 
 ```powershell
-D:\semester4\deploy\qmclaw\qmclaw\python.exe docs\deploy_diff_tools\check_labrad_link.py
-D:\semester4\deploy\qmclaw\qmclaw\python.exe "server\scripts\check_readonly_regression.py"
+python "server\scripts\check_readonly_regression.py"
 ```
 
 5. 看 `/health` 是否带 `data_source: "labrad"`、`actuation_allowed: false`

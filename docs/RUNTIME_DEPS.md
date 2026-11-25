@@ -2,7 +2,6 @@
 
 > 前提：`qmclaw.zip`、`vendor.zip` 已解压完成（2026-09 最新一次比对后）。
 > 本文件所有结论都在真实解压出来的环境上**实测得出**，不是从压缩包元数据推断。
-> 关联文档：`docs/DEPLOY_DIFF.md`（差异报告）。
 
 ---
 
@@ -329,20 +328,22 @@ cd "D:\semester4\QMClaw\web"; npm run dev
 
 ## 7. 附：本次用到的校验脚本
 
-都在 `docs/deploy_diff_tools/`，用环境里的解释器跑（会自动缓存元数据到系统临时目录，不污染仓库）：
+> 本次比对用的是一组**一次性诊断脚本**（`check_services.py` / `check_env_imports.py` /
+> `check_runtime_imports.py` / `check_deps_installed.py` / `check_vendor_and_wheels.py`）。
+> 它们绑定的是当时那台机器的绝对路径，属于过程产物，**不入版本库**。
+
+迁移到新机器后，用仓内自带的离线自检做等价检查：
 
 ```powershell
-$PY = "D:\semester4\deploy\qmclaw\qmclaw\python.exe"
-$T  = "D:\semester4\QMClaw\docs\deploy_diff_tools"
+# 10 个微服务能否 import + 按功能分组的依赖冒烟 + vendor/轮子声明一致性
+python checks/run_all_checks.py
 
-& $PY -B "$T\check_services.py"           # 10 个微服务能否 import
-& $PY -B "$T\check_env_imports.py"        # 按功能分组的依赖冒烟测试
-& $PY -B "$T\check_runtime_imports.py" "D:\semester4\QMClaw" `
-        "D:\semester4\QMClaw\vendor\hermes-agent" `
-        "D:\semester4\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint"
-& $PY -B "$T\check_deps_installed.py"     # env 内部依赖自洽性
-& $PY -B "$T\check_vendor_and_wheels.py"  # vendor/轮子 声明 vs env
+# 单看依赖/微服务这一组
+python checks/_p3_check.py
+python checks/_service_groups_check.py
 ```
+
+自检脚本清单与用途见 `checks/README.md`；离线自检总入口是 `checks/run_all_checks.py`。
 
 ---
 

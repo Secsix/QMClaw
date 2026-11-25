@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""把所有 DSL 自检脚本的输出 + 相关运行产物 **汇总到同一个地方**：`D:\\qmclaw\\_checks\\`。
+"""把所有 DSL 自检脚本的输出 + 相关运行产物 **汇总到同一个地方**：仓库根的 `_checks/`。
 
 目录结构（每次运行一个时间戳子目录）：
     _checks/<ts>/
@@ -18,10 +18,10 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活的源目�
 沙箱禁止 subprocess（CreatePipe 被拒），所以检查脚本用 runpy 在当前进程内跑并重定向 stdout。
 
 用法：
-    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py             # 17 套离线自检 + 归档
-    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --e2e      # 再加 e2e / registry 两套
-    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --only _p3_check
-    D:/anaconda3/envs/lqcs/python.exe checks/run_all_checks.py --archive-only --window-min 600
+    python checks/run_all_checks.py             # 17 套离线自检 + 归档
+    python checks/run_all_checks.py --e2e      # 再加 3 套在线自检（需服务在跑）
+    python checks/run_all_checks.py --only _p3_check
+    python checks/run_all_checks.py --archive-only --window-min 600
 """
 import hashlib
 import io

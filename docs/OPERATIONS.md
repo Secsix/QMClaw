@@ -53,10 +53,7 @@ python "server\scripts\start_all_services.py"
 ### 3.1 传统方式（单个实验）
 
 ```powershell
-# 1) 体检命令本身（可选）
-python D:\qmclaw\docs\deploy_diff_tools\verify_experiment_commands.py q2ld3
-
-# 2) 通过微服务下发（不要直连 LabRAD）
+# 1) 通过微服务下发（不要直连 LabRAD）
 curl.exe -X POST http://127.0.0.1:3003/execute -H "Content-Type: application/json" `
   -d '{"command":"sq.iqraw(q2ld3, do_plot=False)","timeout":120}'
 ```
@@ -64,7 +61,7 @@ curl.exe -X POST http://127.0.0.1:3003/execute -H "Content-Type: application/jso
 ### 3.2 DSL 方式（推荐，带额度与票据）
 
 ```powershell
-cd D:\qmclaw
+cd <仓库根>
 
 # 干跑（不碰硬件）
 python qwf_lint.py llm_multi_exp.qwf          # 离线体检，有 error 就先改
@@ -276,12 +273,12 @@ goal {
 两者之差就是**厂商语义漂移**。阶段 5 把这个比对做成可批量跑的回归：
 
 ```powershell
-# 读默认 fixture 目录（services/common/replay.py 的 ReplayStore 目录）
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py
+# 回归 CLI 是本机脚本（不入库）；仓内的回放能力在 server/services/common/replay.py
+python <本机路径>\checks\_replay_regression.py
 
 # 指定目录 / 限制条数 / 输出 JSON / 允许 N 条漂移
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
-D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-drift 2
+python <本机路径>\checks\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
+python <本机路径>\checks\_replay_regression.py --max-drift 2
 ```
 
 - 结论 `verdict`：`green`（仿真与真机一致）/ `drift`（检出漂移）/ `broken`（fixture 损坏）/
@@ -293,14 +290,14 @@ D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py --max-d
   = `off` / `code_only` / `full`，见 §3.4），或 `POST :3003/qubit/replay {"action":"record"}` 手工录。
 - **现在已经有真机 fixture 了**：2026-11-09 之前几轮真机实验已自动录到
   `server/data/replay-fixtures/`（例如 `fx-*.json`，带真实 `dataset_ids`），
-  跑 `_replay_regression.py` 得到 `verdict=green`、drift=0 —— 说明"厂商实验实际改了什么"
+  跑回放回归 CLI（本机脚本）得到 `verdict=green`、drift=0 —— 说明"厂商实验实际改了什么"
   与"回放层以为它会改什么"目前一致。
 - 录 fixture 的正确姿势（2026-11-09 实测）：
   1. `fallback_config.json` 的 `quantum_service.actuation.replay_auto_record` 临时改成 `full`
      （**只在你自己的实验间隙改**，常开会给每次实验多读两次 LabRAD registry）；
   2. 跑一次实验 → 服务端自动落 `fx-*.json`；
   3. 立刻把该项改回 `off`（默认值）；
-  4. `D:\anaconda3\envs\lqcs\python.exe D:\qmclaw\checks\_replay_regression.py` 看 verdict。
+  4. 跑回放回归 CLI（本机脚本）看 verdict。
 - 设备层报错时**照样会落 fixture，但 `dataset_ids` 为空、status=error** —— 这种 fixture
   不含真机数据，回归只能验证代码路径，不能当"真机覆盖"。
 - **fixture 目录用环境变量钉住**：`QMCLAW_REPLAY_FIXTURE_DIR`（读写两侧都认；`--dir` 优先于它）。
@@ -901,7 +898,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 
 ---
 
-## 4. 自检脚本清单（都在 `D:\qmclaw\`）
+## 4. 自检脚本清单（都在 `checks/`）
 
 | 脚本 | 覆盖 | 期望 |
 |---|---|---|
@@ -930,18 +927,18 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"; $env:PYTHONDONTWRITEBYTECODE="1"
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\_p3_check.py
+python checks\_p3_check.py
 ```
 
 ### 一次跑完并落盘（推荐）
 
 ```powershell
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py          # 12 套离线自检
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py --e2e   # 再加 e2e / registry 两套
-D:/anaconda3/envs/lqcs/python.exe D:\qmclaw\checks\run_all_checks.py --only _p3_check
+python checks\run_all_checks.py          # 17 套离线自检
+python checks\run_all_checks.py --e2e   # 再加 3 套在线自检（需服务在跑）
+python checks\run_all_checks.py --only _p3_check
 ```
 
-输出统一落在 `D:\qmclaw\_checks\<时间戳>\`，**所有 DSL 测试的原始数据都汇总在这里**：
+输出统一落在 `<仓库根>\_checks\<时间戳>\`，**所有 DSL 测试的原始数据都汇总在这里**：
 
 ```
 _checks/<ts>/
@@ -985,9 +982,9 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 
 | 路径 | 放什么 | 可写性 |
 |---|---|---|
-| `D:\qmclaw\` | 自检脚本、临时 qwf、快照 | 可写 |
-| `D:\qmclaw\reg_snapshots\` | 寄存器快照（`reg_snapshot.py` 产出） | 可写 |
-| `D:\qmclaw\_p3_e2e_tasks\` | E2E 自检的 task 数据目录 | 可写 |
+| `<仓库根>\` | 自检脚本、临时 qwf、快照 | 可写 |
+| `<仓库根>\reg_snapshots\` | 寄存器快照（`reg_snapshot.py` 产出） | 可写 |
+| `<仓库根>\_p3_e2e_tasks\` | E2E 自检的 task 数据目录 | 可写 |
 | `D:\\qmclaw\\_task_data\\` | :3009 任务账本落盘目录（env `QMCLAW_TASK_DATA_DIR`） | 可写（沙箱内起 :3009 必须指到这里，否则 task 存不住 → unknown task） |
 | `docs\`、`\.Codex\` | 文档 | 只能用 `edit`/`write` 工具改，bash 不能删 |
 | `server\...\data\workflow-runs\` | run 记录 | 目录能建，**文件写不进**（沙箱）→ 落档兜底会落到 tempdir |

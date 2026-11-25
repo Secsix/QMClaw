@@ -20,7 +20,7 @@
 ## 脚本
 
 ```bash
-python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05 --rounds 3
+python tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05 --rounds 3
 ```
 
 ## 实测
