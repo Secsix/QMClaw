@@ -10,7 +10,7 @@
 
 | 类别 | 数量 | 含义 | 何时跑 |
 |---|---|---|---|
-| `OFFLINE` | 17 | 纯静态 / 离线自检，不连真机、不需要起服务 | 提交前、`python checks/run_all_checks.py` |
+| `OFFLINE` | 18 | 纯静态 / 离线自检，不连真机、不需要起服务 | 提交前、`python checks/run_all_checks.py` |
 | `ONLINE` | 3 | 需要**服务在跑**（`_p3_e2e.py` / `_registry_ep_check.py` / `_apply_dataset_ep_check.py`） | 部署后验证链路 |
 
 ONLINE 三项默认不跑（`run_all_checks.py` 只跑 OFFLINE）；需要时显式调用：
@@ -26,13 +26,13 @@ python checks/_apply_dataset_ep_check.py # :3003 /qubit/apply_dataset 端点
 在**仓库根目录**执行（脚本用 `__file__` 定位仓库根，从哪跑都行，但产物落在根目录的 `_checks/`）：
 
 ```bash
-python checks/run_all_checks.py              # 17 套离线自检 + 归档到 _checks/<时间戳>/
+python checks/run_all_checks.py              # 18 套离线自检 + 归档到 _checks/<时间戳>/
 python checks/run_all_checks.py --e2e        # 再加 e2e / registry 两套
 python checks/run_all_checks.py --only _p3_check
 python checks/_web_proxy_check.py             # 单个脚本也可以直接跑
 ```
 
-CI 跑的是其中三个纯静态脚本：`_syntax_check.py`、`_docs_paths_check.py`、`_web_proxy_check.py`
+CI 跑的是其中四个纯静态脚本：`_syntax_check.py`、`_docs_paths_check.py`、`_web_proxy_check.py`、`_repo_hygiene_check.py`
 （见 `.github/workflows/checks.yml`）。
 
 ## 新增自检脚本的规矩

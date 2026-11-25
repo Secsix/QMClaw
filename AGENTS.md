@@ -12,6 +12,7 @@
 - [记忆数据](#记忆数据不纳入版本控制)
 - [真机写闸门](#真机写闸门安全约定)
 - [导师上游融合记录](#导师上游融合记录)
+- [仓库卫生约定](#仓库卫生约定)
 - [约定](#约定)
 - [Compaction 压缩规则](#compaction-压缩规则自动压缩时生效)
 
@@ -150,6 +151,32 @@ agent 的长期记忆存放在 `server/config/memory/`，**整个目录都在 `.
 - 方案全文与 23 项验证清单见 `docs/UPSTREAM_MERGE_PLAN.md`、待办见 `docs/BACKLOG.md`
   （**均为私有文档，不在版本库**，只在本机保留）
 
+## 仓库卫生约定
+
+GitHub 上只保留**精简版**：可复用的代码、对外可用/运维类文档、通用配置。
+设计文档、计划、评审记录、过程产物、一次性中间脚本**一律只留在本地**。
+
+| 类别 | 例子 | 去向 |
+|------|------|------|
+| 对外可用文档 | `docs/OPERATIONS.md`、`docs/ARCHITECTURE.md`、`README.md` | 入库 |
+| 私有设计文档 | `docs/*DESIGN*.md`、`docs/*PLAN*.md`、`docs/TODO_*.md`、`docs/BACKLOG.md` | 只留本地（`.gitignore` 已登记） |
+| 本机配置 | `server/config/*.local.json`、`server/config/device_profile.json`、`server/config/memory/` | 只留本地 |
+| 过程产物 | `_checks/`、`*.log`、`experiments/reports/`、真机实测数据 | 只留本地 |
+| 临时脚本 | 根级 `_tmp_*.py` / `_c*_edit*.py` 之类批量编辑脚本 | 用完即删，不入库 |
+
+**红线**：
+
+1. **个人机器路径不入库**：文档与代码里不写死 `C:\Users\<你>` / `D:\<本机目录>`；
+   用相对路径、`Path(__file__)` 推导或环境变量。实验室机约定的 `D:\qmclaw\` 属于团队约定，可保留。
+2. **批量改文件用脚本 + 一次性提交**：改完先跑 `python checks/run_all_checks.py`，
+   再把临时脚本删掉，**不要把临时脚本提交进库**。
+3. **自检是红线**：`checks/_repo_hygiene_check.py` 会在提交前拦住
+   「临时产物入库 / 大文件入库 / 私文档入库 / 个人路径泄露」四类污染；
+   新增自检脚本必须同时改三处：`checks/run_all_checks.py` 的 OFFLINE 清单、
+   `docs/OPERATIONS.md` §4 表格、`checks/README.md`（`_docs_paths_check.py` 双向校验）。
+4. **出库用 `git rm --cached`**：先 `git rm --cached <path>` 再登记 `.gitignore` 规则，
+   磁盘文件保留；确实需要入库时用 `git add -f` 显式覆盖。
+
 ## 约定
 
 1. **开发任务用 sub-session 隔离**：不污染主 session 的日常对话
@@ -162,7 +189,7 @@ agent 的长期记忆存放在 `server/config/memory/`，**整个目录都在 `.
 7. 当需求涉及较多修改时，先制定计划，由用户确认后才能执行。
 8. 计划模式下，或者用户明确让制定计划的时候，需要多向用户提问，详细了解需求。
 9. 当前系统有后端打印日志的过滤器，只有满足特定声明逻辑的日志才能被打印到后端的终端窗口里。所以当你要增加后端日志的时候，需要检查一下后端日志过滤器(server/src/index.ts)。
-10. python用这个C:\Users\lqcs\Programs\Python\Python311\python.exe
+10. Python 解释器：用 `py -3.12`（Windows）或 `python3`（Linux/macOS）；**不要把个人机器的解释器绝对路径写进文档或代码**
 11. **按节奏提交，不是每改一个文件就提交**：累计到一定量或碰上重要节点时 `git commit`。
     - **攒够 3~5 处改动**提交一次；一次任务 / 会话收尾前必须提交干净，不留半成品在树上
     - **重要操作前后必须各自提交一次**（提交作为回退点）：

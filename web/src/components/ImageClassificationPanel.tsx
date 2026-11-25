@@ -206,7 +206,7 @@ export default function ImageClassificationPanel() {
               type="text"
               value={folderPath}
               onChange={(e) => setFolderPath(e.target.value)}
-              placeholder="D:\Documents\实验图片"
+              placeholder="D:\\path\\to\\images"
               style={{
                 width: "100%",
                 padding: "8px 12px",

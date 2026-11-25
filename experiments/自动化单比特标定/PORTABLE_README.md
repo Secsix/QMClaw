@@ -18,7 +18,7 @@ sq.ramsey_t2(qobj)
 sq.xeb(qobj)
 ```
 
-**不是**新版 v1.0 的 `(s, qobj)` / `piAmp` / `target_gate` 口径 —— 那套在 `D:\QMClaw\s21zpa\`，
+**不是**新版 v1.0 的 `(s, qobj)` / `piAmp` / `target_gate` 口径 —— 那套在 `<仓库根>/s21zpa/`，
 不要和本包混用。`zpa_qwf_runner.step()` 会主动拒绝新版权参数名。
 
 ## 两条执行路线
@@ -333,7 +333,7 @@ python test_zpa_interval_offline.py # ZPA 区间判定：合成图 + 真机历�
 python test_zpa_trained_model.py   # 训练出来的模型 vs 人工标注（验收）
 ```
 
-（`test_zpa_pipeline.py` / `test_datavault_live.py` 在新版包 `D:\QMClaw\s21zpa\` 里，本包不带。）
+（`test_zpa_pipeline.py` / `test_datavault_live.py` 在新版包 `<仓库根>/s21zpa/` 里，本包不带。）
 
 `test_zpa_qwf_offline.py` 会用仓库里的 DSL（`server/services/workflow_service/dsl`）
 离线解析并校验生成的 `.qwf`；找不到 DSL 时自动跳过该段，其余检查照跑。

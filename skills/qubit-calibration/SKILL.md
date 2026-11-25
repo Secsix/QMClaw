@@ -238,7 +238,7 @@ xeb_fid = 1 - xeb_res[data.dataset_num]['error_Pauli_per_cycle']/1.5
 
 ```python
 # 激活测控Python环境
-python = r"C:\Users\lqcs\Programs\Python\Python311\python.exe"
+python = r"<测控环境 python.exe 路径>"
 
 # 常用模块导入
 from lqms.measure.tuners import sq_nodes as sq

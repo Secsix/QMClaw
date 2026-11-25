@@ -6,7 +6,7 @@ import os
 os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
 
 # Add paths
-sys.path.insert(0, r"D:\QMClaw\server\scripts")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Test the handler directly
 print("Importing job_runner...", file=sys.stderr, flush=True)

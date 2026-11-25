@@ -22,7 +22,7 @@ from zpa_calibration_pipeline import (Settings, chain_steps, inspect_file,
 from zpa_qwf_runner import default_budget, estimate_points
 
 HERE = Path(__file__).resolve().parent
-GATE_FILE = Path(r"D:\QMClaw\server\config\fallback_config.json")
+GATE_FILE = Path(__file__).resolve().parents[2] / "server" / "config" / "fallback_config.json"
 
 
 def show_step(item):

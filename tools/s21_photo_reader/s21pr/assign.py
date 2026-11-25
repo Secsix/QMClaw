@@ -2,7 +2,7 @@
 
 纯标准库实现（可放进 LabRAD 内嵌 Python 运行）：
     from s21pr.assign import parse_assignments, apply_fread
-    rows = parse_assignments(r"D:\\QMClaw\\s21_image\\读取线6上的待测比特.csv")
+    rows = parse_assignments(r"<仓库根>\\s21_image\\读取线6上的待测比特.csv")
     apply_fread(rows)
 
 支持的输入格式：

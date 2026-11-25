@@ -431,12 +431,9 @@ print(f"INIT: BACKEND_DIR={BACKEND_DIR} exists={os.path.exists(BACKEND_DIR)}", f
 print(f"INIT: MEASURE_SCRIPTS={MEASURE_SCRIPTS} exists={os.path.exists(MEASURE_SCRIPTS)}", file=sys.stderr, flush=True)
 
 # ── Image Classifier Paths ─────────────────────────────────────────────────────
-# D:\Documents\图像二分类代码
-_IMAGE_CLASSIFIER_DIR = os.environ.get(
-    "IMAGE_CLASSIFIER_DIR",
-    r"D:\Documents\图像二分类代码"
-)
-if os.path.exists(_IMAGE_CLASSIFIER_DIR):
+# 图像二分类代码是**仓外依赖**，用环境变量指；不再写死个人机器路径
+_IMAGE_CLASSIFIER_DIR = os.environ.get("IMAGE_CLASSIFIER_DIR", "")
+if _IMAGE_CLASSIFIER_DIR and os.path.exists(_IMAGE_CLASSIFIER_DIR):
     sys.path.insert(0, _IMAGE_CLASSIFIER_DIR)
     print(f"IMAGE_CLASSIFIER: Added to sys.path: {_IMAGE_CLASSIFIER_DIR}", file=sys.stderr, flush=True)
 else:

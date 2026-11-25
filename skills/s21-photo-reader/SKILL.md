@@ -19,10 +19,10 @@ author: QMClaw Contributors
 
 ```powershell
 # 单张
-D:\QMClaw\tools\s21_photo_reader\run.ps1 "<图片路径>" -OutDir "<输出目录>"
+<仓库根>\tools\s21_photo_reader\run.ps1 "<图片路径>" -OutDir "<输出目录>"
 
 # 批量（新增照片后直接重跑）
-D:\QMClaw\tools\s21_photo_reader\run.ps1 "<照片目录>" -Summary "<汇总.csv>"
+<仓库根>\tools\s21_photo_reader\run.ps1 "<照片目录>" -Summary "<汇总.csv>"
 ```
 
 ## 第二步：写回 LabRAD（regs.fread）
@@ -32,10 +32,10 @@ D:\QMClaw\tools\s21_photo_reader\run.ps1 "<照片目录>" -Summary "<汇总.csv>
 
 ```python
 # A. 直接执行生成的脚本（在 LabRAD 笔记里）
-exec(open(r"D:\QMClaw\s21_image\读取线6上的待测比特_labrad_assign.py").read())
+exec(open(r"<仓库根>\s21_image\读取线6上的待测比特_labrad_assign.py").read())
 
 # B. 从 CSV 批量赋值（读数更新后不用重新生成脚本）
-exec(open(r"D:\QMClaw\tools\s21_photo_reader\labrad_assign_fread.py").read())
+exec(open(r"<仓库根>\tools\s21_photo_reader\labrad_assign_fread.py").read())
 ```
 
 脚本只写 `regs.fread`，逐条回读校验，单条失败不影响其它比特。
@@ -69,7 +69,7 @@ exec(open(r"D:\QMClaw\tools\s21_photo_reader\labrad_assign_fread.py").read())
 回归测试（改完逻辑必跑）：
 
 ```powershell
-cd D:\QMClaw\tools\s21_photo_reader\tests; python test_tool.py
+cd tools/s21_photo_reader/tests; python test_tool.py
 ```
 
-详见 `D:\QMClaw\tools\s21_photo_reader\README.md`。
+详见 `tools/s21_photo_reader/README.md`。

@@ -5,8 +5,8 @@
   unless the file starts with a UTF-8 BOM, so non-ASCII text breaks parsing.
 
   Usage:
-    .\run.ps1 "D:\QMClaw\s21_image\photo.png" -OutDir "D:\out"
-    .\run.ps1 "D:\QMClaw\s21_image\photos" -Summary "D:\out\summary.csv"
+    .\run.ps1 "..\..\s21_image\photo.png" -OutDir "D:\out"
+    .\run.ps1 "..\..\s21_image\photos" -Summary "D:\out\summary.csv"
 #>
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -27,7 +27,6 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $toolDir)
 # locate a usable python
 $pyCandidates = @(
     "$repoRoot\.venv\Scripts\python.exe",
-    "C:\Users\lqcs\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe",
     "python"
 )
 $py = $null

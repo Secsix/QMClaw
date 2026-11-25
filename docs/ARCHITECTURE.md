@@ -137,7 +137,7 @@ python -c "from lqcs.servers_control import run_server_control; run_server_contr
 
 ### 软件版本
 - **Node.js**: v22.22.0（使用 AutoClaw 内置版本：`C:\Program Files\AutoClaw\resources\node\node.exe`）
-- **Python**: 3.11（`C:\Users\lqcs\Programs\Python\Python311\python.exe`）
+- **Python**: 3.11+（`python`；Windows 上可用 `py -3.12`）
 - **操作系统**: Windows 11 Pro
 
 ### Python 依赖
@@ -153,7 +153,7 @@ openai          # LLM API 调用
 ### 环境变量（可选）
 ```powershell
 $env:PORT = "3002"              # Express 服务器端口
-$env:PYTHON_BIN = "C:\Users\lqcs\Programs\Python\Python311\python.exe"
+$env:PYTHON_BIN = "python"
 $env:PLOTS_DIR = "<仓库根>\web\public\plots"
 $env:OPENAI_API_KEY = "your-api-key"  # 用于工作流中的 LLM 决策
 ```
@@ -180,7 +180,7 @@ npm -v
 ### 2. 安装 Python 依赖
 
 ```bash
-cd "d:\Documents\QMClaw\server\python"
+cd server/python
 pip install -r requirements.txt
 ```
 
@@ -194,13 +194,13 @@ pip install -r requirements.txt
 
 **后端 (Express)：**
 ```bash
-cd "d:\Documents\QMClaw\server"
+cd server
 npm install
 ```
 
 **前端 (Next.js)：**
 ```bash
-cd "d:\Documents\QMClaw\web"
+cd web
 npm install
 ```
 
@@ -213,7 +213,7 @@ npm install
 ### 4. 配置环境变量
 
 ```bash
-cd "d:\Documents\QMClaw\server"
+cd server
 copy .env.example .env
 ```
 
@@ -233,18 +233,18 @@ MINIMAX_GROUP_ID=your_group_id_here
 PYTHON_BIN=C:\Users\你的用户名\Programs\Python\Python311\python.exe
 
 # 图表输出目录
-PLOTS_DIR=d:\Documents\QMClaw\web\public\plots
+PLOTS_DIR=D:\path\to\QMClaw\web\public\plots
 ```
 
 ### 5. 创建必要的目录
 
 ```bash
 # 创建图表输出目录
-mkdir -p "d:\Documents\QMClaw\web\public\plots"
+mkdir -p "web/public/plots"
 
 # 创建数据目录
-mkdir -p "d:\Documents\QMClaw\server\data\workflows"
-mkdir -p "d:\Documents\QMClaw\server\data\templates"
+mkdir -p "server/data/workflows"
+mkdir -p "server/data/templates"
 ```
 
 ---
@@ -254,7 +254,7 @@ mkdir -p "d:\Documents\QMClaw\server\data\templates"
 ### 方式一：一键启动（推荐）
 
 ```powershell
-cd "d:\Documents\QMClaw\server"
+cd server
 .\一键启动.cmd
 ```
 
@@ -262,13 +262,13 @@ cd "d:\Documents\QMClaw\server"
 
 **终端 1 — 后端 (端口 3002)：**
 ```bash
-cd "d:\Documents\QMClaw\server"
+cd server
 npm run dev
 ```
 
 **终端 2 — 前端 (端口 3001)：**
 ```bash
-cd "d:\Documents\QMClaw\web"
+cd web
 npm run dev
 ```
 

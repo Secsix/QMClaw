@@ -15,15 +15,15 @@
 ## 运行离线 Mock 测试
 
 ```powershell
-$py = 'C:\Users\lqcs\Programs\Python\Python311\python.exe'
-$env:PYTHONPATH = 'D:\QMClaw'
-& $py -m unittest discover -s D:\QMClaw\tools\single_qubit_auto_calibration\tests -p 'test_*.py' -v
+$py = 'python'
+$env:PYTHONPATH = '<仓库根>'
+& $py -m unittest discover -s tools/single_qubit_auto_calibration/tests -p 'test_*.py' -v
 ```
 
 ## 生成计划
 
 ```powershell
-$env:PYTHONPATH = 'D:\QMClaw'
+$env:PYTHONPATH = '<仓库根>'
 & $py -m tools.single_qubit_auto_calibration.cli plan --qubit q21_5 --fread-ref 6.4 --out calibration_plan
 ```
 

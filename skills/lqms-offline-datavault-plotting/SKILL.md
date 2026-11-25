@@ -33,7 +33,7 @@ author: QMClaw Contributors
 
 | 项 | 值 |
 |----|-----|
-| Python | `C:\Users\lqcs\Programs\Python\Python311\python.exe`（已装 `lqms`） |
+| Python | 测控 Python 环境（已装 `lqms`；用 `py -3.12` 或你自己的解释器） |
 | 服务 | **不需要**起 qmclaw 前后端服务；不连 LabRAD；不下发任何测控指令 |
 | 数据 | 只读；不改原始 HDF5、不改配置文件、不写真机 |
 

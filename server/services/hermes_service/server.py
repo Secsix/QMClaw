@@ -134,8 +134,8 @@ CRITICAL RULES:
 def _find_qmclaw_root():
     """Search upward for QMClaw root directory.
 
-    From: D:\Documents\QMClaw\server\services\hermes_service\server.py
-    To:   D:\Documents\QMClaw  (5 levels up)
+    From: <repo>/server/services/hermes_service/server.py
+    To:   <repo root>  (5 levels up)
     """
     current = Path(__file__).parent  # hermes_service
     for _ in range(6):  # 5 levels up + 1 for safety
@@ -153,7 +153,7 @@ _QMCLAW_ROOT = _find_qmclaw_root()
 if not _QMCLAW_ROOT:
     # Fallback: assume standard layout
     # From: .../server/services/hermes_service/server.py
-    # To:   D:\Documents\QMClaw
+    # To:   <repo root>
     _QMCLAW_ROOT = str(Path(__file__).parent.parent.parent.parent.parent)
 
 _HERMES_AGENT_PATH = os.path.join(_QMCLAW_ROOT, "vendor", "hermes-agent")

@@ -2,7 +2,7 @@
 """在 LabRAD 中把 S21 照片识别结果写入各比特的 regs.fread。
 
 用法 A（推荐，LabRAD 笔记里执行）：
-    exec(open(r"D:\\QMClaw\\tools\\s21_photo_reader\\labrad_assign_fread.py").read())
+    exec(open(r"<仓库根>\\tools\\s21_photo_reader\\labrad_assign_fread.py").read())
 
 用法 B（直接在 LabRAD 里粘贴赋值行）：
     q21_5.regs.fread = 6.556
@@ -10,9 +10,9 @@
 
 用法 C（用本仓库的通用实现，读 CSV 后批量赋值）：
     import sys
-    sys.path.insert(0, r"D:\\QMClaw\\tools\\s21_photo_reader")
+    sys.path.insert(0, r"<仓库根>\\tools\\s21_photo_reader")
     from s21pr.assign import parse_assignments, apply_fread, format_report
-    rows = parse_assignments(r"D:\\QMClaw\\s21_image\\读取线6上的待测比特.csv")
+    rows = parse_assignments(r"<仓库根>\\s21_image\\读取线6上的待测比特.csv")
     print(format_report(apply_fread(rows)))
 
 说明：
@@ -24,19 +24,26 @@
 import os
 import sys
 
-_REPO_TOOL_DIR = r"D:\QMClaw\tools\s21_photo_reader"
-if _REPO_TOOL_DIR not in sys.path:
-    sys.path.insert(0, _REPO_TOOL_DIR)
+# 本文件所在目录 = <仓库根>/tools/s21_photo_reader（不写死绝对路径）
+try:
+    _TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
+    _REPO_ROOT = os.path.dirname(os.path.dirname(_TOOL_DIR))
+except NameError:  # 在 LabRAD 笔记里 exec 时可能没有 __file__
+    _TOOL_DIR = os.environ.get("S21PR_TOOL_DIR", "")
+    _REPO_ROOT = os.environ.get("QMCLAW_ROOT", "")
+if _TOOL_DIR and _TOOL_DIR not in sys.path:
+    sys.path.insert(0, _TOOL_DIR)
 
 # 默认读数文件：改成你本次照片处理后的 CSV 路径
-CSV_PATH = r"D:\QMClaw\s21_image\读取线6上的待测比特.csv"
+CSV_PATH = os.path.join(_REPO_ROOT, "s21_image", "读取线6上的待测比特.csv") if _REPO_ROOT else ""
 # 也支持留空 = 自动取目录里最新的一张结果 CSV
 CSV_PATH = os.environ.get("S21PR_RESULT_CSV", CSV_PATH)
 
 DRY_RUN = False        # True = 只打印计划，不写硬件
 
 
-def _latest_csv(folder=r"D:\QMClaw\s21_image"):
+def _latest_csv(folder=None):
+    folder = folder or (os.path.join(_REPO_ROOT, "s21_image") if _REPO_ROOT else "")
     from s21pr.assign import find_result_file
     return find_result_file(folder)
 
@@ -56,7 +63,8 @@ def main(csv_path=None, dry_run=None, namespace=None):
 
     path = csv_path or CSV_PATH
     if not path or not os.path.isfile(path):
-        found = find_result_file(r"D:\QMClaw\s21_image")
+        found = find_result_file(
+            os.path.join(_REPO_ROOT, "s21_image") if _REPO_ROOT else ".")
         if found is None:
             print("[ERR] 没找到读数 CSV；请先把照片用 s21_photo_reader 处理出 CSV，"
                   "或修改本脚本里的 CSV_PATH")

@@ -225,7 +225,7 @@ sp.save(fig, r'workspace\output\figure', formats=('svg', 'pdf'), dpi=1200)
 
 ```python
 # 激活测控Python环境
-python = r"C:\Users\lqcs\Programs\Python\Python311\python.exe"
+python = r"<测控环境 python.exe 路径>"
 
 # 常用模块
 from lqms.data_process import dataAnalysisCore as qter

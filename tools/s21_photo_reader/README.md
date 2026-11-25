@@ -10,10 +10,10 @@
 
 ```powershell
 # 单张
-python -m s21pr "D:\QMClaw\s21_image\读取线6上的待测比特.png" -o D:\QMClaw\s21_image\result
+python -m s21pr "s21_image/读取线6上的待测比特.png" -o s21_image/result
 
 # 整目录批量（自动跳过失败，输出汇总 CSV）
-python -m s21pr D:\QMClaw\s21_image\photos --summary D:\QMClaw\s21_image\photos\_summary.csv
+python -m s21pr s21_image/photos --summary s21_image/photos/_summary.csv
 ```
 
 输出（每张图 3 个文件）：
@@ -63,20 +63,20 @@ _fread_updates = {
 在 LabRAD 里执行：
 
 ```python
-exec(open(r"D:\QMClaw\tools\s21_photo_reader\labrad_assign_fread.py").read())
+exec(open(r"<仓库根>\tools\s21_photo_reader\labrad_assign_fread.py").read())
 ```
 
-脚本会读 `D:\QMClaw\s21_image\` 下最新的结果 CSV（可用环境变量 `S21PR_RESULT_CSV` 指定），
+脚本会读仓库根下 `s21_image/` 里最新的结果 CSV（可用环境变量 `S21PR_RESULT_CSV` 指定），
 然后逐条写入 `regs.fread` 并回读校验。
 
 也可以在 LabRAD 笔记里直接调用核心函数：
 
 ```python
 import sys
-sys.path.insert(0, r"D:\QMClaw\tools\s21_photo_reader")
+sys.path.insert(0, r"<仓库根>\tools\s21_photo_reader")
 from s21pr.assign import parse_assignments, apply_fread, format_report
 
-rows = parse_assignments(r"D:\QMClaw\s21_image\读取线6上的待测比特.csv")
+rows = parse_assignments(r"<仓库根>\s21_image\读取线6上的待测比特.csv")
 print(format_report(apply_fread(rows)))
 ```
 
@@ -147,7 +147,7 @@ tools/s21_photo_reader/
 仓库根的 `.pylibs` 里已装好（206 MB），工具会自动把它加入 `sys.path`。
 
 > **解释器版本**：`.pylibs` 里的 onnxruntime 是 **cp312** 轮子，所以识别部分要 **Python 3.12**。
-> 本机可用的是 DSH 运行时 `C:\Users\lqcs\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe`（3.12.14）。
+> 没有独立虚拟环境时，可用 DSH 自带运行时里的 Python（路径随 DSH 安装位置变化，用 `where python` 或 DSH 的依赖面板确认）。
 > AGENTS.md 约定 10 里写的 `D:\semester4\deploy\qmclaw\qmclaw\python.exe`（3.11）在本机不存在；
 > 若改用它，需要把 onnxruntime/rapidocr 换成 cp311 轮子。
 > **赋值部分（`s21pr/assign.py`）是纯标准库**，任何 Python 3 都能跑，也能在 LabRAD 内嵌 Python 里跑。
@@ -155,8 +155,8 @@ tools/s21_photo_reader/
 换机器重装（本机 pip 无法写 `.whl` 时用下载 + 解压的方式）：
 
 ```powershell
-$py = "C:\Users\lqcs\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe"
-& $py -m pip install --target D:\QMClaw\.pylibs rapidocr-onnxruntime onnxruntime opencv-python
+$py = "python"
+& $py -m pip install --target .pylibs rapidocr-onnxruntime onnxruntime opencv-python
 ```
 
 ---

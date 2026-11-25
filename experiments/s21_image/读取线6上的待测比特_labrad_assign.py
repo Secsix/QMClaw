@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 在 LabRAD 中粘贴并执行：把 S21 照片识别结果写入各比特 regs.fread
 # 数据来源：02316 - qubit read_adc1: S21 find dips R6
-# 读数文件：D:\QMClaw\s21_image\读取线6上的待测比特.csv
+# 读数文件：<仓库根>/s21_image/读取线6上的待测比特.csv
 
 _fread_updates = {
     'q15_11': 6.2835,   # 单位 GHz

@@ -90,18 +90,18 @@ Copy-Item -Recurse -Force "D:\semester4\deploy\vendor\Quantum-Calibration-Agent-
 
 ### 2.2 修 2 处写死的绝对路径（**源码问题，必须改**）
 
-这不是环境的问题，是仓库代码里就写死了上一个项目位置 `D:\Documents\QMClaw`：
+这不是环境的问题，是仓库代码里就写死了上一个项目位置（形如 `D:\<旧项目根>\`）：
 
 | 文件 | 行 | 内容 |
 |---|---|---|
-| `server/services/qca_service/server.py` | 38 | `VENDOR_QCA_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
-| `server/services/qca_service/tools/lab_tool.py` | 17 | `VENDOR_DIR = Path(r"D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint")` |
+| `server/services/qca_service/server.py` | 38 | `VENDOR_QCA_DIR = Path(r"D:\<旧项目根>\vendor\Quantum-Calibration-Agent-Blueprint")` |
+| `server/services/qca_service/tools/lab_tool.py` | 17 | `VENDOR_DIR = Path(r"D:\<旧项目根>\vendor\Quantum-Calibration-Agent-Blueprint")` |
 
 实测日志（`check_services.py` 输出）已经印证：
 
 ```
-[QCA] Vendor dir: D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint
-[QCA] sys.path[0]: D:\Documents\QMClaw\vendor\Quantum-Calibration-Agent-Blueprint
+[QCA] Vendor dir: D:\<旧项目根>\vendor\Quantum-Calibration-Agent-Blueprint
+[QCA] sys.path[0]: D:\<旧项目根>\vendor\Quantum-Calibration-Agent-Blueprint
   FAIL  qca :3011  ModuleNotFoundError: No module named 'core.workflow_validation'
 ```
 
@@ -310,7 +310,7 @@ cd "D:\semester4\QMClaw\web"; npm run dev
 & $PY -m pip install --force-reinstall "D:\semester4\deploy\lqms-0.3.3-cp311-cp311-win_amd64.whl"
 ```
 
-> 环境里 `hermes_agent` 和 `qca` 是 **editable** 安装，`.pth` 里写死指向 `D:\Documents\QMClaw\vendor\...`。
+> 环境里 `hermes_agent` 和 `qca` 是 **editable** 安装，`.pth` 里写死指向 `D:\<旧项目根>\vendor\...`。
 > 只要按 §2.1 把 vendor 拷到项目里，`hermes_service` / `qca_service` 走的是**自己的 sys.path 逻辑**，
 > 不依赖这两个 editable 安装，所以**不改 .pth 也能跑**。
 > 但如果你想在命令行直接用 `hermes` / `qca` 命令，或者 `import hermes_cli`，就需要重装：

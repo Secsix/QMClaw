@@ -18,7 +18,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活的源目�
 沙箱禁止 subprocess（CreatePipe 被拒），所以检查脚本用 runpy 在当前进程内跑并重定向 stdout。
 
 用法：
-    python checks/run_all_checks.py             # 17 套离线自检 + 归档
+    python checks/run_all_checks.py             # 18 套离线自检 + 归档
     python checks/run_all_checks.py --e2e      # 再加 3 套在线自检（需服务在跑）
     python checks/run_all_checks.py --only _p3_check
     python checks/run_all_checks.py --archive-only --window-min 600
@@ -57,6 +57,7 @@ OFFLINE = [
     "_service_groups_check.py",
     "_web_proxy_check.py",
     "_docs_paths_check.py",
+    "_repo_hygiene_check.py",
     "_syntax_check.py",
 ]
 # 需要在跑的服务的套件
