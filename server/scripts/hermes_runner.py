@@ -59,8 +59,15 @@ if not os.path.exists(vendor_test):
         print(f"[Hermes] WARNING: Could not find QMCLAW_ROOT, using file-based: {_QMCLAW_ROOT}", file=sys.stderr, flush=True)
 
 CONFIG_DIR = os.environ.get("QMCLAW_CONFIG_DIR", os.path.join(_SERVER_DIR, "config"))
-BACKEND_DIR = os.environ.get("BACKEND_DIR", os.path.join(os.path.dirname(os.path.dirname(_SERVER_DIR)), "measure_scripts", "measure_scripts", "sq_workflow"))
-MEASURE_SCRIPTS = os.environ.get("MEASURE_SCRIPTS", os.path.join(os.path.dirname(os.path.dirname(_SERVER_DIR)), "measure_scripts", "measure_scripts"))
+# 实验室工作流包位置：优先 <root>/measure_scripts，其次本机归档 <root>/_local/legacy/measure_scripts
+_MEASURE_CANDIDATES = [
+    os.path.join(_QMCLAW_ROOT, "measure_scripts", "measure_scripts"),
+    os.path.join(_QMCLAW_ROOT, "_local", "legacy", "measure_scripts", "measure_scripts"),
+]
+MEASURE_SCRIPTS = os.environ.get("MEASURE_SCRIPTS") or next(
+    (p for p in _MEASURE_CANDIDATES if os.path.isdir(p)), _MEASURE_CANDIDATES[0]
+)
+BACKEND_DIR = os.environ.get("BACKEND_DIR") or os.path.join(MEASURE_SCRIPTS, "sq_workflow")
 
 sys.path.insert(0, _SERVER_DIR)
 sys.path.insert(0, MEASURE_SCRIPTS)

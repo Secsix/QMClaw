@@ -37,7 +37,7 @@
 | `connection.port` | LabRAD manager 端口 | `LABRADPORT` env → 本键 → `7682` |
 | `connection.timeout` | 连接超时（秒） | `LABRADTIMEOUT` env → 本键 → `30` |
 | `paths.measure_scripts` | 实验脚本目录 | `MEASURE_SCRIPTS` env → 本键 → 按仓库根推导 |
-| `paths.backend_dir` | 后端目录 | `BACKEND_DIR` env → 本键 → 向上搜索 `measure_scripts` |
+| `paths.backend_dir` | 后端目录 | `BACKEND_DIR` env → 本键 → `<仓库根>/measure_scripts` 或 `<仓库根>/_local/legacy/measure_scripts` |
 
 临时切地址不必改文件：
 

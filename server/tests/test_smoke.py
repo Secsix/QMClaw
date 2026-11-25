@@ -12,9 +12,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# 实验室工作流包（new_ctrl / new_templates）**不在本仓库**，通常放在 legacy/ 下。
-# 若本机存在 legacy/new_ctrl，则一并加入 sys.path，让这个冒烟脚本在实验室机器上可跑。
-LEGACY = os.path.join(ROOT, "legacy")
+# 实验室工作流包（new_ctrl / new_templates）**不在本仓库**，本机归档在 _local/legacy/ 下。
+# 若本机存在 _local/legacy/new_ctrl，则一并加入 sys.path，让这个冒烟脚本在实验室机器上可跑。
+LEGACY = os.path.join(ROOT, "_local", "legacy")
 if os.path.isdir(os.path.join(LEGACY, "new_ctrl")) and LEGACY not in sys.path:
     sys.path.insert(0, LEGACY)
 

@@ -247,7 +247,7 @@ QMClaw/
 
 **不入库的东西**（本机保留，clone 下来不会有）：
 
-- `legacy/` —— 历史目录（`new_ctrl` / `new_templates` / `measure_scripts`），仅供历史脚本参考
+- `_local/legacy/` —— 历史目录（`new_ctrl` / `new_templates` / `measure_scripts`），仅本机保留，不入库
 - `server/config/*.local.json`、`server/config/device_profile.json` —— 本机覆盖配置与真机标定值
 - `server/config/memory/` —— Agent 长期记忆（`episodes/`、`skills/`、`index.json`）
 - `server/data/`、`logs/`、`cache/`、`qwf_out/` 等运行产物

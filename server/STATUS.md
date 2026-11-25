@@ -96,7 +96,7 @@
 |------|------|------|
 | Ray Device Manager actor 初始化 | ⚠️ | 需确保 Ray 集群正确启动 |
 | LabRAD 连接稳定性 | ⚠️ | 长时运行需心跳机制 |
-| legacy/job_runner.py 仍存在 | 🔨 | 迁移后待删除 |
+| 旧 `legacy/` 目录（已归档到 `_local/legacy/`） | 🔨 | 迁移后待删除 |
 
 ## 技术栈
 

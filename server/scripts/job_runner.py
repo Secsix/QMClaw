@@ -418,9 +418,17 @@ def _sanitize_string(s):
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 # Default to relative paths from script location, can be overridden via env vars
-_DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-BACKEND_DIR = os.environ.get("BACKEND_DIR", os.path.join(_DEFAULT_ROOT, "measure_scripts", "measure_scripts", "sq_workflow"))
-MEASURE_SCRIPTS = os.environ.get("MEASURE_SCRIPTS", os.path.join(_DEFAULT_ROOT, "measure_scripts", "measure_scripts"))
+# _DEFAULT_ROOT = 仓库根（本文件在 <root>/server/scripts/ 下，往上三层）
+_DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 实验室工作流包位置：优先 <root>/measure_scripts，其次本机归档 <root>/_local/legacy/measure_scripts
+_MEASURE_CANDIDATES = [
+    os.path.join(_DEFAULT_ROOT, "measure_scripts", "measure_scripts"),
+    os.path.join(_DEFAULT_ROOT, "_local", "legacy", "measure_scripts", "measure_scripts"),
+]
+MEASURE_SCRIPTS = os.environ.get("MEASURE_SCRIPTS") or next(
+    (p for p in _MEASURE_CANDIDATES if os.path.isdir(p)), _MEASURE_CANDIDATES[0]
+)
+BACKEND_DIR = os.environ.get("BACKEND_DIR") or os.path.join(MEASURE_SCRIPTS, "sq_workflow")
 
 sys.path.insert(0, MEASURE_SCRIPTS)
 sys.path.insert(0, BACKEND_DIR)

@@ -27,7 +27,7 @@
 
 以下路径在本机保留，但**不进入版本库**（见 `.gitignore`）：
 
-- `legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录）
+- `_local/legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录，仅本机保留）
 - `server/data/`、`server/logs/`、`server/dist/`
 - `server/config/memory/`、`server/config/*.local.json`
 - `server/config/device_profile.json`（真机标定值；仓里只有 `device_profile.example.json` 模板，

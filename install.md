@@ -279,7 +279,7 @@ If the skill responds correctly, the installation is successful.
 # ① 仓库级自检（无需真机，17 项离线检查）
 python checks/run_all_checks.py
 
-# ② 实验室工作流包冒烟测试（需要 legacy/new_ctrl，缺失时会提示 SKIP）
+# ② 实验室工作流包冒烟测试（需要 _local/legacy/new_ctrl，缺失时会提示 SKIP）
 python server/tests/test_smoke.py
 ```
 
@@ -297,7 +297,7 @@ Expected output:
   ==================================================
 ```
 
-若本机没有 `legacy/new_ctrl`，第 ② 步会直接提示 `SKIP` 并正常退出。
+若本机没有 `_local/legacy/new_ctrl`，第 ② 步会直接提示 `SKIP` 并正常退出。
 
 ### 6.3 Verify MCP Server (Optional)
 
@@ -322,11 +322,11 @@ curl -s http://127.0.0.1:8008/mcp | head -c 100
 
 `new_ctrl` / `new_templates` are **laboratory-side workflow packages and are not
 part of this repository** (they usually sit in a lab's `sq_workflow` directory,
-or in the local `legacy/` folder). Point Python at them:
+or in the local `_local/legacy/` folder). Point Python at them:
 
 ```bash
-# Option 1: legacy/ inside this repo
-export PYTHONPATH="$(pwd)/legacy:$PYTHONPATH"
+# Option 1: _local/legacy/ inside this repo
+export PYTHONPATH="$(pwd)/_local/legacy:$PYTHONPATH"
 
 # Option 2: your own laboratory workflow directory
 export PYTHONPATH="/path/to/sq_workflow:$PYTHONPATH"

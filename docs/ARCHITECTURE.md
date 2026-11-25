@@ -85,7 +85,7 @@ QmClaw 是一个量子测量控制与分析系统，用于控制 LabRAD 实验�
 │   │   └── public/
 │   │       └── plots/          # 生成的图表存储目录
 │
-└── legacy/measure_scripts/      # LabRAD 后端脚本（已出库，仅本机）
+└── _local/legacy/measure_scripts/  # LabRAD 后端脚本（已出库，仅本机）
     ├── sq_workflow/            # 量子比特实验脚本
     └── measure_scripts.py       # 主测控脚本
 ```
