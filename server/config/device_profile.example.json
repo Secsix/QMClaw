@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "session": [
+    ""
+  ],
+  "qubits": {
+    "q0ld3": {
+      "xy_dac": "DAC_LQ 750 AB",
+      "z_dac": "DAC_LQ 751 A",
+      "readout_adc": "ADC_LQ 760",
+      "readin_dac": "DAC_LQ 759 AB",
+      "f10": 0.0,
+      "f21": 0.0,
+      "fread": 0.0,
+      "fc_read": 0.0,
+      "bias_z": 0.0,
+      "fc": 0.0,
+      "pi_gate_amp": 0.0,
+      "pi_gate_alpha": 0.0,
+      "read_in_power": 0.0,
+      "read_out_amp": 0.0,
+      "timing_xy": 0.0
+    }
+  },
+  "updated_at": "1970-01-01T00:00:00Z"
+}

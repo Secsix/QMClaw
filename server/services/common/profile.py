@@ -3,7 +3,8 @@
 问题（docs/ARCHITECTURE_ROADMAP.md §2.7）：session path、比特名、`xy` DAC 通道、读出频率
 现在全硬编码在各个 qwf / 脚本里，换一片芯片就得重写一遍。
 
-画像文件：`config/device_profile.json`
+画像文件：`server/config/device_profile.json`（**本机文件，不入库**；仓里只有
+`server/config/device_profile.example.json` 模板，由 `checks/_gen_device_profile.py` 生成）
 ```json
 {
   "version": "1.0.0",

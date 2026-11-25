@@ -27,6 +27,10 @@ dist/
 offline_data/
 server/config/qubitclient.json
 
+# 设备画像：含真机标定值（各比特 f10/f21、DAC/ADC 通道、时序），属实验室数据，不外传。
+# 仓里只保留模板 server/config/device_profile.example.json。
+server/config/device_profile.json
+
 # Environment (secrets)
 .env
 .env.local

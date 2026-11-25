@@ -30,6 +30,8 @@
 - `legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录）
 - `server/data/`、`server/logs/`、`server/dist/`
 - `server/config/memory/`、`server/config/*.local.json`
+- `server/config/device_profile.json`（真机标定值；仓里只有 `device_profile.example.json` 模板，
+  由 `checks/_gen_device_profile.py` 在本机生成）
 - `.Codex/`（开发进展与临时脚本）
 - `mcp_tools_new.py`、`start-qmclaw.ps1`、`deploy-local.ps1`
 - `qwf_out/`、`cache/`、`logs/`、`__pycache__/` 等构建与运行产物

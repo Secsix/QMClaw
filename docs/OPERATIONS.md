@@ -188,16 +188,18 @@ curl -s "http://127.0.0.1:3003/qubit/profile?refresh=1"
   在 `services/common/qubit_state.py`，返回体含 `state` / `reasons` / `missing` / `next_action` / `metrics`。
 - `probe_transition` 的 `method` 限 `pidf` / `spectroscopy` / `iqcenter`；能力缺失时返回
   `not_found`，提示"重启服务无效：需实验室重新编译 lqms 扩展"。
-- `/qubit/profile` 的数据源是 `config/device_profile.json`，由 `D:\qmclaw\checks\_gen_device_profile.py`
+- `/qubit/profile` 的数据源是 `server/config/device_profile.json`（**本机文件，不入库**；仓里只有
+  `server/config/device_profile.example.json` 模板），由 `checks/_gen_device_profile.py`
   生成（只读 `POST /qubit/registry`，**不下发任何实验**）。用 `--dry-run` 先看差异；
-  若目标目录不可写，脚本会改写到 `D:\qmclaw\_device_profile.json` 并提示手动拷贝。
+  若目标目录不可写，脚本会改写到仓库根的 `_device_profile.json` 并提示手动拷贝。
+  文件缺失时 `load_profile()` 返回空画像（不报错），`/qubit/profile` 只会给出"未配置"。
 - **fixture 自动录制（`quantum_service.actuation.replay_auto_record`）**：三档
   `off`（默认，不录）/ `code_only`（只记代码、比特、数据集号、trace_id，不读寄存器）/ `full`（额外采 registry 前后快照）。
   每请求读取 → **热生效**；环境变量 `QMCLAW_REPLAY_AUTO_RECORD` 优先于配置文件。
   `full` 会多两次 LabRAD 读，**正在跑实验时建议保持 `off` 或 `code_only`**；录制失败一律吞掉，不影响实验结果。
 - **画像自动刷新（`GET /qubit/profile?refresh=1`）**：按画像里的比特逐个只读 `POST /qubit/registry`，
   用设备当前值覆盖旧值写回内存中的画像，并落一份快照到 `<server>/data/device_profile_snapshot.json`
-  （data 目录不可写时降级到 `%TEMP%\qmclaw-device-profile\`）；**不改 `config/device_profile.json`**。
+  （data 目录不可写时降级到 `%TEMP%\qmclaw-device-profile\`）；**不改 `server/config/device_profile.json`**。
   不带 `refresh=1` 时仍是纯读文件，不连设备。
 - **`/qubit/registry` 的成功判据**：成功时返回 `{"name","session_path","registry","source"}`，**没有 `success` 字段**
   （失败时才有 `error`）。凡是判断"读到了没有"，一律用 `payload.get("error")` / `payload["registry"]`，

@@ -1,11 +1,14 @@
 #!/usr/bin/env python
-"""_gen_device_profile.py — 生成设备画像 `config/device_profile.json`。
+"""_gen_device_profile.py — 生成设备画像 `server/config/device_profile.json`。
 
 只读：逐个比特调用 `POST :3003/qubit/registry`（读寄存器），**不下发任何实验**，
 因此不会占用硬件通道、不会影响用户正在跑的测控。
 
+注意：`server/config/device_profile.json` 含真机标定值，**不入库**（见 `.gitignore`）；
+仓里只有模板 `server/config/device_profile.example.json`。
+
 用法：
-    D:/anaconda3/envs/lqcs/python.exe _gen_device_profile.py --qubits q1ld3,q2ld3,... --out "server/config/device_profile.json"
+    python checks/_gen_device_profile.py --qubits q1ld3,q2ld3,... --out "server/config/device_profile.json"
     # 只看报告不落盘：--dry-run
 """
 
@@ -67,7 +70,7 @@ def default_qubits() -> List[str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--qubits", default="", help="逗号分隔的比特名；默认 q1ld3..q12ld3")
-    ap.add_argument("--out", default="", help="输出路径；默认 config/device_profile.json")
+    ap.add_argument("--out", default="", help="输出路径；默认 server/config/device_profile.json")
     ap.add_argument("--dry-run", action="store_true", help="只打印，不落盘")
     args = ap.parse_args()
 
