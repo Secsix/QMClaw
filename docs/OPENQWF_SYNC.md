@@ -68,7 +68,7 @@ vendor/OpenQWF/     ← 上游仓 submodule（本仓只存一条 160000 指针�
     （`continue-on-error: true`），不阻塞主线。
 - **红线**：本仓索引里 `vendor/OpenQWF` 只能有**一条 `160000` 条目**；
   任何 `vendor/OpenQWF/**` 的普通文件都不该出现在本仓
-  （`tests/test_openqwf_drift.py::test_no_source_copy_in_index` 会红）。
+  （`server/tests/test_openqwf_drift.py::test_no_source_copy_in_index` 会红）。
 
 > 旧机制（逐字副本 + `UPSTREAM.json` 逐文件 sha256）已于 2026-11-24 移除：
 > `vendor/OpenQWF/UPSTREAM.json` 不再存在，`tools/sync_openqwf.py` 与
@@ -106,7 +106,7 @@ vendor/OpenQWF/     ← 上游仓 submodule（本仓只存一条 160000 指针�
    预先写进 `sys.modules`。不登记的话 `import dsl.textdsl.parser` 会按上游包的
    `__path__` **再加载一份**，`DSLSyntaxError` 就变成两个类，`except` 只接得住一边。
 
-4. **自检**：`tests/test_openqwf_drift.py` 会盯着薄壳、同一性、双表一致，
+4. **自检**：`server/tests/test_openqwf_drift.py` 会盯着薄壳、同一性、双表一致，
    以及「指针 == 本地 HEAD」「本仓无上游源码副本」。
 
 ## 路径与配置：三张表

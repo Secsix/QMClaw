@@ -256,7 +256,7 @@ If the skill responds correctly, the installation is successful.
 
 ```bash
 # Run the smoke test suite
-python tests/test_smoke.py
+python server/tests/test_smoke.py
 ```
 
 Expected output:

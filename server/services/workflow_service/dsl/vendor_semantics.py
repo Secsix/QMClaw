@@ -5,7 +5,7 @@
 QMClaw 侧保持**惰性代理**（不复制第二份 —— 复制就会漂移）。
 
 本仓运行期回放（`services/common/replay.py`）里还有一份同源表，它服务于
-离线仿真；两份表的一致性由 `tests/test_openqwf_drift.py` 盯着，不一致就红。
+离线仿真；两份表的一致性由 `server/tests/test_openqwf_drift.py` 盯着，不一致就红。
 """
 
 from __future__ import annotations

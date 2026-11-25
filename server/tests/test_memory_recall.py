@@ -15,7 +15,7 @@ memory_manager 分级召回单元测试 — 不依赖运行中的微服务
 隔离：每个测试把 EPISODES_DIR / SKILLS_DIR / INDEX_FILE 全部指到用后即删的临时目录，
 绝不读写真实 config/memory/。
 
-运行: & "D:\semester4\deploy\qmclaw\qmclaw\python.exe" -m pytest tests/test_memory_recall.py -q
+运行: & "D:\semester4\deploy\qmclaw\qmclaw\python.exe" -m pytest server/tests/test_memory_recall.py -q
 """
 
 import json
@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-SERVER = Path(__file__).resolve().parents[1] / "server"
+SERVER = Path(__file__).resolve().parents[1]  # server/（本文件在 server/tests/ 下）
 sys.path.insert(0, str(SERVER))
 from services.common import memory_store, memory_manager, reflection_engine
 
@@ -39,19 +39,19 @@ OLD_FIELDS = {"hasMemory", "relevantSkills", "recentEpisodes", "qubitHistory", "
 META_FIELDS = {"scores", "budget_chars", "used_chars", "truncated", "tiers"}
 
 
-# ── 测试基础设施（照抄 tests/test_memory_sessions.py 的隔离模式） ──────────────
+# ── 测试基础设施（照抄 server/tests/test_memory_sessions.py 的隔离模式） ──────────────
 
 def _new_case_dir() -> Path:
     """新建一个隔离用的临时目录（含 episodes/ 与 skills/ 子目录），用完即删。
 
-    依次尝试系统临时目录、tests/、仓库根：本机 DSH 沙箱对 %TEMP% 的二级目录和
-    tests/ 下的新目录一律 WinError 5，会一路退到仓库根；换任何环境总有一个可用。
+    依次尝试系统临时目录、server/tests/、仓库根：本机 DSH 沙箱对 %TEMP% 的二级目录和
+    server/tests/ 下的新目录一律 WinError 5，会一路退到仓库根；换任何环境总有一个可用。
     全程不触碰真实 config/memory/。
     """
     candidates = [
         Path(tempfile.gettempdir()),
         Path(__file__).resolve().parent,
-        Path(__file__).resolve().parents[1],
+        Path(__file__).resolve().parents[2],
     ]
     last_err = None
     for parent in candidates:

@@ -31,7 +31,7 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 | 工作流 | `workflows/` | **多个实验 + 门槛 + 分支 + 循环** | 跑一条完整工艺链（标定、体检、复测） |
 | 单项 | `experiments/` | 一个实验 | 隔离失败、快速定位、单独复测一个实验 |
 
-两层互不重名（`tests/test_qwf_scripts.py` 盯着），`tools/qwf_exp.py` 按名字选脚本。
+两层互不重名（`server/tests/test_qwf_scripts.py` 盯着），`tools/qwf_exp.py` 按名字选脚本。
 
 ## workflows/ —— 4 条工作流
 
@@ -82,7 +82,7 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 | `drag_calibrate.qwf` | `sq.drag_calibrate` | 2 | `optimal_drag` | 双比特：`qubits ["q0","q1"]` |
 
 这 13 个和 `config/experiment_configs.json` 里的 `experiments` 一一对应
-（`tests/test_qwf_scripts.py` 会盯着这件事）。
+（`server/tests/test_qwf_scripts.py` 会盯着这件事）。
 
 ## 参数口径：qiskit 口径 vs 真机口径
 

@@ -99,7 +99,7 @@ OpenAI 兼容端点 `http://8.134.196.16:13001/v1`）。端到端 `p_measure_vlm
 2. **配置自愈 + 热重载**：`_ensure_loaded()` 在 `initialized=false` 时每次请求重试读盘
    （本机文件是 gitignored 的，第一次启动时不存在，原来是永久 503 只能重启）；
    `POST /reload` 强制重读并丢弃旧 client（换 key / 换 model 不用重启进程）。
-   回归测试：`tests/test_qubitclient_service_reload.py`（5 passed）。
+   回归测试：`server/tests/test_qubitclient_service_reload.py`（5 passed）。
 
 VLM 的 `imagePath` 来自上游 `measure` 出的图（qiskit 也会出图），所以 qiskit 后端下
 `vlm` 节点确实"看得到图"——这是它和 `classify`/`analyze` 的关键差别。

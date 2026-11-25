@@ -9,7 +9,7 @@
 4. 写闸门：闸门关闭时 /execute 与 /qubit/set_params 被拒，不进模拟分支
 5. 离线模拟不受闸门限制
 
-运行: D:/semester4/deploy/qmclaw/qmclaw/python.exe tests/test_real_machine_unit.py
+运行: D:/semester4/deploy/qmclaw/qmclaw/python.exe server/tests/test_real_machine_unit.py
 """
 
 import json
@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]  # 仓库根（本文件在 server/tests/ 下）
 SERVER = ROOT / "server"
 if str(SERVER) not in sys.path:
     sys.path.insert(0, str(SERVER))

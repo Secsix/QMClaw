@@ -15,7 +15,7 @@ charts 恒空。
     4. 离线 + 闸门开 -> 放行
 
 运行:
-    D:/semester4/deploy/qmclaw/qmclaw/python.exe -m pytest tests/test_agent_offline_gate.py -q
+    D:/semester4/deploy/qmclaw/qmclaw/python.exe -m pytest server/tests/test_agent_offline_gate.py -q
 """
 
 import sys
@@ -24,7 +24,7 @@ import urllib.request
 import json as _json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]  # 仓库根（本文件在 server/tests/ 下）
 SERVER = ROOT / "server"
 if str(SERVER) not in sys.path:
     sys.path.insert(0, str(SERVER))

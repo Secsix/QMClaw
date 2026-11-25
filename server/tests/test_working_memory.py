@@ -12,9 +12,9 @@ agent_service L0 工作记忆（P2-T5）单元测试 — 不依赖运行中的�
 5. memory 块缺失 / 字段非法时回退默认值；AgentService 实例同样拿到默认值
 
 隔离：EPISODES_DIR / SKILLS_DIR / INDEX_FILE 全部指到用后即删的临时目录，
-绝不读写真实 config/memory/（照抄 tests/test_agent_sessions.py 的准备方式）。
+绝不读写真实 config/memory/（照抄 server/tests/test_agent_sessions.py 的准备方式）。
 
-运行: & "D:\semester4\deploy\qmclaw\qmclaw\python.exe" -m pytest tests/test_working_memory.py -q
+运行: & "D:\semester4\deploy\qmclaw\qmclaw\python.exe" -m pytest server/tests/test_working_memory.py -q
 """
 
 import json
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-SERVER = Path(__file__).resolve().parents[1] / "server"
+SERVER = Path(__file__).resolve().parents[1]  # server/（本文件在 server/tests/ 下）
 sys.path.insert(0, str(SERVER))
 from services.common import memory_store
 from services.agent_service import server as agent_server
@@ -46,7 +46,7 @@ def _new_case_dir() -> Path:
     candidates = [
         Path(tempfile.gettempdir()),
         Path(__file__).resolve().parent,
-        Path(__file__).resolve().parents[1],
+        Path(__file__).resolve().parents[2],
     ]
     last_err = None
     for parent in candidates:

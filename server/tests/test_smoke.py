@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 冒烟测试 — 验证 import 链通畅，模块可实例化
-运行: python tests/test_smoke.py
+运行: python server/tests/test_smoke.py
 """
 
 import sys
 import os
 
 # 把 QMClaw 项目根目录加入 sys.path
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 

@@ -218,7 +218,7 @@ def _execute_workflow(workflow, tid, **kwargs):
 适配完成后，运行冒烟测试验证：
 
 ```bash
-python tests/test_smoke.py
+python server/tests/test_smoke.py
 ```
 
 如果所有 7 个测试通过，说明你的适配正确。
@@ -241,4 +241,4 @@ A: 在 `_execute_workflow()` 里转换成 QMClaw 期望的格式（见第 1 步�
 
 ### Q: 我没有实际硬件，能测试吗？
 
-A: 可以。`_execute_workflow()` 已经有 Mock 实现，返回模拟数据。直接运行 `python tests/test_smoke.py` 即可。
+A: 可以。`_execute_workflow()` 已经有 Mock 实现，返回模拟数据。直接运行 `python server/tests/test_smoke.py` 即可。

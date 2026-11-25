@@ -197,9 +197,9 @@ QMClaw/
 ├── docs/               # 设计与运维文档
 ├── tools/              # 运维工具（OpenQWF 同步/漂移、比特体检、照片读取、自动标定）
 ├── skills/             # Agent 技能
-├── tests/              # 仓库级测试
+├── server/tests/       # 测试（pytest；含原根级 tests/）
 ├── vendor/             # 上游仓 submodule（OpenQWF / hermes-agent / QubitClient ...）
-├── qwf_*.py            # QWF DSL CLI（run / gen / exp / lint / sweep）
+├── qwf_*.py            # QWF DSL CLI（run / gen / lint，薄壳委派上游 OpenQWF）
 ├── start-qmclaw.ps1    # 一键启动（服务启停由人控制）
 └── deploy-local.ps1    # 本机部署
 ```
