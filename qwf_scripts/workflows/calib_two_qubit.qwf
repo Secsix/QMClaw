@@ -1,7 +1,7 @@
 # 双比特标定链 —— SWAP 保真度 → 达标才标 DRAG alpha
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py calib_two_qubit --if yes
+#   python tools/qwf_exp.py calib_two_qubit --if yes
 #
 # 和单比特链的差别：
 #   * 双比特实验用 `qubits ["q0","q1"]`（字面量列表，不接受 $env 变量）；

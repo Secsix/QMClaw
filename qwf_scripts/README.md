@@ -3,12 +3,12 @@
 这里放的是**脚本本体**：`.qwf` 文件，跑法就一条命令。
 
 ```bash
-python qwf_exp.py --list                        # 看有哪些（工作流 + 单项）
-python qwf_exp.py calib_single                  # 只打印计划（默认不跑）
-python qwf_exp.py calib_single --if yes         # 真跑
-python qwf_exp.py --all --if yes                # 全跑 4 条工作流
-python qwf_exp.py --all-experiments --if yes    # 全跑 13 个单项实验
-python qwf_exp.py t1 swap --if yes              # 一次跑多个（名字可混着写）
+python tools/qwf_exp.py --list                        # 看有哪些（工作流 + 单项）
+python tools/qwf_exp.py calib_single                  # 只打印计划（默认不跑）
+python tools/qwf_exp.py calib_single --if yes         # 真跑
+python tools/qwf_exp.py --all --if yes                # 全跑 4 条工作流
+python tools/qwf_exp.py --all-experiments --if yes    # 全跑 13 个单项实验
+python tools/qwf_exp.py t1 swap --if yes              # 一次跑多个（名字可混着写）
 ```
 
 走的是 qwf 那条唯一推荐入口，不另开捷径：
@@ -31,7 +31,7 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 | 工作流 | `workflows/` | **多个实验 + 门槛 + 分支 + 循环** | 跑一条完整工艺链（标定、体检、复测） |
 | 单项 | `experiments/` | 一个实验 | 隔离失败、快速定位、单独复测一个实验 |
 
-两层互不重名（`tests/test_qwf_scripts.py` 盯着），`qwf_exp.py` 按名字选脚本。
+两层互不重名（`tests/test_qwf_scripts.py` 盯着），`tools/qwf_exp.py` 按名字选脚本。
 
 ## workflows/ —— 4 条工作流
 
@@ -129,11 +129,11 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 
 ## 跑完之后
 
-`qwf_exp.py` 会打印一行一个脚本的汇总（状态 / 后端 / 指标 / 耗时），
+`tools/qwf_exp.py` 会打印一行一个脚本的汇总（状态 / 后端 / 指标 / 耗时），
 工作流还会额外打印**门槛结果**（`PASS`/`FAIL`）和流程里的 `say` 行。
 想要完整 JSON：
 
 ```bash
-python qwf_exp.py --all --if yes --out %TEMP%\qwf_wf.json
-python qwf_exp.py --all-experiments --if yes --out %TEMP%\qwf_exp.json
+python tools/qwf_exp.py --all --if yes --out %TEMP%\qwf_wf.json
+python tools/qwf_exp.py --all-experiments --if yes --out %TEMP%\qwf_exp.json
 ```

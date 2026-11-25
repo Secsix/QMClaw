@@ -13,7 +13,7 @@
      而不是 `qubit`（元数错了校验阶段就拦，E_QUBIT_ARITY）。
 * `qwf_scripts/workflows/` —— **工作流**（一条流程多个实验）。
   守住：lint 干净 + 每条流程至少 2 个实验（一条流程只干一件事就不算工作流了）
-  + 名字不和单项脚本重名（`qwf_exp.py` 按名字选脚本，重名会歧义）。
+  + 名字不和单项脚本重名（`tools/qwf_exp.py` 按名字选脚本，重名会歧义）。
 
 不联网、不起服务、不碰硬件（纯静态）。
 """
@@ -74,7 +74,7 @@ def test_script_set_matches_experiment_table():
 
 
 def test_workflow_names_do_not_collide_with_experiment_names():
-    """`qwf_exp.py` 按名字选脚本，两层重名会歧义。"""
+    """`tools/qwf_exp.py` 按名字选脚本，两层重名会歧义。"""
     exp = {p.stem for p in _script_files()}
     wf = {p.stem for p in _workflow_files()}
     assert not (exp & wf), f"工作流和单项脚本重名：{sorted(exp & wf)}"

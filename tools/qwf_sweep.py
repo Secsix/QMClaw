@@ -5,14 +5,14 @@
 `qwf_scripts/experiments/*.qwf`（每份一个实验），这里只负责"按顺序跑 + 汇总"。
 
 用法：
-    python qwf_sweep.py                      # 只打印计划（默认不跑）
-    python qwf_sweep.py --if yes             # 真跑全部
-    python qwf_sweep.py --only t1 ramsey     # 只跑指定实验
-    python qwf_sweep.py --if yes --out DIR   # 汇总写 DIR/summary.json
+    python tools/qwf_sweep.py                      # 只打印计划（默认不跑）
+    python tools/qwf_sweep.py --if yes             # 真跑全部
+    python tools/qwf_sweep.py --only t1 ramsey     # 只跑指定实验
+    python tools/qwf_sweep.py --if yes --out DIR   # 汇总写 DIR/summary.json
 
-等价于 `python qwf_exp.py --all-experiments [--if yes]`。
+等价于 `python tools/qwf_exp.py --all-experiments [--if yes]`。
 
-跑**工作流**（一条流程多个实验）用 `python qwf_exp.py --all --if yes`。
+跑**工作流**（一条流程多个实验）用 `python tools/qwf_exp.py --all --if yes`。
 """
 from __future__ import annotations
 
@@ -28,11 +28,11 @@ except Exception:  # noqa: BLE001
 
 import qwf_exp
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # 仓根（本文件在 tools/ 下）
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="跑 qwf_scripts/experiments/ 里的单项实验（薄壳，见 qwf_exp.py）")
+    ap = argparse.ArgumentParser(description="跑 qwf_scripts/experiments/ 里的单项实验（薄壳，见 tools/qwf_exp.py）")
     ap.add_argument("--only", nargs="*", default=[], help="只跑指定实验名")
     ap.add_argument("--if", dest="confirm", default="", help="真跑要 --if yes")
     ap.add_argument("--dry", action="store_true", help="干跑：不碰硬件")

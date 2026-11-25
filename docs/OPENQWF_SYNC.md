@@ -138,7 +138,7 @@ vendor/OpenQWF/     ← 上游仓 submodule（本仓只存一条 160000 指针�
 DSL ↔ qiskit 的契约是**代码文本 + `config/experiment_configs.json`**（不是 import）：
 `manifest_hash` 必须在 DSL 侧与 `services/task_queue/ledger.manifest_hash` **逐字节一致**。
 动契约会让 arity 校验 / `_execute_with_qiskit` / `qiskit_experiments.get_spec` /
-`qwf_sweep.py` **一起坏**。
+`tools/qwf_sweep.py` **一起坏**。
 
 ## 本地专属功能怎么回流上游
 

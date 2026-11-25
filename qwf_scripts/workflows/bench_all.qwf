@@ -1,7 +1,7 @@
 # 全量体检 —— 13 个实验一条流程跑完
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py bench_all --if yes
+#   python tools/qwf_exp.py bench_all --if yes
 #
 # 这是"回归式体检"的工作流版本：把单比特、双比特、频谱、读出、
 # 门标定全部串成一条流程，每个实验都 `onError continue`

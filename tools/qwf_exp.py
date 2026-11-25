@@ -3,13 +3,13 @@
 
 用法
 ----
-    python qwf_exp.py --list                       # 列出全部脚本（工作流 + 单项）
-    python qwf_exp.py calib_single                 # 只打印计划（默认不跑）
-    python qwf_exp.py calib_single --if yes        # 真跑
-    python qwf_exp.py calib_single --dry           # 干跑：不碰硬件
-    python qwf_exp.py --all --if yes               # 全跑 4 条工作流
-    python qwf_exp.py --all-experiments --if yes   # 全跑 13 个单项实验
-    python qwf_exp.py t1 swap --if yes             # 一次跑多个
+    python tools/qwf_exp.py --list                       # 列出全部脚本（工作流 + 单项）
+    python tools/qwf_exp.py calib_single                 # 只打印计划（默认不跑）
+    python tools/qwf_exp.py calib_single --if yes        # 真跑
+    python tools/qwf_exp.py calib_single --dry           # 干跑：不碰硬件
+    python tools/qwf_exp.py --all --if yes               # 全跑 4 条工作流
+    python tools/qwf_exp.py --all-experiments --if yes   # 全跑 13 个单项实验
+    python tools/qwf_exp.py t1 swap --if yes             # 一次跑多个
 
 脚本分两层（都在 `qwf_scripts/` 下）：
 
@@ -46,7 +46,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # 仓根（本文件在 tools/ 下）
 SCRIPTS_DIR = ROOT / "qwf_scripts"
 WORKFLOWS_DIR = SCRIPTS_DIR / "workflows"
 EXPERIMENTS_DIR = SCRIPTS_DIR / "experiments"
@@ -112,10 +112,10 @@ def print_list() -> None:
         for name, path in exps:
             print(f"  {name:<18} {describe(path)}")
     print("\n跑法：")
-    print("  python qwf_exp.py <名字>                    # 只打印计划")
-    print("  python qwf_exp.py <名字> --if yes           # 真跑")
-    print("  python qwf_exp.py --all --if yes            # 全跑工作流")
-    print("  python qwf_exp.py --all-experiments --if yes  # 全跑单项实验")
+    print("  python tools/qwf_exp.py <名字>                    # 只打印计划")
+    print("  python tools/qwf_exp.py <名字> --if yes           # 真跑")
+    print("  python tools/qwf_exp.py --all --if yes            # 全跑工作流")
+    print("  python tools/qwf_exp.py --all-experiments --if yes  # 全跑单项实验")
 
 
 # ── HTTP ────────────────────────────────────────────────────────────────────

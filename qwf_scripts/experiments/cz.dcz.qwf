@@ -1,9 +1,9 @@
 # 实测脚本：两比特 CZ（DCZ）门保真度（cz.dcz）
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py cz.dcz            # 只打印计划，不跑
-#   python qwf_exp.py cz.dcz --if yes   # 真跑（后端由 quantum_service 按策略选）
-#   python qwf_exp.py cz.dcz --dry      # 干跑，不碰硬件
+#   python tools/qwf_exp.py cz.dcz            # 只打印计划，不跑
+#   python tools/qwf_exp.py cz.dcz --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python tools/qwf_exp.py cz.dcz --dry      # 干跑，不碰硬件
 #
 # 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
 # 参数口径：qiskit/Aer（error_rate）。真机上 cz.dcz 走的是

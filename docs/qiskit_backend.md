@@ -347,25 +347,25 @@ python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 
 
 | 层 | 目录 | 一份脚本 | 跑法 |
 |---|---|---|---|
-| 工作流 | `qwf_scripts/workflows/` | 多个实验 + 门槛 + 分支 + 循环 | `python qwf_exp.py --all --if yes` |
-| 单项 | `qwf_scripts/experiments/` | 一个实验（隔离失败/复测） | `python qwf_exp.py --all-experiments --if yes` |
+| 工作流 | `qwf_scripts/workflows/` | 多个实验 + 门槛 + 分支 + 循环 | `python tools/qwf_exp.py --all --if yes` |
+| 单项 | `qwf_scripts/experiments/` | 一个实验（隔离失败/复测） | `python tools/qwf_exp.py --all-experiments --if yes` |
 
-统一入口是 `qwf_exp.py`：
+统一入口是 `tools/qwf_exp.py`：
 
 ```powershell
-python qwf_exp.py --list                       # 看有哪些（工作流 + 单项）
-python qwf_exp.py t1                           # 只打印计划（默认不跑）
-python qwf_exp.py t1 --if yes                  # 真跑一个
-python qwf_exp.py --all --if yes               # 全跑 4 条工作流
-python qwf_exp.py --all-experiments --if yes   # 全跑 13 个单项实验
-python qwf_exp.py t1 swap --if yes             # 一次跑多个（名字可混着写）
+python tools/qwf_exp.py --list                       # 看有哪些（工作流 + 单项）
+python tools/qwf_exp.py t1                           # 只打印计划（默认不跑）
+python tools/qwf_exp.py t1 --if yes                  # 真跑一个
+python tools/qwf_exp.py --all --if yes               # 全跑 4 条工作流
+python tools/qwf_exp.py --all-experiments --if yes   # 全跑 13 个单项实验
+python tools/qwf_exp.py t1 swap --if yes             # 一次跑多个（名字可混着写）
 ```
 
-`qwf_sweep.py` 现在是它的薄壳（同一批脚本、同一套后端）：
+`tools/qwf_sweep.py` 现在是它的薄壳（同一批脚本、同一套后端）：
 
 ```powershell
-python qwf_sweep.py --if yes             # 全部 13 个单项实验
-python qwf_sweep.py --if yes --only t1 ramsey   # 只跑指定的
+python tools/qwf_sweep.py --if yes             # 全部 13 个单项实验
+python tools/qwf_sweep.py --if yes --only t1 ramsey   # 只跑指定的
 ```
 
 每个脚本一份独立 `.qwf` 走 `qwf_run.py`（一个失败不拖累其它脚本）。
@@ -472,7 +472,7 @@ qwf_scripts/workflows/    ← 主菜：一条流程多个实验
 qwf_scripts/experiments/  ← 单项：隔离失败 / 单独复测
 ```
 
-`qwf_exp.py --all` 跑工作流，`--all-experiments` 跑单项，`--list` 两段分开列。
+`tools/qwf_exp.py --all` 跑工作流，`--all-experiments` 跑单项，`--list` 两段分开列。
 
 ### 4 条工作流
 

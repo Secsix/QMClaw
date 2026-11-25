@@ -1,9 +1,9 @@
 # 实测脚本：单发读出保真度（sq.single_shot）
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py single_shot            # 只打印计划，不跑
-#   python qwf_exp.py single_shot --if yes   # 真跑（后端由 quantum_service 按策略选）
-#   python qwf_exp.py single_shot --dry      # 干跑，不碰硬件
+#   python tools/qwf_exp.py single_shot            # 只打印计划，不跑
+#   python tools/qwf_exp.py single_shot --if yes   # 真跑（后端由 quantum_service 按策略选）
+#   python tools/qwf_exp.py single_shot --dry      # 干跑，不碰硬件
 #
 # 后端：本机没接 lqcs 真机时自动落到 qiskit/Aer；接了真机就跑真机。
 # 参数口径：qiskit/Aer（points / df_hz / …）。上真机前请把 args 换成厂商口径，

@@ -1,7 +1,7 @@
 # 有界自主循环 —— T1 不到阈值就自动复测（最多 3 轮）
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py tuneup_loop --if yes
+#   python tools/qwf_exp.py tuneup_loop --if yes
 #
 # 这是 qwf 里最"自动驾驶"的一块：`repeat max N stop_when <判据>`。
 #   - max 3        ：硬上限，最多 3 轮（不会无限跑）

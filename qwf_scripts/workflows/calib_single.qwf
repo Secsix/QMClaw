@@ -1,9 +1,9 @@
 # 单比特标定链 —— 一条流程跑完 5 个实验
 #
 # 跑法（仓库根目录）：
-#   python qwf_exp.py calib_single            # 只打印计划，不跑
-#   python qwf_exp.py calib_single --if yes   # 真跑
-#   python qwf_exp.py calib_single --dry      # 干跑，不碰硬件
+#   python tools/qwf_exp.py calib_single            # 只打印计划，不跑
+#   python tools/qwf_exp.py calib_single --if yes   # 真跑
+#   python tools/qwf_exp.py calib_single --dry      # 干跑，不碰硬件
 #
 # 为什么是"工作流"而不是"一个实验一份文件"：
 #   标定是一条**链** —— T1 定时间尺度 → Ramsey 定退相干 → π 脉冲幅度 →

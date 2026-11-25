@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """qwf 离线体检 CLI —— 不起服务、不碰硬件，纯静态检查。
 
+> 实现住在上游 OpenQWF（`vendor/OpenQWF/tools/qwf_lint.py`），本文件是**薄壳**：
+> 委派上游 linter（`qwf.lint.lint_text`），并把配置目录指向本仓 `server/config`。
+> 改实现请改上游仓（`Secsix/OpenQWF`）并同步 submodule 指针，见 `docs/OPENQWF_SYNC.md`。
+
 用法：
     python D:/qmclaw/qwf_lint.py a.qwf b.qwf
     python D:/qmclaw/qwf_lint.py a.qwf --json
@@ -8,74 +12,39 @@
 
 退出码：0 = 没有 error；1 = 有 error（--strict 时 warning 也算）。
 """
-import argparse
-import json
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-SERVER = ROOT / "server"
-sys.path.insert(0, str(SERVER))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
-from services.workflow_service.dsl.lint import lint_text  # noqa: E402
+import qwf_bridge  # noqa: E402
+
+_MOD = None
 
 
-def _read(path: str) -> str:
-    if path == "-":
-        return sys.stdin.read()
-    return Path(path).read_text(encoding="utf-8")
+def _load():
+    """加载上游 linter 模块（缓存）。"""
+    global _MOD
+    if _MOD is None:
+        _MOD = qwf_bridge.load_tool("qwf_lint.py")
+    return _MOD
+
+
+def lint_text(text: str):
+    """对一段 .qwf 文本做静态体检（上游 `qwf.lint.lint_text`）。"""
+    return _load().lint_text(text)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="qwf 离线体检")
-    ap.add_argument("files", nargs="+", help=".qwf 文件路径，- 表示标准输入")
-    ap.add_argument("--json", action="store_true", help="输出 JSON")
-    ap.add_argument("--strict", action="store_true", help="warning 也算失败")
-    args = ap.parse_args()
-
-    results = {}
-    worst = 0
-    for f in args.files:
-        try:
-            text = _read(f)
-        except Exception as exc:
-            results[f] = {"ok": False, "errors": [{"code": "E_READ", "message": str(exc)}],
-                          "warnings": [], "infos": [], "summary": {}}
-            worst = 1
-            continue
-        rep = lint_text(text)
-        results[f] = rep
-        if rep["errors"] or (args.strict and rep["warnings"]):
-            worst = 1
-
-    if args.json:
-        print(json.dumps(results, ensure_ascii=False, indent=2))
-        return worst
-
-    for f, rep in results.items():
-        c = rep.get("counts") or {}
-        print(f"\n=== {f} ===  error={c.get('error', 0)} "
-              f"warning={c.get('warning', 0)} info={c.get('info', 0)}")
-        s = rep.get("summary") or {}
-        if s:
-            print(f"  摘要: 实验 {s.get('experiments')} 次, 会写的键 {s.get('writes')}, "
-                  f"qubit={s.get('qubit')}")
-        for lvl, key in (("ERROR", "errors"), ("WARN ", "warnings"), ("INFO ", "infos")):
-            for item in rep.get(key) or []:
-                line = item.get("line")
-                loc = f" (行 {line})" if line else ""
-                print(f"  {lvl} {item.get('code')}{loc}: {item.get('message')}")
-                if item.get("hint"):
-                    print(f"         提示: {item['hint']}")
-        if not rep.get("errors"):
-            print("  ✓ 没有 error")
-    return worst
+    return _load().main()
 
 
 if __name__ == "__main__":
-    # Windows 控制台常是 GBK，打印 ✓ 之类的字符会 UnicodeEncodeError
+    # 控制台编码修正（Windows 默认 GBK，.qwf 里有中文注释时会炸）
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, ValueError):
         pass
-    sys.exit(main())
+    raise SystemExit(main())

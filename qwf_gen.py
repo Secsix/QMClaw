@@ -1,4 +1,11 @@
+#!/usr/bin/env python
 """qwf_gen.py - 按「实验 + 参数」生成 .qwf（文本 DSL）文件。
+
+> 实现住在上游 OpenQWF（`vendor/OpenQWF/tools/qwf_gen.py`），本文件是**薄壳**：
+> 委派上游生成器，并补一条本仓语义 —— `budget.max_datasets` **恒写**
+> （上游只在 goal 模式写；lint 的 E_NO_BUDGET 要求 max_wall / max_writes /
+> max_datasets 三个一起声明，少一个整份文件就红）。
+> 改实现请改上游仓（`Secsix/OpenQWF`）并同步 submodule 指针，见 `docs/OPENQWF_SYNC.md`。
 
 约定（2026-11-05 起）：跑量子测控实验一律走 `.qwf` 路径，不再直接 `POST :3003/execute`
 下发裸 `sq.*` 代码。本工具负责把"我想跑 sq.t1，zpa 固定 0"这种意图写成可解析、
@@ -48,239 +55,99 @@
 - 循环结束后，体内绑定默认被清掉 → 想让尾部的 `assert` 用到最后一轮的值，必须 `export r1`。
 
 用法：
-    python qwf_gen.py --fn sq.t1 --qubit q4ld3 --param zpa=0.0 \\\\
-        --param delay=0,84000,6000 --timeout 120 --out t1_q4ld3.qwf
-    python qwf_gen.py --fn sq.ramsey_t2 --qubit q4ld3 --read Ramsey \\\\
-        --assert 'T2_us>=5' --out ramsey_q4ld3.qwf
-    python qwf_gen.py --fn sq.iqraw --qubit q4ld3 \\\\
-        --goal-objective "复现 q4ld3 的 iqraw 对比度" \\\\
-        --success-metric contrast --success-op ">=" --success-value 0.6 \\\\
-        --max-rounds 3 --out iqraw_goal_q4ld3.qwf
+    python qwf_gen.py --fn sq.t1 --qubit q4ld3 --param zpa=0.0 --param delay=0,84000,6000 --timeout 120 --out t1_q4ld3.qwf
+    python qwf_gen.py --fn sq.ramsey_t2 --qubit q4ld3 --read Ramsey --assert 'T2_us>=5' --out ramsey_q4ld3.qwf
+    python qwf_gen.py --fn sq.iqraw --qubit q4ld3 --goal-objective "复现 q4ld3 的 iqraw 对比度" --success-metric contrast --success-op ">=" --success-value 0.6 --max-rounds 3 --out iqraw_goal_q4ld3.qwf
     python qwf_gen.py --help
 """
 from __future__ import annotations
 
-import argparse
 import re
 import sys
 from pathlib import Path
 
-# 控制台编码修正：被自检 runner 用 runpy + StringIO 接管道时 stdout 没有 reconfigure，
-# 不能让它成为 import 失败的原因（导入方只想要 qwf_gen 的函数）。
-try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-except (AttributeError, ValueError):
-    pass
+sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
-# 实验 → 可用的 read 指标。只有 iqraw（原始 IQ shots）能走 `read kind IQraw` ——
-# 该节点按 discriminator 轴做投影统计，喂 T1/Ramsey 这类已归约成 P1 的数据集没意义。
-READ_KIND = {
-    "sq.iqraw": "IQraw",
-}
+import qwf_bridge  # noqa: E402
 
-NUM = re.compile(r"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$")
+# 上游 argparse 没有 --max-datasets（本仓自己扩的一个参数），先从 argv 里摘出来
+_DS_ARG = "--max-datasets"
+_cli_max_datasets = ""
+
+# budget 块后处理：上游只在 goal 模式写 max_datasets，且值固定为 max_rounds
+_MAX_DATASETS_RE = re.compile(r"(?m)^    max_datasets .*\n")
+_MAX_WRITES_RE = re.compile(r"(?m)^(    max_writes .*)$")
+
+_MOD = None
+_BUILD = None
 
 
-def _emit_value(raw: str) -> str:
-    """把 CLI 上的一坨文本渲染成 .qwf 里合法的值写法。"""
-    s = raw.strip()
-    if s.lower() in ("true", "false"):
-        return s.lower()
-    if s.startswith("[") and s.endswith("]"):
-        return s                      # 列表原样
-    if "," in s and all(NUM.match(p.strip()) for p in s.split(",")):
-        return "range " + " ".join(p.strip() for p in s.split(","))
-    if NUM.match(s):
-        return s
-    return '"' + s.replace('"', '\\"') + '"'
+def _max_datasets_value(args) -> str:
+    """`max_datasets` 的取值：显式 `--max-datasets` > goal 模式的 `--max-rounds` > `--max-writes`。
+
+    一次写最多产一个数据集，所以兜底取 `max_writes`。
+    调用方（`checks/_qwf_gen_goal_check.py`）自建的 Namespace 不一定有
+    `max_datasets` 键，所以用 `getattr` 兼容。
+    """
+    explicit = getattr(args, "max_datasets", "") or _cli_max_datasets
+    if explicit:
+        return str(explicit)
+    if getattr(args, "goal_objective", ""):
+        return str(max(1, int(getattr(args, "max_rounds", 1) or 1)))
+    return str(getattr(args, "max_writes", "1"))
+
+
+def _patch_budget(text: str, max_datasets: str) -> str:
+    """把上游生成的 budget 块补成三件套齐全（max_wall / max_writes / max_datasets）。"""
+    text = _MAX_DATASETS_RE.sub("", text)
+    if not _MAX_WRITES_RE.search(text):
+        return text
+    return _MAX_WRITES_RE.sub(
+        lambda m: m.group(1) + "\n    max_datasets " + max_datasets, text, count=1)
+
+
+def _load():
+    """加载上游生成器，并把它的 `build` 换成本仓带 budget 补丁的版本。"""
+    global _MOD, _BUILD
+    if _MOD is not None:
+        return _MOD, _BUILD
+    mod = qwf_bridge.load_tool("qwf_gen.py")
+    upstream_build = mod.build
+
+    def build(args) -> str:
+        return _patch_budget(upstream_build(args), _max_datasets_value(args))
+
+    mod.build = build
+    _MOD, _BUILD = mod, build
+    return _MOD, _BUILD
 
 
 def build(args) -> str:
-    fn = args.fn
-    qubit = args.qubit
-    name = args.name or (fn.split(".")[-1] + "_" + qubit)
-
-    lines: list[str] = []
-    lines.append(f"# {name}.qwf — 由 qwf_gen.py 生成（{args.stamp}）")
-    lines.append(f"# {fn} on {qubit}" + (f"  params: {args.param}" if args.param else ""))
-    lines.append(f"workflow {name} {{")
-    lines.append("  meta {")
-    lines.append(f'    name        "{args.title or name}"')
-    lines.append(f'    description "{fn} on {qubit}"')
-    lines.append(f'    tags        ["single-qubit", "{fn.split(".")[-1]}"]')
-    lines.append("  }")
-    lines.append("")
-    lines.append("  env {")
-    lines.append(f'    qubit   "{qubit}"')
-    if args.session:
-        lines.append(f'    session "{args.session}"')
-    lines.append("  }")
-    lines.append("")
-    lines.append("  budget {")
-    lines.append(f"    max_wall   {args.max_wall}")
-    lines.append(f"    max_writes {args.max_writes}")
-    # max_datasets 是 budget 三件套之一（lint 的 E_NO_BUDGET 要求
-    # max_wall / max_writes / max_datasets 同时声明），少写一个整份文件
-    # 就 lint 不过。缺省：显式给了就用给的；goal 模式按轮数；其余与
-    # max_writes 相同（一次写最多产一个数据集）。
-    # 用 getattr 取值：调用方（如 _qwf_gen_goal_check.py）会自建 Namespace，
-    # 里面不一定有 max_datasets 这个键 —— 直接 args.max_datasets 会 AttributeError。
-    _ds_arg = getattr(args, "max_datasets", "")
-    if _ds_arg:
-        _ds = _ds_arg
-    elif getattr(args, "goal_objective", ""):
-        _ds = max(1, int(getattr(args, "max_rounds", 1) or 1))
-    else:
-        _ds = args.max_writes
-    lines.append(f"    max_datasets {_ds}")
-    lines.append("  }")
-    lines.append("")
-
-    kind = args.read or READ_KIND.get(fn)
-    metric = args.say or ("contrast" if kind else "")
-    goal = bool(args.goal_objective)
-
-    if goal and not kind:
-        raise SystemExit("goal 模式需要 --read（要有一个可判定的指标）")
-    if goal and not metric:
-        raise SystemExit("goal 模式需要 --success-metric（缺省 contrast）")
-
-    def _measure_block(indent: str) -> list[str]:
-        out = [f"{indent}measure as c1 {{"]
-        out.append(f"{indent}  fn      {fn}")
-        out.append(f"{indent}  qubit   $env.qubit")
-        out.append(f"{indent}  timeout {args.timeout}")
-        if args.note:
-            out.append(f'{indent}  note "{args.note}"')
-        if args.param:
-            out.append(f"{indent}  args {{")
-            for p in args.param:
-                if "=" not in p:
-                    raise SystemExit(f"--param 需要 key=value 形式，收到 {p!r}")
-                k, v = p.split("=", 1)
-                out.append(f"{indent}    {k.strip()} {_emit_value(v)}")
-            out.append(f"{indent}  }}")
-        out.append(f"{indent}}}")
-        return out
-
-    def _read_block(indent: str) -> list[str]:
-        thr = args.threshold
-        return [f"{indent}read c1 as r1 {{ kind {kind}  threshold {thr} }}"]
-
-    def _analyze_block(indent: str) -> list[str]:
-        if not args.plot:
-            return []
-        return [f'{indent}analyze c1 as a1 {{ command "{args.plot}" }}']
-
-    def _say_block(indent: str) -> list[str]:
-        if metric:
-            return [f'{indent}say "{qubit} {fn.split(".")[-1]} dataset=${{c1.dataset}} {metric}=${{r1.{metric}}}"']
-        return [f'{indent}say "{qubit} {fn.split(".")[-1]} dataset=${{c1.dataset}}"']
-
-    if goal:
-        rounds = max(1, int(args.max_rounds or 1))
-        op = args.success_op or ">="
-        if args.success_value is None:
-            raise SystemExit("goal 模式需要 --success-value")
-        val = args.success_value
-        if (args.goal_style or "native") == "native":
-            # P1（2026-11-05）：直接写 goal 顶层块，由服务端 normalize() 做 lowering。
-            # 执行器依然不认识 goal —— lowering 发生在服务端 IR 规范化阶段。
-            lines.append(f"  # GOAL: {args.goal_objective}")
-            lines.append("  goal {")
-            lines.append(f'    objective   "{args.goal_objective}"')
-            lines.append("    success {")
-            lines.append(f"      metric     r1.{metric}")
-            lines.append(f"      operator   {op}")
-            lines.append(f"      value      {val}")
-            lines.append("    }")
-            lines.append(f"    max_rounds  {rounds}")
-            lines.append('    on_achieved "continue"')
-            lines.append("  }")
-            lines.append("")
-            lines.extend(_measure_block("  "))
-            lines.append("")
-            lines.extend(_read_block("  "))
-            if args.plot:
-                lines.append("")
-                lines.extend(_analyze_block("  "))
-            lines.append("")
-            lines.extend(_say_block("  "))
-            lines.append("}")
-            return "\n".join(lines) + "\n"
-        lines.append(f"  # GOAL: {args.goal_objective}")
-        lines.append(f"  repeat max {rounds} stop_when r1.{metric} {op} {val} export r1 {{")
-        lines.extend(_measure_block("    "))
-        lines.extend(_read_block("    "))
-        lines.extend(_analyze_block("    "))
-        lines.extend(_say_block("    "))
-        lines.append("  }")
-        # 目标未达成 ≠ 运行错误：用 `else continue` 让门只记录不中断（DSL 的
-        # `stmt.onFail == "continue"`，见 dsl/dryrun.py:131），再用 if/else 把
-        # "达成 / 未达成"写进 say —— outcome 契约（P2）会把 g1.passed 结构化。
-        lines.append(f"  if r1.{metric} {op} {val} {{")
-        lines.append(f'    say "GOAL reached: {metric}=${{r1.{metric}}} ({op} {val})"')
-        lines.append("  } else {")
-        lines.append(f'    say "GOAL not reached: {metric}=${{r1.{metric}}} (need {op} {val})"')
-        lines.append("  }")
-        lines.append(f"  assert r1.{metric} {op} {val} else continue as g1")
-        lines.append("}")
-    else:
-        lines.extend(_measure_block("  "))
-        lines.append("")
-        if kind:
-            lines.extend(_read_block("  "))
-            if args.assert_:
-                lines.append(f"  assert {args.assert_} else halt as g1")
-            lines.append("")
-        lines.extend(_analyze_block("  "))
-        if args.plot:
-            lines.append("")
-        lines.extend(_say_block("  "))
-        lines.append("}")
-
-    return "\n".join(lines) + "\n"
+    """生成 .qwf 文本（`checks/_qwf_gen_goal_check.py` 直接调这个）。"""
+    _mod, patched = _load()
+    return patched(args)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--fn", required=True, help="如 sq.t1 / sq.iqraw / sq.ramsey_t2")
-    ap.add_argument("--qubit", required=True)
-    ap.add_argument("--param", action="append", default=[], help="key=value，可重复")
-    ap.add_argument("--read", default="", help="read 的 kind（缺省按实验自动选）")
-    ap.add_argument("--threshold", default="0.4")
-    ap.add_argument("--assert", dest="assert_", default="", help="如 T1_us>=20")
-    ap.add_argument("--note", default="", help="节点注释（写进 .qwf 的 note）")
-    ap.add_argument("--say", default="", help="say 里引用的指标名，缺省 contrast")
-    ap.add_argument("--plot", default="qter.fitData(do_plot=True)")
-    ap.add_argument("--no-plot", dest="plot", action="store_const", const="")
-    ap.add_argument("--timeout", default="120")
-    ap.add_argument("--max-wall", default="10m")
-    ap.add_argument("--max-writes", default="4")
-    ap.add_argument("--max-datasets", default="",
-                    help="budget.max_datasets（缺省与 max_writes 相同；goal 模式下按 --max-rounds）")
-    ap.add_argument("--session", default="20251103_LD_SQ")
-    ap.add_argument("--name", default="")
-    ap.add_argument("--title", default="")
-    ap.add_argument("--out", default="")
-    ap.add_argument("--stamp", default="qwf_gen")
-    # ── goal（P0）────────────────────────────────────────────────────────────
-    ap.add_argument("--goal-objective", default="", help="目标描述；给了就进入 goal 模式")
-    ap.add_argument("--success-metric", default="contrast", help="达成判据的指标名（缺省 contrast）")
-    ap.add_argument("--success-op", default=">=", help="比较符：>= > <= < ==")
-    ap.add_argument("--success-value", default=None, help="达成阈值（数值）")
-    ap.add_argument("--max-rounds", default="1", help="goal 模式下最多迭代几轮")
-    ap.add_argument("--goal-style", choices=["native", "expanded"], default="native",
-                    help="native=写 goal 顶层块（服务端 lowering，推荐）；expanded=手写展开 repeat/if/assert（P0 老写法）")
-    args = ap.parse_args()
-
-    text = build(args)
-    if args.out:
-        Path(args.out).write_text(text, encoding="utf-8")
-        print(f"written: {args.out}  ({len(text)} chars)")
-    else:
-        print(text)
-    return 0
+    global _cli_max_datasets
+    argv = sys.argv[1:]
+    stripped = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == _DS_ARG and i + 1 < len(argv):
+            _cli_max_datasets = argv[i + 1]
+            i += 2
+            continue
+        if arg.startswith(_DS_ARG + "="):
+            _cli_max_datasets = arg.split("=", 1)[1]
+            i += 1
+            continue
+        stripped.append(arg)
+        i += 1
+    sys.argv = [sys.argv[0]] + stripped
+    mod, _ = _load()
+    return mod.main()
 
 
 if __name__ == "__main__":
