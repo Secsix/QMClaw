@@ -41,6 +41,12 @@ PATH_RE = re.compile(
     r"[A-Za-z]:[\\/][^\s`\"'()\[\]{}<>|，。；：]+\.(?:py|md|json|qwf|ts|tsx|ps1)"
 )
 
+# 仓内相对路径（如 `server/config/device_profile.json`）——去机器绝对路径之后，
+# 这是文档引用仓内文件的主力形式，用它衡量"文档里的路径说明够不够"。
+REL_PATH_RE = re.compile(
+    r"(?<![\w./\\])[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.@-]+)+\.(?:py|md|json|qwf|ts|tsx|ps1)"
+)
+
 PASS = 0
 FAIL = 0
 WARN = 0
@@ -89,10 +95,24 @@ def collect_paths() -> dict:
     return found
 
 
+def collect_relative_paths() -> set:
+    found = set()
+    for f in DOC_FILES:
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for m in REL_PATH_RE.finditer(text):
+            found.add(m.group(0))
+    return found
+
+
 def check_paths() -> None:
     print("[1] 文档里的路径必须存在")
     paths = collect_paths()
-    check("扫到文档路径（说明正则在干活）", len(paths) >= 10, str(len(paths)))
+    rel = collect_relative_paths()
+    check("扫到文档路径（说明正则在干活）", len(rel) >= 50,
+          f"仓内相对路径 {len(rel)} 处 / 绝对路径 {len(paths)} 处")
 
     in_repo_missing = []
     interpreter_missing = []
