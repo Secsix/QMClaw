@@ -250,7 +250,7 @@ QMClaw/
 - `_local/legacy/` —— 历史目录（`new_ctrl` / `new_templates` / `measure_scripts`），仅本机保留，不入库
 - `server/config/*.local.json`、`server/config/device_profile.json` —— 本机覆盖配置与真机标定值
 - `server/config/memory/` —— Agent 长期记忆（`episodes/`、`skills/`、`index.json`）
-- `server/data/`、`logs/`、`cache/`、`qwf_out/` 等运行产物
+- `server/data/`、`logs/`、`cache/`、`_local/artifacts/`（自检归档、`qwf_out/` 等）等运行产物
 - 一次性诊断脚本与**设计过程文档**（`_local/docs/*PLAN*.md` 等）—— 见 `.gitignore` 的私有文档规则段
 
 ---

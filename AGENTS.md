@@ -161,7 +161,7 @@ GitHub 上只保留**精简版**：可复用的代码、对外可用/运维类�
 | 对外可用文档 | `docs/OPERATIONS.md`、`docs/ARCHITECTURE.md`、`README.md` | 入库 |
 | 私有设计文档 | `_local/docs/*DESIGN*.md`、`_local/docs/*PLAN*.md`、`_local/docs/TODO_*.md`、`_local/docs/BACKLOG.md` | 只留本地（`.gitignore` 已登记） |
 | 本机配置 | `server/config/*.local.json`、`server/config/device_profile.json`、`server/config/memory/` | 只留本地 |
-| 过程产物 | `_checks/`、`*.log`、`experiments/reports/`、真机实测数据 | 只留本地 |
+| 过程产物 | `_local/artifacts/`（自检归档等）、`*.log`、`experiments/reports/`、真机实测数据 | 只留本地 |
 | 临时脚本 | 根级 `_tmp_*.py` / `_c*_edit*.py` 之类批量编辑脚本 | 用完即删，不入库 |
 
 **红线**：

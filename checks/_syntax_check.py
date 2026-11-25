@@ -5,7 +5,7 @@
 为什么需要它：`python/workflow/entry.py` 曾经有几处少了右括号，**从来没能 import**，
 却因为没人跑过它而一直躺在仓库里。compileall 只覆盖 services，覆盖不到这类角落。
 
-范围：仓库根下所有 `.py`，跳过构建/依赖目录与 `vendor/`（第三方快照）。
+范围：仓库根下所有 `.py`，跳过构建/依赖目录、`vendor/`（第三方快照）与 `_local/`（本机专属区）。
 退出码：0 全通过；1 有文件语法错误。
 """
 from __future__ import annotations
@@ -20,6 +20,8 @@ SKIP_DIRS = {
     ".git", "node_modules", ".next", "_checks", "__pycache__",
     ".venv", "venv", "dist", "build", ".mypy_cache", ".pytest_cache",
     "_task_data", "vendor",
+    # 本机专属区（非源码、不入库；含归档的私有文档/一次性脚本/过程产物）
+    "_local",
     # 本地临时目录（非源码、不入库；.gitignore 已忽略 /tmp/ 与 /logs/）
     "tmp", "logs",
 }

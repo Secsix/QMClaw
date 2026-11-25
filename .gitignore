@@ -183,6 +183,7 @@ tools/s21_photo_reader/_tmp_test/
 /reg_snapshots/
 /t1_fit_q5lu8.png
 # 自检脚本统一落盘目录（运行时产物）
+# 2026-11-25：已改到 _local/artifacts/checks/，下面这条只作旧机器兜底
 /_checks/
 
 # task_queue 账本实际落盘目录（自检 e2e 会生成）
@@ -334,6 +335,7 @@ tools/s21_photo_reader/_tmp_test/
 /启动命令.txt
 
 # --- DSL 论文实验（BE2）产物与工作区：本地私有 ---
+# 2026-11-25：已归档到 _local/artifacts/，下面两条只作旧机器兜底
 /be2_results/
 /be2_work/
 

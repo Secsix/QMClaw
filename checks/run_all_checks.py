@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""把所有 DSL 自检脚本的输出 + 相关运行产物 **汇总到同一个地方**：仓库根的 `_checks/`。
+"""把所有 DSL 自检脚本的输出 + 相关运行产物 **汇总到同一个地方**：`_local/artifacts/checks/`（本机专属区，不入库）。
 
 目录结构（每次运行一个时间戳子目录）：
-    _checks/<ts>/
+    _local/artifacts/checks/<ts>/
         summary.json          每个自检脚本的 {name, exit_code, passed, failed, seconds}
         manifest.json         总索引：自检结果 + 归档产物清单(sha256) + 外部引用(DataVault/图/快照)
         checks/<name>.log     每个自检脚本的原始 stdout+stderr
@@ -37,7 +37,7 @@ from contextlib import redirect_stdout, redirect_stderr
 
 HERE = os.path.dirname(os.path.abspath(__file__))  # checks/ 目录（自检脚本与本文件同处）
 ROOT = os.path.dirname(HERE)                       # 仓库根
-OUT_ROOT = os.path.join(ROOT, "_checks")
+OUT_ROOT = os.path.join(ROOT, "_local", "artifacts", "checks")
 
 # 离线套件（不连真机 / 不需要服务）
 OFFLINE = [
