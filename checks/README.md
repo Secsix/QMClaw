@@ -5,6 +5,8 @@
 本地文件保留可随时跑；长期有效的守卫脚本仍入库。
 2026-11-25 再出库三个一次性脚本（`_governance_check.py` / `_replay_regression.py` /
 `_gen_spec_qwfs.py`）——它们绑定本机路径或需要真机 fixture，不适合对外分发。
+2026-11-25 本机目录整理：这些一次性脚本与阶段自检统一归档到
+`_local/scripts/checks/`（本机保留，不入库、不随仓库分发）。
 
 ## 两类脚本
 

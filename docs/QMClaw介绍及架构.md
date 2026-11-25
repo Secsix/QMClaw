@@ -82,7 +82,7 @@ QMClaw 采用**六层执行栈**和**三层决策架构**：
 ```
 用户/AI 发出实验请求
        ↓
-mcp_tools_new.py (@mcp.tool 接收参数，单位换算)
+_local/scripts/root/mcp_tools_new.py (@mcp.tool 接收参数，单位换算)
        ↓
 new_ctrl/tools/s21.py (调 call_interface)
        ↓

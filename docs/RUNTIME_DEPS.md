@@ -272,7 +272,7 @@ cd "D:\semester4\QMClaw\web"; npm run dev
 | `onnxruntime` | `onnxruntime` | image_service 的 ONNX 推理后端 | `& $PY -m pip install onnxruntime` |
 | `torchvision` | `torchvision` | image_service 的 Torch 后端 | 需匹配 `torch 2.14.0+cpu` |
 | `redis` | `redis` | task_queue 的 Redis 后端（默认内存后端可用） | `& $PY -m pip install redis` |
-| `swiftmcp` | `swiftmcp` | 根目录 `mcp_tools_new.py` 的 MCP 服务（本机文件，gitignored） | `& $PY -m pip install swiftmcp` |
+| `swiftmcp` | `swiftmcp` | `_local/scripts/root/mcp_tools_new.py` 的 MCP 服务（本机文件，gitignored） | `& $PY -m pip install swiftmcp` |
 
 另有一个"包在但没装进环境"的：
 

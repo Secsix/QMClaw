@@ -223,6 +223,7 @@ tools/s21_photo_reader/_tmp_test/
 # 2026-11-24：一次性里程碑自检出库（阶段自检只留本机，不进 GitHub）
 # 阶段自检脚本（_phase2 ~ _phase18 等）是开发期的一次性里程碑证据，
 # 已用 `git rm --cached` 出库；本地文件仍在，可随时跑。
+# 2026-11-25 目录整理：这些一次性脚本统一归档到 `_local/scripts/checks/`。
 # 长期有效的守卫脚本仍入库：_syntax_check.py / _docs_paths_check.py /
 # _service_groups_check.py / _web_proxy_check.py / _p1* / _p2* / _p3_check.py 等。
 # ---------------------------------------------------------------------------
@@ -312,11 +313,9 @@ tools/s21_photo_reader/_tmp_test/
 # --- 本机专属区（2026-11-25 目录整理）---
 # 私有设计文档、一次性脚本、历史资产、过程产物、运行时状态统一收进 _local/，
 # 整个目录不入库（对外只保留精简版）。
-/_local/
-
-# --- 本机专属区（2026-11-25 目录整理）---
-# 私有设计文档、一次性脚本、历史资产、过程产物、运行时状态统一收进 _local/，
-# 整个目录不入库（对外只保留精简版）。
+# 布局：_local/docs（私有设计文档） _local/scripts（一次性脚本）
+#      _local/legacy（旧代码资产） _local/artifacts（过程产物）
+#      _local/startup（本机启动脚本）
 /_local/
 
 # --- 本机实验产物与运行数据 ---

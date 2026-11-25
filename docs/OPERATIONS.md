@@ -274,11 +274,11 @@ goal {
 
 ```powershell
 # 回归 CLI 是本机脚本（不入库）；仓内的回放能力在 server/services/common/replay.py
-python <本机路径>\checks\_replay_regression.py
+python <本机路径>\_local\scripts\checks\_replay_regression.py
 
 # 指定目录 / 限制条数 / 输出 JSON / 允许 N 条漂移
-python <本机路径>\checks\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
-python <本机路径>\checks\_replay_regression.py --max-drift 2
+python <本机路径>\_local\scripts\checks\_replay_regression.py --dir D:\tmp\fx --limit 20 --json
+python <本机路径>\_local\scripts\checks\_replay_regression.py --max-drift 2
 ```
 
 - 结论 `verdict`：`green`（仿真与真机一致）/ `drift`（检出漂移）/ `broken`（fixture 损坏）/
@@ -1000,7 +1000,8 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 2. 跑第四节的自检脚本（离线那几套不需要起服务）
 3. HTTP 那几套（`_p3_e2e.py`）需要 `:3009` 在跑（默认就打正式 :3008/:3009；
    沙箱里要在临时端口验证就设 `QMCLAW_WF_URL` / `QMCLAW_TQ_URL`）：
-   临时桩服务脚本（`_tq_test_server.py` / `_wf_test_server.py`）已出库，仅本机保留；
+   临时桩服务脚本（`_tq_test_server.py` / `_wf_test_server.py`）已归档到
+   `_local/scripts/checks/`，仅本机保留；
    设 `QMCLAW_TQ_URL=http://127.0.0.1:3019` 指向自备的 task_queue 实例即可
-4. 同步 `.Codex/progress.md`（内容写在**文件顶部**）与 `docs/DSL_DESIGN.md`
+4. 同步 `.Codex/progress.md`（内容写在**文件顶部**）与 `_local/docs/` 下的设计文档（仅本机保留）
 5. 请人重启 :3003/:3008/:3009 后再真机复验

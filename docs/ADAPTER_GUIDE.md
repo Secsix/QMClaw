@@ -9,7 +9,7 @@
 QMClaw 的实验调用链如下：
 
 ```
-mcp_tools_new.py  (@mcp.tool)          ← 接收参数，单位换算
+_local/scripts/root/mcp_tools_new.py  (@mcp.tool)          ← 接收参数，单位换算
     ↓
 legacy/new_ctrl/tools/s21.py           ← 调 call_interface
     ↓

@@ -114,7 +114,7 @@ python "server\scripts\check_readonly_regression.py"
 
 | 症状 | 可能原因 | 处理 |
 |---|---|---|
-| `/mode` 切 online 后 `connected: false` | host/port 错、防火墙、manager 未起 | 看响应 `error`；跑 `check_labrad_link.py` 看卡在哪一步 |
+| `/mode` 切 online 后 `connected: false` | host/port 错、防火墙、manager 未起 | 看响应 `error`；跑 `_local/scripts/deploy_diff_tools/check_labrad_link.py` 看卡在哪一步 |
 | TCP 通但 `labrad.connect` 失败 | TLS 模式不匹配、密码 | 对齐测控机 manager 配置 |
 | `initialize` 卡在 `switchSession` | DataVault 会话不存在 | 改 `session.json` 为远程已存在的路径 |
 | `FileNotFoundError: temporary directory` | TEMP 不可写 | 修好 TEMP 再启动 |

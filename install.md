@@ -381,7 +381,7 @@ If the MCP server is not reachable:
 curl -s http://127.0.0.1:8008/mcp
 
 # If not running, start it
-python mcp_tools_new.py  # 本机脚本（gitignored，不随仓库分发）；或 docker-compose up -d
+python _local/scripts/root/mcp_tools_new.py  # 本机脚本（gitignored，不随仓库分发）；或 docker-compose up -d
 ```
 
 ---
