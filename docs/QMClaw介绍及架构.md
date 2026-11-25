@@ -56,14 +56,24 @@ QMClaw 采用**六层执行栈**和**三层决策架构**：
 
 ### 4. 技能层 (`skills/`)
 
-7 个可安装的 Skill 包：
+可安装的 Skill 包（`skills/` 目录，与仓库同源）：
+
+框架类（`qmclaw-` 前缀）：
 - `qmclaw-framework-overview` — 框架概述
 - `qmclaw-decision-architecture` — 决策架构
 - `qmclaw-tuneup-workflow` — 单比特调校工作流
-- `qmclaw-data-analysis` — 数据分析与质量评估
 - `qmclaw-tool-scheduling` — 工具调度与后端接口
-- `quantum-calibration` — 量子比特校准标定
+- `qmclaw-service-endpoints` — 各微服务接口清单
+
+应用类：
+- `qubit-data-analysis` — 数据分析与质量评估
+- `qubit-calibration` — 量子比特校准标定
+- `qubit-contrast-tuning` — 对比度调优
 - `quantum-experiment-plotter` — 量子实验绘图与分析
+- `lqms-offline-datavault-plotting` — 离线 DataVault 出图
+- `s21-photo-reader` — S21 照片读取与拟合
+
+公共内容在 `skills/_shared/`（术语、量子参数、质量标准）。
 
 ---
 

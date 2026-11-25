@@ -58,7 +58,11 @@ Consistent terminology for QMClaw skills.
 | Prefix | Purpose | Example |
 |--------|---------|---------|
 | `qmclaw-` | QMClaw framework skills | `qmclaw-framework-overview` |
-| `quantum-` | Application skills | `quantum-calibration` |
+| `qubit-` | Application skills（量子比特相关） | `qubit-calibration` |
+| `quantum-` | Application skills（实验工具类） | `quantum-experiment-plotter` |
+| `lqms-` | LabRAD / DataVault 相关 | `lqms-offline-datavault-plotting` |
+| `s21-` | 单功能工具类 | `s21-photo-reader` |
+| `_shared/` | 跨 skill 公共内容（无 SKILL.md） | `core/terminology.md` |
 
 ## Version Notation
 

@@ -22,4 +22,4 @@
 ## 相关资源
 
 - 完整流程笔记：`D:\lqcs\lqcs code\test-auto-calibration-script-20251018.ipynb`
-- MCP服务：`workspace/quantum-calibration-mcp/`
+- MCP服务：`qmclaw_mcp`（`server/config/mcp_tools.json`，`http://localhost:8008`）

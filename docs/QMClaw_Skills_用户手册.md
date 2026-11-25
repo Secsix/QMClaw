@@ -18,8 +18,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/YOUR_USERNAME/qmclaw-skills.git
-cd qmclaw-skills
+git clone https://github.com/Secsix/QMClaw.git
+cd QMClaw
 
 # 安装 skills 到 AI Agent 客户端目录（以 Claude Code 为例）
 mkdir -p ~/.claude/skills
@@ -29,8 +29,8 @@ cp -R skills/* ~/.claude/skills/
 ### 方式二：插件市场安装（以 Claude Code 为例）
 
 ```bash
-claude plugin marketplace add YOUR_GITHUB/qmclaw-skills
-claude plugin install qmclaw-skills@qmclaw-skills
+claude plugin marketplace add Secsix/QMClaw
+claude plugin install QMClaw@QMClaw
 ```
 
 ---
@@ -65,7 +65,7 @@ QMClaw 的决策架构是什么？
 
 ```python
 import sys
-sys.path.insert(0, "path/to/qmclaw-skills")
+sys.path.insert(0, "path/to/QMClaw")
 
 from new_ctrl.task import call_interface, get_data
 from new_templates import S21_template
@@ -187,4 +187,4 @@ A: 修改 `new_ctrl/task.py` 中的 `_execute_workflow()`，按 workflow name �
 
 ---
 
-> 如有问题请提 Issue: https://github.com/YOUR_USERNAME/qmclaw-skills/issues
+> 如有问题请提 Issue: https://github.com/Secsix/QMClaw/issues

@@ -269,11 +269,11 @@ cd "D:\semester4\QMClaw\web"; npm run dev
 
 | 模块 | pip 包名 | 影响 | 安装命令 |
 |---|---|---|---|
-| `docx` | `python-docx` | `measure_scripts/.../sq_workflow/backend.py` 的 docx 图表报告导出 | `& $PY -m pip install python-docx` |
+| `docx` | `python-docx` | `legacy/measure_scripts/.../sq_workflow/backend.py` 的 docx 图表报告导出 | `& $PY -m pip install python-docx` |
 | `onnxruntime` | `onnxruntime` | image_service 的 ONNX 推理后端 | `& $PY -m pip install onnxruntime` |
 | `torchvision` | `torchvision` | image_service 的 Torch 后端 | 需匹配 `torch 2.14.0+cpu` |
 | `redis` | `redis` | task_queue 的 Redis 后端（默认内存后端可用） | `& $PY -m pip install redis` |
-| `swiftmcp` | `swiftmcp` | 根目录 `mcp_tools_new.py` 的 MCP 服务 | `& $PY -m pip install swiftmcp` |
+| `swiftmcp` | `swiftmcp` | 根目录 `mcp_tools_new.py` 的 MCP 服务（本机文件，gitignored） | `& $PY -m pip install swiftmcp` |
 
 另有一个"包在但没装进环境"的：
 

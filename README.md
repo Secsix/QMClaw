@@ -1,24 +1,20 @@
-# QMClaw Skills
+# QMClaw
 
-可扩展的通用量子比特测控技能框架。
+可扩展的通用量子比特测控平台与技能框架。
 
 A scalable general-purpose framework for quantum measurement and control, providing reusable instruction bundles centered on `SKILL.md`.
 
 ---
 
 <p align="center">
-  <img src="assets/qmclaw-logo.png" alt="QMClaw" width="400"/>
-</p>
-
-<p align="center">
-  <a href="https://github.com/YOUR_USERNAME/qmclaw-skills/blob/main/LICENSE">
+  <a href="https://github.com/Secsix/QMClaw/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
   </a>
-  <a href="https://github.com/YOUR_USERNAME/qmclaw-skills/stargazers">
-    <img src="https://img.shields.io/github/stars/YOUR_USERNAME/qmclaw-skills" alt="Stars">
+  <a href="https://github.com/Secsix/QMClaw/stargazers">
+    <img src="https://img.shields.io/github/stars/Secsix/QMClaw" alt="Stars">
   </a>
-  <a href="https://github.com/YOUR_USERNAME/qmclaw-skills/releases">
-    <img src="https://img.shields.io/github/v/release/YOUR_USERNAME/qmclaw-skills" alt="Version">
+  <a href="https://github.com/Secsix/QMClaw/releases">
+    <img src="https://img.shields.io/github/v/release/Secsix/QMClaw" alt="Version">
   </a>
 </p>
 
@@ -64,8 +60,8 @@ A scalable general-purpose framework for quantum measurement and control, provid
 | [QMClaw三层决策架构](./skills/qmclaw-decision-architecture/README.md) | v1.0 | L1/L2/L3 决策层、RuleEngine、规则引擎 | "决策", "RuleEngine", "规则" |
 | [QMClaw单比特调校工作流](./skills/qmclaw-tuneup-workflow/README.md) | v1.0 | 15 步校准流程、状态机、Panel 批量校准 | "校准", "调校", "calibration", "tune-up" |
 | [QMClaw工具调度与后端接口](./skills/qmclaw-tool-scheduling/README.md) | v1.0 | 工具白名单、MCP、Center Agent、Backend Adapter | "工具调度", "后端", "tool scheduling" |
-| [QMClaw数据分析与质量评估](./skills/qmclaw-data-analysis/README.md) | v1.0 | T1/Rabi 拟合、XEB 保真度、质量指标 | "数据分析", "保真度", "T1", "quality" |
-| [量子比特单比特校准标定](./skills/quantum-calibration/README.md) | v1.0 | 完整校准标定流程、参数管理、质量判定 | "校准", "标定", "单比特", "qubit" |
+| [QMClaw数据分析与质量评估](./skills/qubit-data-analysis/README.md) | v1.0 | T1/Rabi 拟合、XEB 保真度、质量指标 | "数据分析", "保真度", "T1", "quality" |
+| [量子比特单比特校准标定](./skills/qubit-calibration/README.md) | v1.0 | 完整校准标定流程、参数管理、质量判定 | "校准", "标定", "单比特", "qubit" |
 | [量子实验绘图与分析](./skills/quantum-experiment-plotter/README.md) | v1.0 | 一维/二维绘图、学术图表、数据拟合 | "绘图", "可视化", "plot", "figure" |
 | [离线DataVault数据出图](./skills/lqms-offline-datavault-plotting/README.md) | v1.0 | 无LabRAD环境读hdf5重建DataLab、批量出图、矢量导出 | "离线出图", "DataVault", "历史数据出图", "datavault" |
 
@@ -79,8 +75,8 @@ A scalable general-purpose framework for quantum measurement and control, provid
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/qmclaw-skills.git
-cd qmclaw-skills
+git clone https://github.com/Secsix/QMClaw.git
+cd QMClaw
 
 # Install skills
 mkdir -p ~/.claude/skills
@@ -149,62 +145,51 @@ sq.t1(qobj, zpa=0)
 
 ## 📁 Project Structure
 
-```
-qmclaw-skills/
-├── README.md                    # This file
-├── LICENSE                      # MIT License
-├── install.md                   # Installation guide
-├── CONTRIBUTING.md              # Contribution guidelines
-├── .gitignore                   # Git ignore patterns
-│
-├── assets/                      # Project assets
-│   └── qmclaw-logo.png          # Logo
-│
-├── skills/                      # Skills directory
-│   ├── _shared/                 # Shared content
-│   │   ├── core/
-│   │   │   ├── quantum-params.md
-│   │   │   ├── quality-standards.md
-│   │   │   └── terminology.md
-│   │   └── README.md
-│   │
-│   ├── qmclaw-framework-overview/       # Framework architecture
-│   │   ├── SKILL.md
-│   │   └── README.md
-│   │
-│   ├── qmclaw-decision-architecture/    # Three-layer decision
-│   ├── qmclaw-tuneup-workflow/          # 15-step calibration
-│   ├── qmclaw-tool-scheduling/          # Tool scheduling
-│   ├── qmclaw-data-analysis/            # Data analysis
-│   ├── quantum-calibration/             # Single-qubit calibration
-│   ├── quantum-experiment-plotter/      # Visualization
-│   └── lqms-offline-datavault-plotting/ # Offline DataVault figures
-│
-└── docs/                        # Documentation (optional)
-```
-
----
-
-### 仓库根目录（2026-11-20 整理后）
+仓库是「平台 + 技能」一体：根目录是完整工程（后端 / 前端 / 工具 / 文档 / 技能）。
 
 ```
 QMClaw/
 ├── server/            # 后端：Express :3002 + Python 微服务
 ├── web/               # 前端：Next.js :8081
-├── checks/             # 自检脚本（原根目录 49 个 _*.py）+ run_all_checks.py
-├── experiments/        # 实验脚本与产物：自动化单比特标定 / s21_image / reports / t1_fit
-├── legacy/             # 历史目录（new_ctrl / new_templates / measure_scripts / ...）
-├── docs/               # 设计与运维文档
-├── tools/              # 运维工具（OpenQWF 同步/漂移、比特体检、照片读取、自动标定）
-├── skills/             # Agent 技能
-├── server/tests/       # 测试（pytest；含原根级 tests/）
-├── vendor/             # 上游仓 submodule（OpenQWF / hermes-agent / QubitClient ...）
-├── qwf_*.py            # QWF DSL CLI（run / gen / lint，薄壳委派上游 OpenQWF）
-├── start-qmclaw.ps1    # 一键启动（服务启停由人控制）
-└── deploy-local.ps1    # 本机部署
+├── checks/            # 自检脚本 + run_all_checks.py（17 项离线清单）
+├── experiments/       # 实验脚本与产物（自动化单比特标定 / s21_image / reports / t1_fit）
+├── docs/              # 设计与运维文档
+├── tools/             # 运维工具（OpenQWF 同步/漂移、比特体检、照片读取、自动标定）
+├── skills/            # Agent 技能（SKILL.md）
+├── qwf_scripts/       # QWF DSL 脚本与工作流
+├── qwf_examples/      # QWF DSL 示例
+├── vendor/            # 上游仓 submodule（OpenQWF / hermes-agent / QubitClient ...）
+├── qwf_gen.py         # QWF DSL CLI：gen / run / lint（薄壳委派上游 OpenQWF）
+├── AGENTS.md          # 开发约定（本仓唯一约定文件）
+├── install.md         # 安装指南
+├── requirements.txt   # Python 依赖
+└── pyproject.toml     # Python 包配置
 ```
 
-新增文件的落位规则与各目录职责见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。
+`start-qmclaw.ps1` / `deploy-local.ps1` / `mcp_tools_new.py` 是本机脚本（gitignored），
+不在仓库里。
+
+- `legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录）本机保留但**不入库**，
+  仅供历史脚本与文档参考。
+- `server/config/*.local.json` 为本机覆盖配置，同样**不入库**。
+- 各目录职责与新增文件的落位规则见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。
+
+### skills/ 目录清单
+
+| Skill | 说明 |
+|-------|------|
+| `_shared/` | 通用术语、量子参数、质量标准 |
+| `qmclaw-framework-overview/` | 框架架构、六层栈、三层决策 |
+| `qmclaw-decision-architecture/` | L1 / L2 / L3 决策层 |
+| `qmclaw-tuneup-workflow/` | 15 步校准流程 |
+| `qmclaw-tool-scheduling/` | 工具白名单、MCP、调度与后端适配 |
+| `qmclaw-service-endpoints/` | 各微服务接口清单 |
+| `qubit-data-analysis/` | T1 / Rabi 拟合、XEB 保真度、质量指标 |
+| `qubit-calibration/` | 单比特校准标定 |
+| `qubit-contrast-tuning/` | 对比度调优 |
+| `quantum-experiment-plotter/` | 学术级绘图与数据拟合 |
+| `lqms-offline-datavault-plotting/` | 离线 DataVault 批量出图 |
+| `s21-photo-reader/` | S21 照片读取与拟合 |
 
 ## 🏗️ Architecture
 
@@ -280,7 +265,7 @@ Contributions are welcome! Please follow these steps:
 
 ### Adding a New Skill
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines.
+See [AGENTS.md](./AGENTS.md)（开发约定）与 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)（文件放位规则）.
 
 ---
 
@@ -300,7 +285,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **GitHub Issues**: [Issues](https://github.com/YOUR_USERNAME/qmclaw-skills/issues)
+- **GitHub Issues**: [Issues](https://github.com/Secsix/QMClaw/issues)
 
 ---
 

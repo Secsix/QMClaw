@@ -52,9 +52,9 @@ full = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/YOUR_USERNAME/qmclaw-skills"
-"Repository" = "https://github.com/YOUR_USERNAME/qmclaw-skills"
-"Bug Tracker" = "https://github.com/YOUR_USERNAME/qmclaw-skills/issues"
+"Homepage" = "https://github.com/Secsix/QMClaw"
+"Repository" = "https://github.com/Secsix/QMClaw"
+"Bug Tracker" = "https://github.com/Secsix/QMClaw/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

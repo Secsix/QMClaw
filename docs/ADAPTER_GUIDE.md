@@ -11,11 +11,11 @@ QMClaw 的实验调用链如下：
 ```
 mcp_tools_new.py  (@mcp.tool)          ← 接收参数，单位换算
     ↓
-new_ctrl/tools/s21.py                   ← 调 call_interface
+legacy/new_ctrl/tools/s21.py           ← 调 call_interface
     ↓
-new_ctrl/task.py → call_interface()     ← 生成 tid，存结果
+legacy/new_ctrl/task.py → call_interface()  ← 生成 tid，存结果
     ↓
-new_ctrl/task.py → _execute_workflow()  ← 【你要改的唯一函数】
+legacy/new_ctrl/task.py → _execute_workflow() ← 【你要改的唯一函数】
     ↓
 你的测控系统 (labrad / artiq / quark / 自研)
 ```

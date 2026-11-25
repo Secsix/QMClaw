@@ -20,8 +20,8 @@
 ### 2.1 Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/qmclaw-skills.git
-cd qmclaw-skills
+git clone https://github.com/Secsix/QMClaw.git
+cd QMClaw
 ```
 
 ### 2.2 Option A — Install as Skills (No Python packaging needed)
@@ -37,6 +37,7 @@ Copy the whole folder, not only `SKILL.md`, because many skills depend on `_shar
 mkdir -p ~/.claude/skills
 cp -R skills/_shared ~/.claude/skills/
 cp -R skills/qmclaw-* ~/.claude/skills/
+cp -R skills/qubit-* ~/.claude/skills/
 cp -R skills/quantum-* ~/.claude/skills/
 ```
 
@@ -46,6 +47,7 @@ cp -R skills/quantum-* ~/.claude/skills/
 git pull
 cp -R skills/_shared ~/.claude/skills/
 cp -R skills/qmclaw-* ~/.claude/skills/
+cp -R skills/qubit-* ~/.claude/skills/
 cp -R skills/quantum-* ~/.claude/skills/
 ```
 
@@ -163,7 +165,7 @@ Calculate T1 fitting and XEB fidelity
 
 ```python
 import sys
-sys.path.insert(0, "path/to/qmclaw-skills")
+sys.path.insert(0, "path/to/QMClaw")
 
 from new_ctrl.task import call_interface, get_data
 from new_templates import S21_template, rabi_template, t1_template
@@ -233,8 +235,8 @@ print(f"Frequency: {value}")
 | `qmclaw-decision-architecture` | L1/L2/L3 decision layers, RuleEngine | "决策", "RuleEngine", "规则" |
 | `qmclaw-tuneup-workflow` | 15-step calibration, state machine, Panel batch | "校准", "调校", "calibration", "tune-up" |
 | `qmclaw-tool-scheduling` | Tool whitelist, MCP, Center Agent, Backend Adapter | "工具调度", "后端", "tool scheduling" |
-| `qmclaw-data-analysis` | T1/Rabi fitting, XEB/RB fidelity, quality metrics | "数据分析", "保真度", "T1", "quality" |
-| `quantum-calibration` | Complete single-qubit calibration and labeling | "校准", "标定", "单比特", "qubit" |
+| `qubit-data-analysis` | T1/Rabi fitting, XEB/RB fidelity, quality metrics | "数据分析", "保真度", "T1", "quality" |
+| `qubit-calibration` | Complete single-qubit calibration and labeling | "校准", "标定", "单比特", "qubit" |
 | `quantum-experiment-plotter` | 1D/2D plotting, academic figures, data fitting | "绘图", "可视化", "plot", "figure" |
 | `lqms-offline-datavault-plotting` | Offline DataVault HDF5 -> lqms DataLab -> batch figures, vector export | "离线出图", "DataVault", "历史数据出图" |
 
@@ -348,7 +350,7 @@ If the MCP server is not reachable:
 curl -s http://127.0.0.1:8008/mcp
 
 # If not running, start it
-python mcp_tools_new.py  # or docker-compose up -d
+python mcp_tools_new.py  # 本机脚本（gitignored，不随仓库分发）；或 docker-compose up -d
 ```
 
 ---
@@ -358,12 +360,13 @@ python mcp_tools_new.py  # or docker-compose up -d
 To update QMClaw Skills to the latest version:
 
 ```bash
-cd qmclaw-skills
+cd QMClaw
 git pull
 
 # Re-install skills
 cp -R skills/_shared ~/.claude/skills/
 cp -R skills/qmclaw-* ~/.claude/skills/
+cp -R skills/qubit-* ~/.claude/skills/
 cp -R skills/quantum-* ~/.claude/skills/
 
 # Re-install Python package (if used)
@@ -396,9 +399,9 @@ pip uninstall qmclaw
 
 ## 10. Support
 
-- **GitHub Issues**: [https://github.com/YOUR_USERNAME/qmclaw-skills/issues](https://github.com/YOUR_USERNAME/qmclaw-skills/issues)
+- **GitHub Issues**: [https://github.com/Secsix/QMClaw/issues](https://github.com/Secsix/QMClaw/issues)
 - **Documentation**: See `skills/*/README.md` for individual skill documentation
-- **Contributing**: See `CONTRIBUTING.md` for guidelines on adding new skills
+- **Contributing**: See `AGENTS.md`（开发约定）与 `docs/REPO_LAYOUT.md` for guidelines on adding new skills
 
 ---
 

@@ -1,4 +1,4 @@
-# 仓库根目录结构（2026-11-20 整理）
+# 仓库根目录结构（2026-11-25 更新）
 
 本次整理只搬家、不改行为：脚本内部路径已同步修正，`checks/run_all_checks.py`
 的自检清单、CI（`.github/workflows/checks.yml`）与文档引用均已指向新位置。
@@ -8,21 +8,37 @@
 | 路径 | 职责 | 备注 |
 |------|------|------|
 | `server/` | 后端：Express :3002 + Python 微服务 | 服务启停由人控制（约定 3） |
+| `server/tests/` | 全部 pytest 测试 | 原根级 `tests/` 已迁入此处（B6） |
 | `web/` | 前端：Next.js :8081 | 服务启停由人控制（约定 3） |
 | `checks/` | 全部自检脚本 + `run_all_checks.py` | 脚本内 `ROOT = Path(__file__).resolve().parent.parent` 指向仓库根 |
 | `experiments/` | 实验脚本、数据与产物 | `自动化单比特标定/`、`s21_image/`、`reports/`、`t1_fit.py` |
-| `legacy/` | 历史目录，仅存档 | 已在 `.gitignore` 中忽略，内容不进版本库 |
 | `docs/` | 设计/运维文档 | 清单与 runner 一致性由 `checks/_docs_paths_check.py` 校验 |
-| `tools/` | 运维脚本 | OpenQWF 同步与漂移、比特体检、照片读取、单比特自动标定 |
+| `tools/` | 运维脚本与工具子目录 | OpenQWF 同步与漂移、比特体检、照片读取、单比特自动标定 |
 | `skills/` | Agent 技能（SKILL.md） | |
-| `tests/` | 仓库级测试 | 服务内测试在 `server/tests/` |
-| `vendor/` | 上游仓副本 | `vendor/openqwf/` 是真 clone，同步规则见 `docs/OPENQWF_SYNC.md` |
-| `qwf_*.py` | QWF DSL CLI | `qwf_scripts/`、`qwf_examples/` 被测试与文档直接引用，**留在根目录** |
+| `qwf_scripts/` | QWF DSL 脚本与工作流 | 被测试与文档直接引用，**留在根目录**（见下） |
+| `qwf_examples/` | QWF DSL 示例 | |
+| `vendor/` | 上游仓 **submodule**（只存指针） | `vendor/OpenQWF` 等，见 `docs/OPENQWF_SYNC.md` |
+| `memory/` | 静态说明文件（`MEMORY.md`） | 运行期记忆在 `server/config/memory/`，**不入库** |
+| `qwf_gen.py` / `qwf_run.py` / `qwf_lint.py` | QWF DSL CLI | 薄壳，委派上游 `vendor/OpenQWF/tools/`，见 `tools/README.md` |
+| `reg_snapshot.py` | 寄存器快照脚本 | 被自检硬引用，**留在根目录**（见下） |
+| `AGENTS.md` | 开发约定（本仓唯一约定文件） | 进展记录写 `.Codex/progress.md`（不入库） |
+
+## 不入库的本机内容
+
+以下路径在本机保留，但**不进入版本库**（见 `.gitignore`）：
+
+- `legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录）
+- `server/data/`、`server/logs/`、`server/dist/`
+- `server/config/memory/`、`server/config/*.local.json`
+- `.Codex/`（开发进展与临时脚本）
+- `mcp_tools_new.py`、`start-qmclaw.ps1`、`deploy-local.ps1`
+- `qwf_out/`、`cache/`、`logs/`、`__pycache__/` 等构建与运行产物
 
 ## 新增文件放哪里
 
 - **自检脚本** → `checks/`；同时登记进 `checks/run_all_checks.py` 的 `OFFLINE`/`ONLINE`
   清单，并在 `docs/OPERATIONS.md` §4 表格补一行（否则 `_docs_paths_check` 报 FAIL）。
+- **测试** → `server/tests/`（pytest）。
 - **实验/标定脚本与产物** → `experiments/`。
 - **运维工具** → `tools/`（`tools/` 下每个子目录一个工具）。
 - **文档** → `docs/`；只有经用户确认的约定才写进 `AGENTS.md`。

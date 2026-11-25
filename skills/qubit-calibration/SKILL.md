@@ -251,7 +251,7 @@ from lqms.data_process import data as data
 
 ## MCP服务（可选）
 
-已实现的 MCP 服务：quantum-calibration-mcp
+已实现的 MCP 服务：`qmclaw_mcp`（`server/config/mcp_tools.json`，`http://localhost:8008`）
 
 | 工具名 | 说明 |
 |--------|------|
