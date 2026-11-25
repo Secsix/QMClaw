@@ -320,6 +320,9 @@ tools/s21_photo_reader/_tmp_test/
 #      _local/startup（本机启动脚本）
 /_local/
 
+# 本机临时状态目录（导出中间产物）
+/.tmp_state_pptx/
+
 # --- 本机实验产物与运行数据 ---
 # 真机体检报告（内含 D:\DataVault 数据源路径与实测验活数据）
 /experiments/reports/

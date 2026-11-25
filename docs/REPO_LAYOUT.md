@@ -27,15 +27,23 @@
 
 以下路径在本机保留，但**不进入版本库**（见 `.gitignore`）：
 
-- `_local/legacy/`（`new_ctrl` / `new_templates` / `measure_scripts` 等历史目录，仅本机保留）
+- `_local/`（本机专属区整体不入库）
+  - `_local/docs/` —— 私有设计文档、计划、评审记录
+  - `_local/scripts/` —— 一次性脚本与排查工具（`checks/` `root/` `deploy_diff_tools/`
+    `merge_verify_tools/`）
+  - `_local/legacy/` —— 历史目录（`new_ctrl` / `new_templates` / `measure_scripts` 等）
+  - `_local/artifacts/` —— 过程产物（自检归档、`be2_work/`、`qwf_out/` 等）
+  - `_local/startup/` —— 本机启动脚本（`start-qmclaw.ps1`、`deploy-local.ps1`、`启动命令.txt`）
 - `server/data/`、`server/logs/`、`server/dist/`
 - `server/config/memory/`、`server/config/*.local.json`
 - `server/config/device_profile.json`（真机标定值；仓里只有 `device_profile.example.json` 模板，
   由 `checks/_gen_device_profile.py` 在本机生成）
 - `.Codex/`（开发进展与临时脚本）
-- `_local/scripts/root/mcp_tools_new.py`、`_local/startup/start-qmclaw.ps1`、
-  `_local/startup/deploy-local.ps1`
-- `qwf_out/`、`cache/`、`logs/`、`__pycache__/` 等构建与运行产物
+- `cache/`、`logs/`、`__pycache__/`、`.pytest_cache/`、`.tmp_state_pptx/` 等构建与运行产物
+- 运行时状态：`state.db`（+ `-shm` / `-wal`）、`sessions/`、`memories/`、`memory/`、`models/`、
+  `images/`、`hooks/`、`cron/`、`pairing/`、`audio_cache/`、`image_cache/`、`.memsearch/`、
+  `.dsh-orders/`、`SOUL.md`、`auth.lock`（Hermes 的 `HERMES_HOME` = 仓库根，这些留在仓根，
+  不要搬进 `_local/`）
 
 ## 新增文件放哪里
 

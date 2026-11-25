@@ -13,6 +13,7 @@
 - [真机写闸门](#真机写闸门安全约定)
 - [导师上游融合记录](#导师上游融合记录)
 - [仓库卫生约定](#仓库卫生约定)
+- [本机目录布局](#本机目录布局)
 - [约定](#约定)
 - [Compaction 压缩规则](#compaction-压缩规则自动压缩时生效)
 
@@ -176,6 +177,26 @@ GitHub 上只保留**精简版**：可复用的代码、对外可用/运维类�
    `docs/OPERATIONS.md` §4 表格、`checks/README.md`（`_docs_paths_check.py` 双向校验）。
 4. **出库用 `git rm --cached`**：先 `git rm --cached <path>` 再登记 `.gitignore` 规则，
    磁盘文件保留；确实需要入库时用 `git add -f` 显式覆盖。
+
+## 本机目录布局
+
+仓库根既是代码仓根，也是本机运行时根；本机专属内容统一收进 `_local/`（整个目录不入库）。
+
+| 目录 | 内容 | 入库 |
+|------|------|------|
+| `_local/docs/` | 私有设计文档、计划、评审记录 | 否 |
+| `_local/scripts/` | 一次性脚本与排查工具 | 否 |
+| `_local/legacy/` | 历史目录（仅本机保留） | 否 |
+| `_local/artifacts/` | 过程产物（自检归档、`be2_work/`、`qwf_out/` 等） | 否 |
+| `_local/startup/` | 本机启动/部署脚本（`start-qmclaw.*`、`deploy-local.*`、`启动命令.txt`） | 否 |
+
+**留在仓库根、不许移动**的运行时目录：`state.db`（+ `-shm`/`-wal`）、
+`sessions/`、`memories/`、`memory/`、`models/`、`logs/`、`images/`、`hooks/`、`cron/`、
+`config/`、`pairing/`、`audio_cache/`、`image_cache/`、`cache/`、`.memsearch/`、`.dsh-orders/`、
+`__pycache__/`、`.pytest_cache/`、`.tmp_state_pptx/`、`SOUL.md`、`auth.lock`
+（Hermes 的 `HERMES_HOME` = 仓库根，移走会坏 agent）。
+
+启动脚本按 `$PSScriptRoot` 反推仓库根（`<root>/_local/startup/` 上溯两级），不写死绝对路径。
 
 ## 约定
 
