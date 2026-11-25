@@ -151,8 +151,7 @@ workflow demo03_iqraw {
     timeout 120
     note    "演示：只重写 discriminator，不动 f10 / 幅度"
   }
-  read c3 as r3 { kind IQraw  threshold 0.4 }
-  say "contrast=${r3.contrast}（数据集 ${c3.dataset}）"
+  say "iqraw 完成：数据集 ${c3.dataset}（区分度由实验指标给出，脚本不做二次分析）"
 }
 """,
     4: """# 演示第 4 阶段：T1（相干时间的一半证据）
@@ -166,14 +165,14 @@ workflow demo04_t1 {
     qubit "__QUBIT__"
   }
   budget {
-    max_wall     10m
+    max_wall     90m
     max_writes   2
     max_datasets 2
   }
   measure as s4 {
     fn      sq.t1
     qubit   $env.qubit
-    timeout 300
+    timeout 4200
     note    "演示：T1 必须固定 zpa 才是 1D 时间扫描"
   }
   say "T1 完成：数据集 ${s4.dataset}"
@@ -214,14 +213,14 @@ workflow demo06_xeb {
     qubit "__QUBIT__"
   }
   budget {
-    max_wall     15m
+    max_wall     40m
     max_writes   2
     max_datasets 2
   }
   measure as s6 {
     fn      sq.xeb
     qubit   $env.qubit
-    timeout 600
+    timeout 1500
     note    "演示：随机化基准，得到门保真度"
   }
   say "XEB 完成：数据集 ${s6.dataset}"
@@ -555,6 +554,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="单阶段等待运行的上限（秒）")
     parser.add_argument("--base", default=DEFAULT_BASE, help="网关地址（默认 http://localhost:3002）")
     parser.add_argument("--no-qwf", action="store_true", help="只写演练证据，不提交 QWF")
+    parser.add_argument("--interval", type=float, default=0.0,
+                        help="阶段之间停顿的秒数（现场演示建议 15~25；默认 0 一口气跑完）")
     parser.add_argument("--json", action="store_true", help="最后打印 JSON 摘要")
     args = parser.parse_args(argv)
 
@@ -579,7 +580,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             cleared = post_json(base, "/api/quantum/qubit/evidence/reset", {"name": args.qubit}, timeout=30)
             print(f"[重置] 已清空 {args.qubit} 的演练证据：{(cleared.get('removed') or [])}")
         results = []
-        for stage in stages:
+        for i, stage in enumerate(stages):
             results.append(
                 run_stage(
                     base,
@@ -591,6 +592,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     submit=not args.no_qwf,
                 )
             )
+            last = results[-1]
+            print(f"[看板] {last['state_before']} → {last['state_after']}"
+                  f"｜QWF {last.get('workflow_id') or '—'}｜图像 {len(last.get('plots') or [])} 张")
+            if args.interval and i < len(stages) - 1:
+                print(f"[停顿] {args.interval:.0f} 秒后再进入下一阶段（现场可指着屏幕讲）")
+                time.sleep(args.interval)
     except RuntimeError as exc:
         print(f"失败：{exc}", file=sys.stderr)
         return 1
@@ -602,6 +609,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     for item in results:
         print(f"阶段 {item['stage']} {item['title']:<16} {item['state_before']} → {item['state_after']}"
               + (f"  [{item['run_status']}]" if item.get("run_status") else ""))
+    seen = []
+    for item in results:
+        for name in (item["state_before"], item["state_after"]):
+            if name not in seen:
+                seen.append(name)
+    for missing_state in ("freq_locked", "amp_calibrated", "state_discriminated",
+                          "coherence_measured", "characterized"):
+        if missing_state in seen:
+            continue
+        print(f"\n注：本次演示没有停在 {missing_state}。模拟后端的 iqraw / piamp 区分度普遍偏高"
+              f"（separation 折算 contrast 常 >0.7），会一步跨过相邻的浅态；"
+              f"真机上这两步是分开的，判据与边表没变。")
+        break
+
     if args.json:
         print(json.dumps(results, ensure_ascii=False, indent=2))
     print("\n打开 http://localhost:8081/control 查看：① 状态转移图 A(s) 高亮 ② QWF 流程图 ③ 本次运行的实验图")

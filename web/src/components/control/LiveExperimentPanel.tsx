@@ -227,80 +227,90 @@ export default function LiveExperimentPanel({
         gap: "0.6rem",
       }}
     >
-      {/* 本次运行逐节点图（BACKLOG O8） */}
-      <JobCard
-        title="本次运行图"
-        badge={run ? `${nodePlots.length} 张` : "none"}
-        accent="var(--qm-accent-2, var(--qm-accent))"
-        meta={
-          run
-            ? [
-                run.workflowName || run.workflowId || run.id,
-                run.status ? `状态 ${run.status}` : "",
-                run.totalDuration != null ? `总耗时 ${run.totalDuration}ms` : "",
-              ].filter(Boolean)
-            : ["还没有工作流运行记录"]
-        }
-        body={
-          nodePlots.length > 0 ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: "0.4rem",
-              }}
-            >
-              {nodePlots.map((plot) => (
-                <button
-                  key={`${plot.nodeId}-${plot.path}`}
-                  type="button"
-                  onClick={() => setZoom(plot)}
-                  title={`${plot.nodeId} · ${plot.nodeType} · ${plot.status}\n${plot.path}\n（点击放大）`}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.2rem",
-                    padding: "0.25rem",
-                    border: "1px solid var(--qm-border)",
-                    borderRadius: "0.35rem",
-                    background: "var(--qm-bg-2)",
-                    cursor: "zoom-in",
-                    minWidth: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={plot.src}
-                    alt={`${plot.nodeId} 实验结果图`}
+      {/* 本次运行逐节点图（BACKLOG O8）——整条运行的主视觉，占满整行 */}
+      <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
+        <JobCard
+          title="本次运行图"
+          badge={run ? `${nodePlots.length} 张` : "none"}
+          accent="var(--qm-accent-2, var(--qm-accent))"
+          meta={
+            run
+              ? [
+                  run.workflowName || run.workflowId || run.id,
+                  run.status ? `状态 ${run.status}` : "",
+                  run.totalDuration != null ? `总耗时 ${run.totalDuration}ms` : "",
+                ].filter(Boolean)
+              : ["还没有工作流运行记录"]
+          }
+          body={
+            nodePlots.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    nodePlots.length === 1
+                      ? "minmax(0, 1fr)"
+                      : "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
+                  gap: "0.55rem",
+                }}
+              >
+                {nodePlots.map((plot) => (
+                  <button
+                    key={`${plot.nodeId}-${plot.path}`}
+                    type="button"
+                    onClick={() => setZoom(plot)}
+                    title={`${plot.nodeId} · ${plot.nodeType} · ${plot.status}\n${plot.path}\n（点击放大）`}
                     style={{
-                      width: "100%",
-                      borderRadius: "0.25rem",
-                      background: "#fff",
-                      display: "block",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.68rem",
-                      color: "var(--qm-text-dim)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "0.2rem",
+                      padding: "0.35rem",
+                      border: "1px solid var(--qm-border)",
+                      borderRadius: "0.35rem",
+                      background: "var(--qm-bg-2)",
+                      cursor: "zoom-in",
+                      minWidth: 0,
+                      textAlign: "left",
                     }}
                   >
-                    {plot.nodeId} · {plot.nodeType}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>
-              本次运行没有产出图像（模拟后端可能只给指标；节点 output.plotPath 为空）
-            </span>
-          )
-        }
-      />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={plot.src}
+                      alt={`${plot.nodeId} 实验结果图`}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: nodePlots.length === 1 ? 560 : 340,
+                        width: "auto",
+                        height: "auto",
+                        margin: "0 auto",
+                        borderRadius: "0.25rem",
+                        background: "#fff",
+                        display: "block",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "var(--qm-text-dim)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {plot.nodeId} · {plot.nodeType} · {plot.status}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>
+                本次运行没有产出图像（模拟后端可能只给指标；节点 output.plotPath 为空）
+              </span>
+            )
+          }
+        />
+      </div>
 
       {/* 当前正在运行 */}
       <JobCard
