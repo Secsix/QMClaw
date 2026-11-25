@@ -12,6 +12,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+# 实验室工作流包（new_ctrl / new_templates）**不在本仓库**，通常放在 legacy/ 下。
+# 若本机存在 legacy/new_ctrl，则一并加入 sys.path，让这个冒烟脚本在实验室机器上可跑。
+LEGACY = os.path.join(ROOT, "legacy")
+if os.path.isdir(os.path.join(LEGACY, "new_ctrl")) and LEGACY not in sys.path:
+    sys.path.insert(0, LEGACY)
+
 
 def test_import_new_ctrl():
     """new_ctrl 包导入"""
@@ -95,6 +101,19 @@ def test_query_update_param():
 
 
 if __name__ == "__main__":
+    # Windows 控制台默认 GBK，输出 ✅/❌ 会抛 UnicodeEncodeError
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+    import importlib.util
+
+    if importlib.util.find_spec("new_ctrl") is None:
+        print("SKIP: 未找到 new_ctrl（实验室工作流包不在本仓库）。")
+        print("      仓内自检请改用: python checks/run_all_checks.py")
+        sys.exit(0)
+
     # 逐个运行测试
     tests = [
         test_import_new_ctrl,

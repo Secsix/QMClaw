@@ -6,10 +6,12 @@
 
 | Requirement | Version | Note |
 |-------------|---------|------|
-| Python | 3.10+ | Both Client and Server |
 | Git | any | For cloning the repository |
+| An AI Agent | Claude Code / Codex / other | For skill-based interaction (Option A) |
+| Python | 3.10+ | Only for running the platform (Option B) |
+| Node.js | ≥ 18 | Only for running the platform (Option B) |
 | Docker & Docker Compose | — | Optional, for self-hosted MCP server |
-| An AI Agent | Claude Code / Codex / other | For skill-based interaction |
+| LabRAD + `lqcs` | — | Optional, only for real-hardware control |
 
 **OS**: Windows / macOS / Linux
 
@@ -72,24 +74,47 @@ Restart Codex after installation.
 Copy the whole `skills/` directory into your prompt library or project.
 Preserve `SKILL.md`, `README.md`, `static/`, scripts, assets, and `skills/_shared/` together.
 
-### 2.3 Option B — Use as a Python Package (For programmatic access)
+### 2.3 Option B — Run the Platform (Backend + Frontend)
+
+The platform is a Node.js gateway (`:3002`) plus a set of Python microservices
+(`:3003`–`:3012`) with a Next.js console (`:8081`).
 
 ```bash
-# Core dependencies only (numpy)
-pip install -e .
-
-# With data analysis support (scipy)
-pip install -e ".[analysis]"
-
-# With plotting support (matplotlib, plotly, opencv)
-pip install -e ".[plot]"
-
-# With MCP protocol support (swiftmcp)
-pip install -e ".[mcp]"
-
-# All features
-pip install -e ".[full]"
+# ① Backend
+cd server
+npm install
+pip install -r python/requirements.txt
+cp .env.example .env          # fill in the LLM API key; measurement can run without it
+python scripts/start_all_services.py --all
+npm run dev                   # Express gateway on :3002
 ```
+
+```bash
+# ② Frontend (another terminal)
+cd web
+npm install
+npm run dev                   # Next.js console on :8081
+```
+
+Then open <http://localhost:8081>.
+
+Optional extras:
+
+```bash
+# qiskit simulator backend
+pip install -r server/python/requirements-qiskit.txt
+
+# demo mode without a real machine
+pip install -r server/python/requirements-demo.txt
+```
+
+Without LabRAD the platform still starts: the quantum backend falls back in the
+order `lqcs -> qiskit -> offline_sim` (see `server/config/fallback_config.json`).
+
+> **Note**: this repository does **not** ship a pip-installable Python package.
+> The legacy laboratory workflow package (`new_ctrl` / `new_templates`) lives in
+> each lab's own `sq_workflow` directory, not in this repo. Platform Python
+> dependencies are declared in `server/python/requirements.txt`.
 
 ---
 
@@ -163,71 +188,62 @@ Calculate T1 fitting and XEB fidelity
 
 ### 4.2 In Python (Programmatic Access)
 
+平台启动后，网关（`:3002`）就是稳定的程序化入口。下面这些请求在**任何后端**
+（真机 / qiskit / 离线回放）下都可用：
+
 ```python
-import sys
-sys.path.insert(0, "path/to/QMClaw")
+import json
+import urllib.request
 
-from new_ctrl.task import call_interface, get_data
-from new_templates import S21_template, rabi_template, t1_template
+GATEWAY = "http://localhost:3002"
 
-# ① Execute S21 experiment
-tid = call_interface(
-    workflow=S21_template,
-    qubits=["Q0"],
-    frequency_start=-40e6,
-    frequency_end=40e6,
-    frequency_sample_num=101,
-)
+def get(path):
+    with urllib.request.urlopen(GATEWAY + path, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
-# ② Retrieve experiment data
-data = get_data(tid)
-print("S21 data:", data["data"]["s21"])
+# ① 当前启用的量子后端（lqcs / qiskit / offline_sim）
+print(get("/api/quantum/backends"))
 
-# ③ Execute Rabi experiment
-tid_rabi = call_interface(
-    workflow=rabi_template,
-    qubits=["Q0"],
-    drive_amp=[0.01, 0.05, 0.1],
-)
-data_rabi = get_data(tid_rabi)
-print("Rabi data:", data_rabi["data"]["population"])
+# ② 可用比特列表
+print(get("/api/quantum/qubits"))
 
-# ④ Execute T1 experiment
-tid_t1 = call_interface(
-    workflow=t1_template,
-    qubits=["Q0"],
-    delay=[0, 1e-6, 5e-6, 10e-6, 20e-6],
-)
-data_t1 = get_data(tid_t1)
-print("T1 data:", data_t1["data"]["population"])
+# ③ 历史数据集
+print(get("/api/quantum/datasets"))
+
+# ④ 当前是 online / offline / auto 模式
+print(get("/api/quantum/mode"))
 ```
+
+要下发实验、跑工作流、读写寄存器，请看技能包
+[`qmclaw-service-endpoints`](../skills/qmclaw-service-endpoints/SKILL.md)：
+那里逐条列了 `:3003` / `:3004` / `:3008` 的请求体、响应结构与写闸门约束。
+
+> **注意**：`new_ctrl` / `new_templates`（实验室侧工作流包）**不在本仓库**，
+> 存放在各实验室自己的 `sq_workflow` 目录里，需按 §3.2 的方式自行接入。
 
 ### 4.3 Using the MCP Server Directly (Without AI Agent)
 
-```python
-from new_ctrl.task import call_interface, get_data, query_param, update_param
-from new_templates import S21_template
+MCP 服务器入口随实验室部署方式而变（`swiftmcp` / docker-compose / 本机脚本）。
+本仓库不提供可直接运行的 MCP server 脚本；接入后在 `.mcp.json` 里指向它即可：
 
-# Execute experiment
-tid = call_interface(
-    workflow=S21_template,
-    qubits=["Q0"],
-    frequency_start=-40e6,
-    frequency_end=40e6,
-)
-
-# Get results
-data = get_data(tid)
-
-# Query and update parameters
-update_param("Q0.frequency", 6.5e9)
-value = query_param("Q0.frequency")
-print(f"Frequency: {value}")
+```json
+{
+  "mcpServers": {
+    "quantum-service": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-http", "http://127.0.0.1:8008/mcp"]
+    }
+  }
+}
 ```
+
+参数读写、实验下发等能力同样可以走 §4.2 的 HTTP 路径实现，不依赖 MCP。
 
 ---
 
 ## 5. Skill Index
+
+完整索引（含版本、目录约定与安装方式）见 **[`skills/README.md`](skills/README.md)**。速查：
 
 | Skill | Purpose | Trigger Keywords |
 |-------|---------|------------------|
@@ -235,9 +251,12 @@ print(f"Frequency: {value}")
 | `qmclaw-decision-architecture` | L1/L2/L3 decision layers, RuleEngine | "决策", "RuleEngine", "规则" |
 | `qmclaw-tuneup-workflow` | 15-step calibration, state machine, Panel batch | "校准", "调校", "calibration", "tune-up" |
 | `qmclaw-tool-scheduling` | Tool whitelist, MCP, Center Agent, Backend Adapter | "工具调度", "后端", "tool scheduling" |
+| `qmclaw-service-endpoints` | All microservice endpoints (port / path / request body) | "微服务", "端点", "API", "端口" |
 | `qubit-data-analysis` | T1/Rabi fitting, XEB/RB fidelity, quality metrics | "数据分析", "保真度", "T1", "quality" |
 | `qubit-calibration` | Complete single-qubit calibration and labeling | "校准", "标定", "单比特", "qubit" |
+| `qubit-contrast-tuning` | Readout contrast tuning loop (iqraw -> piamp -> pidf) | "对比度", "contrast", "f10 偏了" |
 | `quantum-experiment-plotter` | 1D/2D plotting, academic figures, data fitting | "绘图", "可视化", "plot", "figure" |
+| `s21-photo-reader` | Extract qubit id -> valley value table from S21 screenshots | "S21 照片", "读图", "截图识别" |
 | `lqms-offline-datavault-plotting` | Offline DataVault HDF5 -> lqms DataLab -> batch figures, vector export | "离线出图", "DataVault", "历史数据出图" |
 
 ---
@@ -257,21 +276,28 @@ If the skill responds correctly, the installation is successful.
 ### 6.2 Verify Python Package
 
 ```bash
-# Run the smoke test suite
+# ① 仓库级自检（无需真机，17 项离线检查）
+python checks/run_all_checks.py
+
+# ② 实验室工作流包冒烟测试（需要 legacy/new_ctrl，缺失时会提示 SKIP）
 python server/tests/test_smoke.py
 ```
 
 Expected output:
 ```
+# ① 仓库级自检
+... 16/17 OK（唯一 ERR 是被忽略目录 be2_work/ 的历史文件，与基线一致）
+
+# ② 实验室工作流包冒烟测试
   RUN  test_import_new_ctrl
   ✅ PASS  test_import_new_ctrl
-  RUN  test_import_new_ctrl_tools
-  ✅ PASS  test_import_new_ctrl_tools
   ...
   ==================================================
     结果: 7 passed, 0 failed, 7 total
   ==================================================
 ```
+
+若本机没有 `legacy/new_ctrl`，第 ② 步会直接提示 `SKIP` 并正常退出。
 
 ### 6.3 Verify MCP Server (Optional)
 
@@ -294,15 +320,20 @@ curl -s http://127.0.0.1:8008/mcp | head -c 100
 
 ### `ModuleNotFoundError: No module named 'new_ctrl'`
 
-The Python package is not installed. Choose one:
+`new_ctrl` / `new_templates` are **laboratory-side workflow packages and are not
+part of this repository** (they usually sit in a lab's `sq_workflow` directory,
+or in the local `legacy/` folder). Point Python at them:
 
 ```bash
-# Option 1: Install as editable package
-pip install -e .
+# Option 1: legacy/ inside this repo
+export PYTHONPATH="$(pwd)/legacy:$PYTHONPATH"
 
-# Option 2: Add the project directory to PYTHONPATH
-export PYTHONPATH="$(pwd):$PYTHONPATH"
+# Option 2: your own laboratory workflow directory
+export PYTHONPATH="/path/to/sq_workflow:$PYTHONPATH"
 ```
+
+The same applies to `pip install -e ".[mcp]"` / `".[plot]"` below: those extras
+only pull dependencies, they do not install a `qmclaw` module.
 
 ### `ModuleNotFoundError: No module named 'swiftmcp'`
 

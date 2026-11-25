@@ -63,7 +63,8 @@ for f in test_files:
 
 # Scan actual files
 # 与运行时保持一致：data_path 相对 server 根解析（见 config/fallback_config.json）
-data_path = Path(__file__).resolve().parent / "data" / "offline_data"
+# 本文件在 server/tests/ 下 ⇒ server 根 = parents[1]
+data_path = Path(__file__).resolve().parents[1] / "data" / "offline_data"
 if not data_path.exists():
     raise SystemExit(
         f"offline data not found: {data_path}\n"

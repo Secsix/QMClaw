@@ -3,8 +3,10 @@
 """
 测试脚本：验证三个智能体服务的测控实验调用能力
 
+注意：这是**手动跑的冒烟脚本**，不是 pytest 用例（文件名不匹配 pytest 的 `test_*.py` 收集规则）。
+
 使用方法:
-    python test_quantum_tools.py
+    python server/tests/quantum_tools_smoke.py
 
 前提条件:
     1. quantum_service 必须在 localhost:3003 运行

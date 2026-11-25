@@ -146,20 +146,11 @@ tools/s21_photo_reader/_tmp_test/
 /cron/
 # 旧代码与历史脚本（2026-11-24 随仓库重整整体出库；磁盘保留）
 /legacy/
+# skills/ 下的技能包整体入库；但顶层只保留 README.md 索引，
+# 未在 skills/ 下的散落文件不入库（防止临时草稿被误提交）
 /skills/*
-!/skills/_shared/
-!/skills/lqms-offline-datavault-plotting/
-!/skills/qmclaw-decision-architecture/
-!/skills/qmclaw-framework-overview/
-!/skills/qmclaw-tool-scheduling/
-!/skills/qmclaw-tuneup-workflow/
-!/skills/quantum-experiment-plotter/
-!/skills/qubit-calibration/
-!/skills/qubit-data-analysis/
-!/skills/s21-photo-reader/
-# 上游 2026-11-16 入库的两个 skill（服务端点速查 / 对比度调校）
-!/skills/qmclaw-service-endpoints/
-!/skills/qubit-contrast-tuning/
+!/skills/README.md
+!/skills/*/
 /state.db*
 /.tmp_*/
 /.deploy-logs/
