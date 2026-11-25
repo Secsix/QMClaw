@@ -3,7 +3,7 @@
 > 目的：`measure`（experiment）之外的节点到底能不能跑。本文只记录**实测**结果，
 > 每条都标了「跑通了 / 缺件 / 未实现」，避免把"环境没配"当成"设计不支持"。
 >
-> 复现脚本在 `.claude/tmp/qwf_nodes/`（gitignored）。全部走 `python qwf_run.py <file> --if yes`，
+> 复现脚本在 `.Codex/tmp/qwf_nodes/`（gitignored）。全部走 `python qwf_run.py <file> --if yes`，
 > 即 HTTP 全链路：:3008 workflow_service → :3009 task_queue → :3003 quantum_service（qiskit）。
 
 ## 1. 节点全景

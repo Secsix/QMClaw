@@ -1,5 +1,5 @@
 {
-  "_doc": "指标与判据唯一真源（QMClaw Architecture Roadmap §2.5）。指标定义 = 标准算法 + 参数 + 阈值 + 置信度 + 数据列口径。goal / 脚本 / skill 一律引用这里的指标名与阈值，不在别处写死数值。改动请同时更新 .claude/progress.md。",
+  "_doc": "指标与判据唯一真源（QMClaw Architecture Roadmap §2.5）。指标定义 = 标准算法 + 参数 + 阈值 + 置信度 + 数据列口径。goal / 脚本 / skill 一律引用这里的指标名与阈值，不在别处写死数值。改动请同时更新 .Codex/progress.md。",
   "version": "1.1.0",
   "updated": "2026-11-24",
   "authority": {

@@ -49,7 +49,7 @@ cp -R skills/qmclaw-* ~/.claude/skills/
 cp -R skills/quantum-* ~/.claude/skills/
 ```
 
-Restart Claude Code so newly added skills are picked up.
+Restart your AI agent (Claude Code / Codex) so newly added skills are picked up.
 
 #### Codex
 
@@ -370,7 +370,7 @@ cp -R skills/quantum-* ~/.claude/skills/
 pip install -e ".[full]"
 ```
 
-Restart your AI agent after updating.
+Restart your AI agent (Claude Code / Codex) after updating.
 
 ---
 

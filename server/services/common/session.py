@@ -34,7 +34,7 @@ DEFAULT_SESSION: List[str] = ["", "LQHL", "test", "20260324"]
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = _REPO_ROOT / "config" / "session.json"
 # 本机覆盖配置（不入库）：存在时优先于 DEFAULT_CONFIG_PATH 生效。
-# 约定见 .gitignore 与 CLAUDE.md：被跟踪的 session.json 只放通用默认值，
+# 约定见 .gitignore 与 AGENTS.md：被跟踪的 session.json 只放通用默认值，
 # 实验室账号（DataVault user）与本机会话路径写在 session.local.json 里。
 LOCAL_CONFIG_PATH = _REPO_ROOT / "config" / "session.local.json"
 

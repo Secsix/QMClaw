@@ -75,7 +75,7 @@ A scalable general-purpose framework for quantum measurement and control, provid
 
 ### 1. Installation
 
-#### Claude Code
+#### AI Agent 客户端（Claude Code / Codex 等）
 
 ```bash
 # Clone the repository

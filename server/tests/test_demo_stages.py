@@ -34,7 +34,7 @@ def _validator():
     """兼容 `from .dsl import validate` 与 `from .dsl.validate import validate` 两种形态。
 
     （`services/workflow_service/dsl/validate.py` 是子模块，一旦有人 import 它，
-    包属性 `validate` 就会被替换成 module —— 见 CLAUDE.md 的踩坑记录。）
+    包属性 `validate` 就会被替换成 module —— 见 AGENTS.md 的踩坑记录。）
     """
     import services.workflow_service.dsl as dsl
 

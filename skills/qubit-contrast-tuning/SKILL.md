@@ -127,7 +127,7 @@ python docs/deploy_diff_tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
 
 **判据唯一真源**：`server/config/lab_criteria.json`。
 本节写的门槛只是速查；脚本、goal、报告一律引用该文件里的 `metrics.contrast.thresholds`。
-改了阈值要同时改那个文件和 `.claude/progress.md`，不要在别处另写一套数字。
+改了阈值要同时改那个文件和 `.Codex/progress.md`，不要在别处另写一套数字。
 
 | 项 | 值 | 备注 |
 |---|---|---|

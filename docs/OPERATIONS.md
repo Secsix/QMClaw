@@ -975,7 +975,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 | `:3003` 启动卡在 `ray.init(address='192.0.2.11:6479')` 不返回 | Ray 集群握手在受限沙箱内会挂起（TCP 通但不回包） | 用不受限的运行环境启动 :3003（DSH 里需 `danger-full-access`） |
 | 实验报 `lqcs/servers/device_manager.py prepare_dac_meas: ufunc 'divide' not supported` | 设备层（编译版 lqcs）算 DAC 参数时分母类型不对，与参数无关 | 实验室侧排查/复位设备；同一命令重试无效 |
 | PowerShell `curl` 参数不认识 | PS 5.1 的 `curl` 是 `Invoke-WebRequest` 别名 | 用 `Invoke-RestMethod` 或 `curl.exe`；多行 JSON 写成单行 |
-| `PermissionError` 写 `docs/`、`.claude/`、`data/workflow-runs` | 沙箱目录权限不一致 | 用 `edit`/`write` 工具改文件；临时产物落工作区根目录 |
+| `PermissionError` 写 `docs/`、`.Codex/`、`data/workflow-runs` | 沙箱目录权限不一致 | 用 `edit`/`write` 工具改文件；临时产物落工作区根目录 |
 
 ---
 
@@ -987,7 +987,7 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 | `D:\qmclaw\reg_snapshots\` | 寄存器快照（`reg_snapshot.py` 产出） | 可写 |
 | `D:\qmclaw\_p3_e2e_tasks\` | E2E 自检的 task 数据目录 | 可写 |
 | `D:\\qmclaw\\_task_data\\` | :3009 任务账本落盘目录（env `QMCLAW_TASK_DATA_DIR`） | 可写（沙箱内起 :3009 必须指到这里，否则 task 存不住 → unknown task） |
-| `docs\`、`\.claude\` | 文档 | 只能用 `edit`/`write` 工具改，bash 不能删 |
+| `docs\`、`\.Codex\` | 文档 | 只能用 `edit`/`write` 工具改，bash 不能删 |
 | `server\...\data\workflow-runs\` | run 记录 | 目录能建，**文件写不进**（沙箱）→ 落档兜底会落到 tempdir |
 
 ---
@@ -996,11 +996,11 @@ DataVault 原始 hdf5、绘图 png、寄存器快照体积大且是活目录，*
 
 改完 `dsl/` 或 `services/` 后：
 
-1. `ast.parse` 语法检查（`docs/`、`\.claude/` 下不能用 `py_compile`，会写 `__pycache__` 失败）
+1. `ast.parse` 语法检查（`docs/`、`\.Codex/` 下不能用 `py_compile`，会写 `__pycache__` 失败）
 2. 跑第四节的自检脚本（离线那几套不需要起服务）
 3. HTTP 那几套（`_p3_e2e.py`）需要 `:3009` 在跑（默认就打正式 :3008/:3009；
    沙箱里要在临时端口验证就设 `QMCLAW_WF_URL` / `QMCLAW_TQ_URL`）：
    临时桩服务脚本（`_tq_test_server.py` / `_wf_test_server.py`）已出库，仅本机保留；
    设 `QMCLAW_TQ_URL=http://127.0.0.1:3019` 指向自备的 task_queue 实例即可
-4. 同步 `.claude/progress.md`（内容写在**文件顶部**）与 `docs/DSL_DESIGN.md`
+4. 同步 `.Codex/progress.md`（内容写在**文件顶部**）与 `docs/DSL_DESIGN.md`
 5. 请人重启 :3003/:3008/:3009 后再真机复验

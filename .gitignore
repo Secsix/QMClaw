@@ -21,7 +21,7 @@ server/logs/
 web/public/plots/
 qwf_out/
 server/config/memory/
-.claude/
+.Codex/
 build/
 dist/
 offline_data/

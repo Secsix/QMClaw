@@ -148,7 +148,7 @@ tools/s21_photo_reader/
 
 > **解释器版本**：`.pylibs` 里的 onnxruntime 是 **cp312** 轮子，所以识别部分要 **Python 3.12**。
 > 本机可用的是 DSH 运行时 `C:\Users\lqcs\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe`（3.12.14）。
-> CLAUDE.md 里写的 `D:\semester4\deploy\qmclaw\qmclaw\python.exe`（3.11）在本机不存在；
+> AGENTS.md 约定 10 里写的 `D:\semester4\deploy\qmclaw\qmclaw\python.exe`（3.11）在本机不存在；
 > 若改用它，需要把 onnxruntime/rapidocr 换成 cp311 轮子。
 > **赋值部分（`s21pr/assign.py`）是纯标准库**，任何 Python 3 都能跑，也能在 LabRAD 内嵌 Python 里跑。
 

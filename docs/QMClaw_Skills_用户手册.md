@@ -21,12 +21,12 @@
 git clone https://github.com/YOUR_USERNAME/qmclaw-skills.git
 cd qmclaw-skills
 
-# 安装 skills 到 Claude Code
+# 安装 skills 到 AI Agent 客户端目录（以 Claude Code 为例）
 mkdir -p ~/.claude/skills
 cp -R skills/* ~/.claude/skills/
 ```
 
-### 方式二：插件市场安装（Claude Code）
+### 方式二：插件市场安装（以 Claude Code 为例）
 
 ```bash
 claude plugin marketplace add YOUR_GITHUB/qmclaw-skills
@@ -51,7 +51,7 @@ claude plugin install qmclaw-skills@qmclaw-skills
 
 ## 3. 使用方式
 
-### 3.1 在 Claude Code 中使用
+### 3.1 在 AI Agent 客户端中使用
 
 安装完成后，用自然语言触发：
 
@@ -177,7 +177,7 @@ T1_fit = popt[1]
 ## 7. 常见问题
 
 ### Q: 安装 skill 后不生效？
-A: 新开一个 Claude Code session，或者手动把 `skills/` 目录复制到 `~/.claude/skills/`。
+A: 新开一个 AI Agent session（Claude Code / Codex 等），或者手动把 `skills/` 目录复制到客户端的 skills 目录（Claude Code 为 `~/.claude/skills/`）。
 
 ### Q: 没有 quantum 硬件能用吗？
 A: 可以。`_execute_workflow()` 提供了 Mock 实现，返回模拟实验数据。

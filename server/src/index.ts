@@ -185,7 +185,7 @@ function shouldPrintLog(line: string): boolean {
 //
 // **默认必须是 3002**：前端 web 的 API_BASE 默认就写死 "http://localhost:3002"
 // （api.ts / page.tsx / AgentChatPanel / QueueStatusBadge / ServiceControlPanel
-// 全都是 3002），.env.example 与 AGENTS.md / CLAUDE.md 的约定也写着 Express :3002。
+// 全都是 3002），.env.example 与 AGENTS.md 的约定也写着 Express :3002。
 //
 // 历史上这里被改成过 8080（微服务重构那次提交），结果前端一个请求都打不通 ——
 // 浏览器里全是 ERR_CONNECTION_REFUSED，而网关自己却"好好地"跑在 8080 上，

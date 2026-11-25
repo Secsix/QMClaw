@@ -25,7 +25,7 @@
   清单，并在 `docs/OPERATIONS.md` §4 表格补一行（否则 `_docs_paths_check` 报 FAIL）。
 - **实验/标定脚本与产物** → `experiments/`。
 - **运维工具** → `tools/`（`tools/` 下每个子目录一个工具）。
-- **文档** → `docs/`；只有经用户确认的约定才写进 `CLAUDE.md` / `AGENTS.md`。
+- **文档** → `docs/`；只有经用户确认的约定才写进 `AGENTS.md`。
 - **一次性排查脚本**：确认没价值就删，不要长期堆在根目录或 `checks/`。
 
 ## 为什么 `qwf_scripts/` / `reg_snapshot.py` 还在根目录

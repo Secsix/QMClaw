@@ -167,7 +167,7 @@ Copy-Item "D:\semester4\QMClaw\server\.env.example" `
 | `OPENAI_API_KEY` | GPT-4o / 4o-mini / 4-Turbo | |
 | `ANTHROPIC_API_KEY` | Claude 3.5 Sonnet | |
 | `PYTHON_BIN` | **指向 §1.1 的解释器** | 不设会回落到 `"python"` 而失败 |
-| `PORT` | Express 端口 | 代码默认 `8080`，但前端 `apiClients.ts` 默认 `3002`、README/CLAUDE.md 也写 3002 → **务必显式设 `PORT=3002`** |
+| `PORT` | Express 端口 | 代码默认 `8080`，但前端 `apiClients.ts` 默认 `3002`、README/AGENTS.md 也写 3002 → **务必显式设 `PORT=3002`** |
 | `PLOTS_DIR` | 绘图输出目录 | 可选，默认指向 `web/public/plots` |
 | `QMCLAW_USE_SERVICES` | `true` 启用微服务 | |
 
@@ -216,7 +216,7 @@ cd "D:\semester4\QMClaw\vendor\hermes-agent";            npm install   # 可选�
 | Next.js 前端 | 8081* | — | Node | ✅ |
 | LabRAD 服务 | 7682 | `lqcs` ✅ | 需要**手动启动** | ✅ 包就绪 |
 
-\* `web/package.json` 里是 `next dev -p 8081`，而 CLAUDE.md 写 3001 —— 以 package.json 为准。
+\* `web/package.json` 里是 `next dev -p 8081`，而文档里出现过的 3001 —— **以 package.json 为准**。
 
 `system.json` 声明 LQCS 后端的 `required_packages: ["lqms", "labrad", "pylab"]`，实测三者全部 ✅。
 

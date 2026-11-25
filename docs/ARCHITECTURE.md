@@ -52,7 +52,7 @@ QmClaw 是一个量子测量控制与分析系统，用于控制 LabRAD 实验�
 ```
 D:\qmclaw\
 ├── README.md                    # 本文档
-├── CLAUDE.md                    # 开发约定与进度记录
+├── AGENTS.md                    # 开发约定与进度记录
 ├── 一键启动.cmd                  # ⚡ 一键启动器（推荐）
 ├── start_manager.py             # Python 启动管理器
 ├── launch-all.cmd              # 备用启动器

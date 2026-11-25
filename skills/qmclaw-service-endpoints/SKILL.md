@@ -315,7 +315,7 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
   调 `services.common.config` 需要 `PYTHONPATH="D:/qmclaw/server"`。
 - **服务启停由人控制**（AGENTS.md 第 3 条）：`taskkill /PID <旧PID> /F` →
   `python "D:\qmclaw\server\scripts\start_all_services.py"`。
-- **沙箱限制**：不能写 `config/`、`docs/`、`.claude/`（用 write/edit 工具写）；
+- **沙箱限制**：不能写 `config/`、`docs/`、`.Codex/`（用 write/edit 工具写）；
   不能在沙箱里 `import lqms` 直连 LabRAD；不能起第二个 Ray 客户端。
 
 ---
@@ -377,7 +377,7 @@ curl -s -X POST http://127.0.0.1:3004/plot -H "Content-Type: application/json" `
 
 ## 14. 判据与指标真源
 - **`config/lab_criteria.json` 是指标唯一真源**（contrast / t1 / t2_star / xeb / s21_dip / dmu_sig 的算法、参数、阈值、列口径）。
-  写脚本、goal、报告时不要另立一套数字；改阈值要同时改该文件与 `.claude/progress.md`。
+  写脚本、goal、报告时不要另立一套数字；改阈值要同时改该文件与 `.Codex/progress.md`。
 - 快速入口：`skills/qubit-contrast-tuning/SKILL.md` 第七节（判据速查 + 三条易翻车现场事实）。
 
 ---

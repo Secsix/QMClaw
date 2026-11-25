@@ -16,7 +16,7 @@
 实现去哪了
 ----------
 DSL 的**实现**已经迁到独立仓 `Secsix/OpenQWF`（核心 `qwf/` + 适配器 `adapters/`）。
-本仓保留一份逐字副本 `vendor/openqwf/`，本目录退化成**门面**：
+本仓以 **git submodule** 引用它（`vendor/OpenQWF`，只记录指针，不存源码副本），本目录退化成**门面**：
 
 * 每个模块文件只做一件事 —— 把模块指向上游那份（`sys.modules` 替换），
   所以 `dsl.const is qwf.const`：模块对象、私有名字、类型身份都只有一份，

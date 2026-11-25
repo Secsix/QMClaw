@@ -4,7 +4,7 @@
 
 两条断言，全部离线、不连设备：
 
-1. **路径必须存在**：`docs/*.md` 与仓库根 `*.md`（AGENTS.md / CLAUDE.md / README.md…）里写的
+1. **路径必须存在**：`docs/*.md` 与仓库根 `*.md`（AGENTS.md / README.md…）里写的
    `D:\\qmclaw\\...` 路径必须真实存在。已知的历史/临时路径登记在 `EXCEPTIONS` 里。
    解释器路径（`...python.exe`）不在本机时只记 WARN —— 文档里本来就写着"他人机器路径"。
 
