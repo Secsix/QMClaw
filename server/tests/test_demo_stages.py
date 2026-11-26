@@ -164,6 +164,22 @@ class TestDecideStageEvidence(unittest.TestCase):
         self.assertTrue(evidence.get("freq_locked"))
         self.assertTrue(any("freq_locked" in n for n in notes))
 
+    def test_f10_counts_as_freq_locked(self) -> None:
+        """扫频产出的 f10 就是 freq_locked 的证据（状态机不认 f10 这个键名）。"""
+        evidence, notes = demo.metrics_to_evidence({"f10": 4.3521})
+        self.assertTrue(evidence.get("freq_locked"))
+        self.assertTrue(any("已找到" in n for n in notes))
+
+    def test_f10_zero_is_reported_as_simulated(self) -> None:
+        """模拟后端 f10 恒为 0：仍记 freq_locked，但 note 必须写明这是模拟口径。"""
+        evidence, notes = demo.metrics_to_evidence({"f10": 0.0})
+        self.assertTrue(evidence.get("freq_locked"))
+        self.assertTrue(any("模拟后端" in n and "真机" in n for n in notes))
+
+    def test_no_f10_key_means_no_freq_evidence(self) -> None:
+        evidence, _notes = demo.metrics_to_evidence({"contrast": 0.1})
+        self.assertNotIn("freq_locked", evidence)
+
     def test_stage_evidence_keys_are_known_to_state_machine(self) -> None:
         """写进去的键必须是状态机认的键，否则状态永远不会动。"""
         from services.common.qubit_state import EVIDENCE_SOURCES, STATES
