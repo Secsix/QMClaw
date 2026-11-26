@@ -1,5 +1,7 @@
 # 测控控制台（/control）实测演示说明
 
+> 想让「下一步做什么」由状态机决定而不是照本跑：见 [MEASUREMENT_LOOP.md](MEASUREMENT_LOOP.md)。
+
 面向 `/control` 页面的一次"能看见状态在动"的演示：状态转移、QWF 流程图变化、
 每一步实验的结果图。配套脚本 `server/tools/demo_control_console.py`。
 

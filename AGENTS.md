@@ -11,6 +11,7 @@
 - [实验后端策略](#实验后端策略lqcs--qiskit--离线回放)
 - [记忆数据](#记忆数据不纳入版本控制)
 - [真机写闸门](#真机写闸门安全约定)
+- [测控运行与驾驭层](#测控运行与驾驭层)
 - [导师上游融合记录](#导师上游融合记录)
 - [仓库卫生约定](#仓库卫生约定)
 - [本机目录布局](#本机目录布局)
@@ -142,6 +143,16 @@ agent 的长期记忆存放在 `server/config/memory/`，**整个目录都在 `.
 - 闸门只在**服务端**强制；agent 侧只是提前解释
 - 执行超时后服务标记 `stuck` 并拒绝后续下发，须人工确认现场安全后再 `reset_stuck` 或重启
 - 提权步骤与故障排查见 `docs/REAL_MACHINE.md`
+
+## 测控运行与驾驭层
+
+标定一个比特只有一条入口：`server/tools/measurement_loop.py` —— 每轮先问 `/qubit/state`，再问 `/qubit/route`，
+**只在 `allowed_edges` 内选动作**；G3（模板库没有可用写法）**必须停下由人指定** `--decide-fn`，不做自动选择。
+操作规程见 DSH skill `qmclaw-measurement-loop`，契约与退出码见 `docs/MEASUREMENT_LOOP.md`。
+
+- 任何实验都必须先落成 QWF 再提交（执行层唯一入口），不直接拼 `sq.xxx(...)` 代码
+- 证据只从本次 run 的指标来，不手写证据推状态；模拟后端的演练证据标 `source=loop`，汇报时不得说成台账实测
+- `server/config/state_machine.json`（结构）、`lab_criteria.json`（判据阈值）、写闸门三样一律由人改，agent 不改
 
 ## 导师上游融合记录
 
