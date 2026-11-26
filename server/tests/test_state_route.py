@@ -107,7 +107,28 @@ class _PatchMixin:
 
         sr._post_json = fake
         self.addCleanup(lambda: setattr(sr, "_post_json", original))
+        self._patch_catalog(error=ConnectionError("单测不连能力目录"))
         return calls
+
+    def _patch_catalog(self, catalog=None, error=None):
+        """替换能力目录 GET（`_get_json`），并清空 TTL 缓存保证用例互不影响。"""
+        original = sr._get_json
+        cache = dict(sr._CATALOG_CACHE)
+        sr._CATALOG_CACHE.update({"url": "", "at": 0.0, "data": {}})
+
+        def fake(url, timeout=10.0):
+            if error is not None:
+                raise error
+            return catalog or {}
+
+        sr._get_json = fake
+
+        def restore():
+            sr._get_json = original
+            sr._CATALOG_CACHE.update(cache)
+
+        self.addCleanup(restore)
+        return fake
 
     def _patch_llm(self, content="", error="", configured=True):
         calls = []
@@ -377,6 +398,99 @@ class TestFailures(_PatchMixin, unittest.TestCase):
         node = FakeNode({"qubit": "{{target}}"})
         sr.execute_state_route(FakeService(), node, {"target": "q7"})
         self.assertEqual(calls[0]["payload"]["name"], "q7")
+
+
+CATALOG_STUB = {
+    "ok": True,
+    "backends": ["lqcs", "qiskit", "offline_sim"],
+    "backend_support": {"lqcs": 1, "qiskit": 2, "offline_sim": 2},
+    "runtime_backends": [
+        {"name": "lqcs", "available": False, "reason": "未部署"},
+        {"name": "qiskit", "available": True},
+        {"name": "offline_sim", "available": True},
+    ],
+    "experiments": [
+        {"kind": "iqraw", "fn": "sq.iqraw", "backends": {"lqcs": True, "qiskit": True, "offline_sim": True}},
+        {"kind": "spectroscopy", "fn": "sq.spectroscopy", "backends": {"lqcs": True, "qiskit": True, "offline_sim": True}},
+        {"kind": "pidf", "fn": "sq.pidf", "backends": {"lqcs": True, "qiskit": False, "offline_sim": True}},
+    ],
+}
+
+
+class TestBackendFilter(_PatchMixin, unittest.TestCase):
+    """后端能力过滤：只把「这台机器真的能做」的动作交给 LLM / 执行。"""
+
+    def test_fn_to_kind(self):
+        self.assertEqual(sr._fn_to_kind("sq.iqraw"), "iqraw")
+        self.assertEqual(sr._fn_to_kind("cz.dcz"), "cz.dcz")
+        self.assertEqual(sr._fn_to_kind("iqraw(...)"), "iqraw(...)".replace("sq.", ""))
+        self.assertEqual(sr._fn_to_kind(""), "")
+
+    def test_catalog_cached_within_ttl(self):
+        calls = []
+        self._patch_catalog(catalog=CATALOG_STUB)
+        fake = sr._get_json
+
+        def counting(url, timeout=10.0):
+            calls.append(url)
+            return fake(url, timeout)
+
+        sr._get_json = counting
+        sr._catalog(FakeService(), QUANTUM_BASE)
+        sr._catalog(FakeService(), QUANTUM_BASE)
+        self.assertEqual(len(calls), 1, "TTL 内不应重复请求能力目录")
+
+    def test_unsupported_kind_dropped_from_allowed_actions(self):
+        route = _route_ask(fn="sq.pidf")
+        route["llm_task"]["allowed_actions"].append(
+            {"fn": "sq.drag_calibrate", "edge_id": "amp_calibrated--self--drag", "intent": ""}
+        )
+        self._patch_catalog(catalog=CATALOG_STUB)
+        out = sr._apply_backend_filter(FakeService(), QUANTUM_BASE, route)
+        kept = [a["fn"] for a in out["llm_task"]["allowed_actions"]]
+        self.assertIn("sq.pidf", kept)  # offline_sim 能做
+        self.assertNotIn("sq.drag_calibrate", kept)
+        dropped = [w["fn"] for w in out.get("backend_warnings") or []]
+        self.assertIn("sq.drag_calibrate", dropped)
+        self.assertTrue((out.get("backend_capabilities") or {}).get("checked"))
+
+    def test_catalog_unavailable_skips_filter(self):
+        self._patch_catalog(error=ConnectionError("boom"))
+        route = _route_ask(fn="sq.drag_calibrate")
+        out = sr._apply_backend_filter(FakeService(), QUANTUM_BASE, route)
+        self.assertFalse((out.get("backend_capabilities") or {}).get("checked"))
+        self.assertEqual(out["llm_task"]["allowed_actions"][0]["fn"], "sq.drag_calibrate")
+        self.assertEqual(out["backend_warnings"][0]["violation"], "catalog_unavailable")
+
+    def test_accept_with_unsupported_kind_goes_needs_human(self):
+        self._patch_catalog(catalog=CATALOG_STUB)
+        self._patch_route(_route_accept(fn="sq.drag_calibrate"))
+        self._patch_catalog(catalog=CATALOG_STUB)
+        out = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))
+        self.assertEqual(out["status"], "needs_human")
+        self.assertTrue(out["needs_human"])
+        self.assertIn("drag_calibrate", out["reason"])
+        self.assertIn("backend=", out["stdout"])
+
+    def test_g3_all_candidates_dropped_goes_needs_human(self):
+        route = _route_ask(fn="sq.drag_calibrate")
+        route["llm_task"]["allowed_actions"] = [
+            {"fn": "sq.drag_calibrate", "edge_id": "amp_calibrated--self--drag", "intent": ""}
+        ]
+        self._patch_route(route)
+        self._patch_catalog(catalog=CATALOG_STUB)
+        out = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))
+        self.assertEqual(out["status"], "needs_human")
+        self.assertIn("做不了", out["reason"])
+        self.assertTrue(out["backend_warnings"])
+
+    def test_stdout_reports_backend_line(self):
+        self._patch_route(_route_accept(fn="sq.iqraw", edge="unknown->freq_locked"))
+        self._patch_catalog(catalog=CATALOG_STUB)
+        out = sr.execute_state_route(FakeService(), FakeNode({"qubit": "q0"}))
+        self.assertEqual(out["status"], "completed")
+        self.assertIn("checked=True", out["stdout"])
+        self.assertIn("dropped=0", out["stdout"])
 
 
 class TestInstall(unittest.TestCase):

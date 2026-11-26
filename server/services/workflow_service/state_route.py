@@ -55,6 +55,7 @@ quantum_service 按当前态的边表自动生成候选）。
 from __future__ import annotations
 
 import json
+import time
 import urllib.request
 from typing import Any, Dict, List, Optional
 
@@ -169,7 +170,7 @@ def _route_summary(route: Dict[str, Any]) -> Dict[str, Any]:
     keep = ("decision", "branch", "current_state", "allowed_edges", "needs_human",
             "confidence", "reason", "missing", "requires_param_refresh",
             "requires_authorization", "blocked_by", "template",
-            "action_kind", "authorization")
+            "action_kind", "authorization", "backend_warnings", "backend_capabilities")
     return {key: route.get(key) for key in keep if key in route}
 
 
@@ -182,9 +183,171 @@ def _render_stdout(route: Dict[str, Any], extra: str = "") -> str:
     reason = str(route.get("reason") or "")
     if reason:
         lines.append(f"[STATE_ROUTE] reason={reason}")
+    caps = route.get("backend_capabilities") or {}
+    if caps:
+        dropped = len([w for w in (route.get("backend_warnings") or [])
+                       if w.get("violation") == "kind_not_supported_by_runtime_backend"])
+        lines.append(
+            f"[STATE_ROUTE] backend={'/'.join(caps.get('backends') or []) or '未探测'}"
+            f" checked={caps.get('checked')} kinds={caps.get('kind_count', 0)}"
+            f" dropped={dropped}"
+        )
     if extra:
         lines.append(f"[STATE_ROUTE] {extra}")
     return "\n".join(lines)
+
+
+# ── 后端能力过滤：只把「这台机器的后端真的能做」的动作交给 LLM / 执行 ──────────
+CATALOG_TTL = 60.0
+
+_CATALOG_CACHE: Dict[str, Any] = {"url": "", "at": 0.0, "data": {}}
+
+
+def _get_json(url: str, timeout: float = 10.0) -> Dict[str, Any]:
+    """GET 一个 JSON（能力目录用；失败抛异常，由调用方决定是否降级）。"""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        body = resp.read().decode("utf-8", errors="replace")
+    parsed = json.loads(body)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{url} 返回的不是对象")
+    return parsed
+
+
+def _fn_to_kind(fn: Any) -> str:
+    """`sq.iqraw` → `iqraw`；`cz.dcz` 保持 `cz.dcz`（它就是 kind 名）。"""
+    text = str(fn or "").strip()
+    if not text:
+        return ""
+    if text.startswith("cz."):
+        return text
+    if text.startswith("sq."):
+        return text[3:]
+    return text
+
+
+def _catalog(service: Any, base: str, timeout: float = 10.0) -> Dict[str, Any]:
+    """取能力目录（按 URL 缓存 CATALOG_TTL 秒）；取不到返回 `{}`（= 不过滤）。"""
+    now = time.time()
+    cached = _CATALOG_CACHE
+    if cached["url"] == base and now - float(cached["at"] or 0.0) < CATALOG_TTL:
+        return dict(cached["data"] or {})
+    data = _get_json(f"{base}/experiments/catalog", timeout=timeout)
+    _CATALOG_CACHE.update({"url": base, "at": now, "data": data})
+    return data
+
+
+def _runnable_kinds(catalog: Dict[str, Any]) -> tuple:
+    """从能力目录算出「至少有一个可用后端支持」的 kind 集合。
+
+    返回 `(kinds, backends, reason)`；拿不到目录时 `(set(), [], "…不可用")`，
+    调用方据此**跳过过滤**（宁可交给 Router 判，也不要因为目录取不到就卡死）。
+    """
+    experiments = catalog.get("experiments")
+    if not isinstance(experiments, list) or not experiments:
+        return set(), [], "能力目录不可用（没有 experiments 字段）"
+    runtime = catalog.get("runtime_backends")
+    live: List[str] = []
+    if isinstance(runtime, list):
+        for item in runtime:
+            if isinstance(item, dict) and item.get("available") and item.get("name"):
+                live.append(str(item["name"]))
+    kinds: set = set()
+    for entry in experiments:
+        if not isinstance(entry, dict):
+            continue
+        kind = str(entry.get("kind") or "").strip()
+        support = entry.get("backends") or {}
+        if not kind or not isinstance(support, dict):
+            continue
+        usable = [b for b in (live or list(support)) if support.get(b)]
+        if usable:
+            kinds.add(kind)
+    reason = "" if kinds else "能力目录里没有任何可用后端支持的 kind"
+    return kinds, live, reason
+
+
+def _runnable_from_caps(caps: Dict[str, Any]) -> set:
+    """从 `backend_capabilities` 快照还原可做 kind 集合（裁剪已内联，避免二次请求）。"""
+    kinds = caps.get("kinds")
+    if isinstance(kinds, list):
+        return {str(k) for k in kinds}
+    return set()
+
+
+def _filter_actions(actions: List[Dict[str, Any]], allowed_kinds: set) -> tuple:
+    """按 kind 能力裁掉候选；返回 `(kept, dropped)`，dropped 带原因。"""
+    kept: List[Dict[str, Any]] = []
+    dropped: List[Dict[str, Any]] = []
+    for action in actions:
+        fn = action.get("fn")
+        kind = _fn_to_kind(fn)
+        if not kind or kind in allowed_kinds:
+            kept.append(action)
+            continue
+        dropped.append({
+            "fn": fn,
+            "kind": kind,
+            "violation": "kind_not_supported_by_runtime_backend",
+            "detail": f"{kind} 在当前可用后端上做不了（看 GET /experiments/catalog 的 backends）",
+        })
+    return kept, dropped
+
+
+def _apply_backend_filter(service: Any, base: str, route: Dict[str, Any]) -> Dict[str, Any]:
+    """把路由结果里的候选动作按后端能力裁一遍，并写 `backend_warnings`。
+
+    只动**建议面**（`llm_task.allowed_actions` / `candidates`），不动 `allowed_edges`：
+    边表是状态语义，能不能在这个后端做是另一回事。裁完没有候选时，后续分支会转人工。
+    """
+    out = dict(route)
+    warnings: List[Dict[str, Any]] = []
+    try:
+        catalog = _catalog(service, base)
+        allowed_kinds, live, reason = _runnable_kinds(catalog)
+    except Exception as exc:  # noqa: BLE001 - 目录取不到不阻断路由
+        out["backend_warnings"] = [{
+            "violation": "catalog_unavailable",
+            "detail": f"取不到实验能力目录，未做后端能力过滤：{exc}",
+        }]
+        out["backend_capabilities"] = {"checked": False}
+        return out
+
+    if not allowed_kinds:
+        out["backend_warnings"] = [{
+            "violation": "catalog_unavailable",
+            "detail": f"未做后端能力过滤：{reason}",
+        }]
+        out["backend_capabilities"] = {"checked": False}
+        return out
+
+    out["backend_capabilities"] = {
+        "checked": True,
+        "backends": live,
+        "kind_count": len(allowed_kinds),
+        "kinds": sorted(allowed_kinds),
+    }
+
+    task = out.get("llm_task")
+    if isinstance(task, dict):
+        task = dict(task)
+        actions = task.get("allowed_actions")
+        if isinstance(actions, list):
+            kept, dropped = _filter_actions([a for a in actions if isinstance(a, dict)], allowed_kinds)
+            task["allowed_actions"] = kept
+            task["dropped_actions"] = dropped
+            warnings.extend(dropped)
+        out["llm_task"] = task
+
+    candidates = out.get("candidates")
+    if isinstance(candidates, list) and candidates:
+        kept_c, dropped_c = _filter_actions([c for c in candidates if isinstance(c, dict)], allowed_kinds)
+        out["candidates"] = kept_c
+        warnings.extend([d for d in dropped_c if d not in warnings])
+
+    if warnings:
+        out["backend_warnings"] = warnings
+    return out
 
 
 # ── G3：LLM 只能在合法边内选 ──────────────────────────────────────────────────
@@ -438,6 +601,8 @@ def execute_state_route(service: Any, node: Any, context: Optional[Dict[str, Any
             "error": f"状态机路由服务不可用（{url}）：{exc}",
         }
 
+    route = _apply_backend_filter(service, base, route)
+
     if route.get("success") is False:
         error = str(route.get("error") or "路由请求被拒绝")
         _log(f"route rejected: {error}")
@@ -454,6 +619,25 @@ def execute_state_route(service: Any, node: Any, context: Optional[Dict[str, Any
                 "status": "failed",
                 "error": f"路由返回 accept 但没有 chosen_action（branch={branch}）",
                 "route": _route_summary(route),
+            }
+        caps = route.get("backend_capabilities") or {}
+        chosen_kind = _fn_to_kind(action.get("fn"))
+        if caps.get("checked") and chosen_kind and chosen_kind not in _runnable_from_caps(caps):
+            return {
+                "status": "needs_human",
+                "needs_human": True,
+                "decision": decision,
+                "branch": branch,
+                "state": route.get("current_state"),
+                "action": action,
+                "action_kind": route.get("action_kind"),
+                "kind": chosen_kind,
+                "allowed_edges": allowed_edges,
+                "reason": f"当前可用后端（{', '.join(caps.get('backends') or []) or '未探测到'}）做不了 {chosen_kind}",
+                "backend_warnings": route.get("backend_warnings"),
+                "route": _route_summary(route),
+                "question": f"状态机建议的动作 {action.get('fn')} 在当前后端上不可用，需人工决定",
+                "stdout": _render_stdout(route, f"{branch} 建议 {action.get('fn')}，但 {chosen_kind} 当前后端做不了"),
             }
         source = "template" if route.get("template") else "router"
         return {
@@ -477,6 +661,25 @@ def execute_state_route(service: Any, node: Any, context: Optional[Dict[str, Any
         }
 
     if decision == "ask_llm":
+        caps = route.get("backend_capabilities") or {}
+        if caps.get("checked") and not _allowed_action_list(route):
+            dropped = [w for w in (route.get("backend_warnings") or [])
+                       if w.get("violation") == "kind_not_supported_by_runtime_backend"]
+            detail = "、".join(str(w.get("fn")) for w in dropped) or "无可选动作"
+            return {
+                "status": "needs_human",
+                "needs_human": True,
+                "decision": decision,
+                "branch": branch,
+                "state": route.get("current_state"),
+                "allowed_edges": allowed_edges,
+                "reason": f"所有候选动作在当前后端上做不了（{detail}）",
+                "backend_warnings": route.get("backend_warnings"),
+                "violations": route.get("violations"),
+                "route": _route_summary(route),
+                "question": f"状态机给出 {branch}，但候选动作在当前后端都不可用，需人工决定",
+                "stdout": _render_stdout(route, f"候选动作被后端能力全部裁掉（{detail}）"),
+            }
         return _ask_llm(service, config, route, qubit)
 
     # reject（G0）/ hold（G4）/ 其它未知 decision → 一律转人工，绝不下发

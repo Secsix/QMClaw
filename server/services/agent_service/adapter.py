@@ -9,6 +9,7 @@ Agent Service 适配器
 """
 
 import json
+import os
 import time
 import urllib.request
 import urllib.error
@@ -16,14 +17,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..common.quantum_tools import (
+    AnalyzeDatasetTool,
     GetQubitParamsTool,
     GetQubitsTool,
     ListExperimentsTool,
     RunCodeTool,
-    RunExperimentTool,
+    SemanticRunExperimentTool,
     ListHistoryTool,
     ToolRegistry,
     ToolResult,
+    expose_run_code,
 )
 
 
@@ -249,6 +252,11 @@ def _poll_job(job_id: str, base_url: str = QUANTUM_SERVICE_URL,
     }
 
 
+def _analysis_service_url() -> str:
+    """analysis_service 地址（语义拟合工具用）：允许用环境变量覆盖默认 :3004。"""
+    return os.environ.get("QMCLAW_ANALYSIS_URL", "http://localhost:3004")
+
+
 def setup_agent_tools(
     registry: ToolRegistry,
     quantum_service_url: str = QUANTUM_SERVICE_URL
@@ -387,9 +395,15 @@ def setup_agent_tools(
     registry.register_tool(GetQubitsTool(get_qubits))
     registry.register_tool(GetQubitParamsTool(get_qubit_params, get_qubits))
     registry.register_tool(ListExperimentsTool(list_experiments))
-    registry.register_tool(RunCodeTool(
-        execute_code, is_connected, actuation_flags, is_offline=is_offline
-    ))
+    # 工具面收口（2026-11-26）：智能体只说 kind，不说代码。
+    # run_code 默认不注册 —— 代码字符串无法被后端适配层理解（qiskit/离线看不懂
+    # 厂商调用），也会绕过参数校验；排障时由人设 QMCLAW_EXPOSE_RUN_CODE=1 打开。
+    if expose_run_code():
+        registry.register_tool(RunCodeTool(
+            execute_code, is_connected, actuation_flags, is_offline=is_offline
+        ))
+    registry.register_tool(SemanticRunExperimentTool(quantum_service_url))
+    registry.register_tool(AnalyzeDatasetTool(_analysis_service_url()))
     # 注意 RunExperimentTool 的契约是：
     #   code_builder(name, params) -> 代码字符串
     #   executor(代码字符串) -> 执行结果
@@ -398,15 +412,6 @@ def setup_agent_tools(
     # 直接抛 "unhashable type: 'slice'"。
     # 现在传真正的代码构造器，由 RunExperimentTool 负责把执行结果包装成
     # ExperimentResult（离线字段映射见 quantum_tools/execution.py）。
-    registry.register_tool(RunExperimentTool(
-        lambda name, params: build_experiment_code(
-            name, (params or {}).get("target"), params or {}
-        ),
-        execute_code,
-        is_connected=is_connected,
-        actuation_flags=actuation_flags,
-        is_offline=is_offline,
-    ))
     registry.register_tool(ListHistoryTool(list_history))
 
     return registry

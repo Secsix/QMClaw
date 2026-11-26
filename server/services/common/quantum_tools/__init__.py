@@ -45,6 +45,11 @@ from .execution import (
     ListExperimentsTool,
     GetExperimentSchemaTool,
 )
+from .semantic import (
+    AnalyzeDatasetTool,
+    SemanticRunExperimentTool,
+    expose_run_code,
+)
 from .qubit import (
     GetQubitsTool,
     GetQubitParamsTool,
@@ -82,6 +87,10 @@ __all__ = [
     "RunCodeTool",
     "ListExperimentsTool",
     "GetExperimentSchemaTool",
+    # 语义工具（服务边界收口：agent 只说 kind，不说代码）
+    "SemanticRunExperimentTool",
+    "AnalyzeDatasetTool",
+    "expose_run_code",
     # 量子比特工具
     "GetQubitsTool",
     "GetQubitParamsTool",

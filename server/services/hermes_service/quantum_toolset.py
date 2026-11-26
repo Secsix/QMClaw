@@ -9,6 +9,7 @@ Hermes Service 量子工具集
 """
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -25,7 +26,13 @@ except ImportError:
     Tool = None
     TextContent = None
 
-from ..common.quantum_tools import ToolRegistry
+from ..common.quantum_tools import (
+    AnalyzeDatasetTool,
+    RunCodeTool,
+    SemanticRunExperimentTool,
+    ToolRegistry,
+    expose_run_code,
+)
 
 
 # quantum_service 地址
@@ -55,6 +62,11 @@ def _http_call(url: str, data: dict = None, method: str = "GET") -> dict:
         return {"error": f"HTTP {e.code}: {e.reason}"}
     except Exception as e:
         return {"error": str(e)}
+
+
+def _analysis_service_url() -> str:
+    """analysis_service 地址（语义拟合工具用）：允许用环境变量覆盖默认 :3004。"""
+    return os.environ.get("QMCLAW_ANALYSIS_URL", "http://localhost:3004")
 
 
 def setup_hermes_tools(registry: ToolRegistry, quantum_service_url: str = QUANTUM_SERVICE_URL) -> ToolRegistry:
@@ -135,7 +147,11 @@ def setup_hermes_tools(registry: ToolRegistry, quantum_service_url: str = QUANTU
     registry.register_tool(GetQubitsTool(get_qubits))
     registry.register_tool(GetQubitParamsTool(get_qubit_params, get_qubits))
     registry.register_tool(ListExperimentsTool(list_experiments))
-    registry.register_tool(RunCodeTool(execute_code, is_connected))
+    # 工具面收口（2026-11-26）：与 agent_service 同一口径 —— 只说 kind，不说代码。
+    if expose_run_code():
+        registry.register_tool(RunCodeTool(execute_code, is_connected))
+    registry.register_tool(SemanticRunExperimentTool(quantum_service_url))
+    registry.register_tool(AnalyzeDatasetTool(_analysis_service_url()))
     registry.register_tool(ListHistoryTool(list_history))
 
     return registry
