@@ -287,6 +287,11 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  proxy.get('/quantum/qubit/scopes', async (_req, res) => {
+    const result = await proxyToService('quantum', '/qubit/scopes', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.post('/quantum/qubit/state', async (req, res) => {
     const result = await proxyToService('quantum', '/qubit/state', 'POST', req.body ?? {});
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });

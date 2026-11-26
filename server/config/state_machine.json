@@ -1,10 +1,29 @@
 {
   "_doc": "量子测控状态机的结构真源（边表 A(s) / 每态 TTL / 三道闸门参数 / 模板库）。设计稿见 docs/STATE_MACHINE_DESIGN.md。**阈值不在这里**——指标阈值的唯一真源是 config/lab_criteria.json；本文件只放结构，改阈值不要动本文件。",
-  "version": "1.2.0",
-  "updated": "2026-11-24",
+  "version": "1.3.0",
+  "updated": "2026-11-26",
   "authority": "structure-only: 状态定义 / 合法边 A(s) / 状态 TTL / 闸门参数 / 模板库",
   "criteria_source": "config/lab_criteria.json",
   "scope_types": ["qubit", "pair"],
+  "scopes": {
+    "qubit": {
+      "states_key": "states",
+      "edges_key": "edges",
+      "enabled_by": [],
+      "engine": "legacy",
+      "label": "单比特六态",
+      "description": "频率 → 幅度 → 态区分 → 相干 → 表征；判据实现仍在 qubit_state.py（engine=legacy），换成 config 引擎前必须先过 parity 测试"
+    },
+    "pair": {
+      "states_key": "pair_states",
+      "edges_key": "pair_edges",
+      "enabled_by": ["coupler"],
+      "engine": "legacy",
+      "label": "双比特 CZ",
+      "prerequisite": {"scope": "qubit", "state": "amp_calibrated"},
+      "description": "两个比特 + 一条耦合边；没有 coupler 能力的芯片不会出现这个 scope"
+    }
+  },
   "edge_kinds": ["forward", "self", "back"],
   "states": {
     "unknown": {

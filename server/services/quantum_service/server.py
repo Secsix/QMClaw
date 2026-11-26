@@ -830,6 +830,8 @@ class QuantumService(BaseService):
             return self._handle_qubit_state(data)
         elif path == "/qubit/state_table":
             return self._handle_qubit_state_table(data)
+        elif path == "/qubit/scopes":
+            return self._handle_qubit_scopes(data)
         elif path == "/qubit/evidence":
             return self._handle_qubit_evidence(data)
         elif path == "/qubit/evidence/reset":
@@ -1311,6 +1313,19 @@ class QuantumService(BaseService):
             "record": record,
         }
 
+    def _handle_qubit_scopes(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """当前芯片启用了哪些 scope、每个 scope 的态/边与启用依据。只读、不碰硬件。
+
+        回答的是「状态图为什么长这样」：结构表声明了哪些 scope，这台机器的能力标签
+        满足哪些，被人工覆盖了哪些。前端据此只画**启用**的 scope，而不是画空图。
+        """
+        from services.common.machine_profile import summarize
+
+        try:
+            return summarize()
+        except Exception as exc:  # noqa: BLE001 - 统一错误语义
+            return {"success": False, **error_envelope("internal_error", str(exc))}
+
     def _handle_qubit_pair_state_table(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """pair 状态机全表（六态 + 13 条边 + 三个 pair 判据 + 执行能力）。只读。"""
         from services.common.state_machine import state_table_extended
@@ -1665,10 +1680,10 @@ class QuantumService(BaseService):
         from services.common.qubit_state import derive_state
         from services.common.runrecord import RunRecordWriter
         from services.common.state_evidence import evidence_from_records, merge_evidence
+        from services.common.machine_profile import profile_machine
         from services.common.state_machine import (
             build_state_record,
             edges_for,
-            load_state_machine,
         )
         from services.common.router import route
 
@@ -1704,7 +1719,9 @@ class QuantumService(BaseService):
             conflicts=conflicts,
             criteria_version=state.get("criteria_version"),
         )
-        machine = load_state_machine()
+        # 按芯片能力裁过的结构表：被 edge_overrides 禁用的边在这里就消失，
+        # 于是 Router 的 G0 会天然拒绝（不需要在路由里再写一遍禁用逻辑）。
+        machine = profile_machine()
         # 出厂模板在 config 里，实测成功率/晋退状态在 data/state_ledger；
         # 这里把运行期实例合进来，G1/G2 才有可能命中（读盘失败不影响判定）。
         try:
@@ -1769,9 +1786,11 @@ class QuantumService(BaseService):
         `config/state_machine.json`，由 `services/common/state_machine.py` 读取；
         旧字段一字不改地保留（只增不改）。
         """
+        from services.common.machine_profile import profile_machine
         from services.common.state_machine import state_table_extended
 
-        table = state_table_extended()
+        # 按芯片能力裁过的结构表（没有 device_capabilities.json 时与裸结构表一致）
+        table = state_table_extended(machine=profile_machine())
         return {
             "success": True,
             **table,

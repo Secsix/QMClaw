@@ -215,15 +215,16 @@ def record_validity(
 
 
 # ---------------------------------------------------------------------------
-# scope 视图（单比特 / 双比特 pair）
+# scope 视图（单比特 / 双比特 pair / 后续可扩展）
 # ---------------------------------------------------------------------------
 #
 # 设计稿 §8.1：CZ 状态机与单比特状态机是**两套并列的 scope**，共享同一套判据引擎与
 # 同一套证据契约，但状态集与边表独立。因此这里的做法不是把 Router / 闸门写两遍，
-# 而是把「结构表」按 scope 取一个视图喂给同一批纯函数：
+# 而是把「结构表」按 scope 取一个视图喂给同一批纯函数。
 #
-#   * qubit scope → machine["states"] / machine["edges"]（历史字段，语义不变）
-#   * pair  scope → machine["pair_states"] / machine["pair_edges"]
+# v1.3.0 起 scope 由结构表的 ``scopes`` 段**声明**（states_key / edges_key /
+# enabled_by / engine / prerequisite），没有该段时回落到 qubit + pair 的旧键，
+# 行为与 v1.2.0 完全一致。新增 scope 只需要写配置，不再需要新的 Python 模块。
 #
 # 这样 ttl_for / all_edges / edges_for / resolve_edges / evaluate_gates / route
 # 一行都不用改，只是吃不同的表。
@@ -232,8 +233,65 @@ SCOPE_QUBIT = "qubit"
 SCOPE_PAIR = "pair"
 SCOPES = (SCOPE_QUBIT, SCOPE_PAIR)
 
-_PAIR_STATES_KEY = "pair_states"
-_PAIR_EDGES_KEY = "pair_edges"
+#: 结构表没有 ``scopes`` 段时的兜底声明（与 v1.2.0 的两套表一一对应）。
+_SCOPE_FALLBACK_SPECS: Dict[str, Dict[str, Any]] = {
+    SCOPE_QUBIT: {
+        "states_key": "states",
+        "edges_key": "edges",
+        "enabled_by": [],
+        "engine": "legacy",
+        "label": "单比特六态",
+    },
+    SCOPE_PAIR: {
+        "states_key": "pair_states",
+        "edges_key": "pair_edges",
+        "enabled_by": [],
+        "engine": "legacy",
+        "label": "双比特 CZ",
+    },
+}
+
+
+def scope_specs(machine: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
+    """scope 声明表：优先读结构表的 ``scopes`` 段，缺省从旧键推导。
+
+    每个 scope 可声明：``states_key`` / ``edges_key`` / ``enabled_by``（芯片能力标签）/
+    ``engine``（legacy = qubit_state.py，config = state_expr.py）/ ``label`` /
+    ``prerequisite``（前置 scope 与状态）。qubit 永远排在最前。
+    """
+    machine = machine or load_state_machine()
+    declared = machine.get("scopes")
+    specs: Dict[str, Dict[str, Any]] = {}
+    if isinstance(declared, dict) and declared:
+        for raw_name, raw_spec in declared.items():
+            if not isinstance(raw_spec, dict):
+                continue
+            name = str(raw_name).strip().lower()
+            fallback = dict(_SCOPE_FALLBACK_SPECS.get(name) or {})
+            merged: Dict[str, Any] = {**fallback, **dict(raw_spec)}
+            merged.setdefault(
+                "states_key", "states" if name == SCOPE_QUBIT else "%s_states" % name
+            )
+            merged.setdefault(
+                "edges_key", "edges" if name == SCOPE_QUBIT else "%s_edges" % name
+            )
+            merged.setdefault("enabled_by", [])
+            merged.setdefault("engine", "legacy")
+            specs[name] = merged
+    if not specs:
+        specs = {name: dict(spec) for name, spec in _SCOPE_FALLBACK_SPECS.items()}
+    ordered: Dict[str, Dict[str, Any]] = {}
+    if SCOPE_QUBIT in specs:
+        ordered[SCOPE_QUBIT] = specs[SCOPE_QUBIT]
+    for name, spec in specs.items():
+        if name != SCOPE_QUBIT:
+            ordered[name] = spec
+    return ordered
+
+
+def scope_names(machine: Optional[Dict[str, Any]] = None) -> List[str]:
+    """结构表声明了哪些 scope（顺序即展示顺序）。"""
+    return list(scope_specs(machine).keys())
 
 
 def machine_for_scope(
@@ -243,20 +301,24 @@ def machine_for_scope(
     """取出某个 scope 的结构视图（``states`` / ``edges`` 换成该 scope 自己的）。"""
     machine = machine or load_state_machine()
     name = str(scope or SCOPE_QUBIT).strip().lower()
-    if name == SCOPE_QUBIT:
-        return machine
-    if name not in SCOPES:
-        raise ValueError("未知 scope %r；可用：%s" % (scope, ", ".join(SCOPES)))
-    pair_states = machine.get(_PAIR_STATES_KEY) or {}
-    pair_edges = machine.get(_PAIR_EDGES_KEY) or []
-    if not pair_states or not pair_edges:
+    specs = scope_specs(machine)
+    if name not in specs:
+        raise ValueError("未知 scope %r；可用：%s" % (scope, ", ".join(specs)))
+    spec = specs[name]
+    states_key = str(spec.get("states_key") or "states")
+    edges_key = str(spec.get("edges_key") or "edges")
+    states = machine.get(states_key)
+    edges = machine.get(edges_key)
+    # 边表允许是空列表（能力档案把某个 scope 的边全禁掉时就是这样），
+    # 但键必须存在 —— 缺键才是「没有这个 scope」。
+    if not isinstance(states, dict) or not states or not isinstance(edges, list):
         raise ValueError(
-            "结构表里没有 pair scope（缺 %s / %s）" % (_PAIR_STATES_KEY, _PAIR_EDGES_KEY)
+            "结构表里没有 %s scope（缺 %s / %s）" % (name, states_key, edges_key)
         )
     view = dict(machine)
-    view["states"] = {k: dict(v) for k, v in pair_states.items() if isinstance(v, dict)}
-    view["edges"] = [dict(e) for e in pair_edges if isinstance(e, dict)]
-    view["scope"] = SCOPE_PAIR
+    view["states"] = {k: dict(v) for k, v in states.items() if isinstance(v, dict)}
+    view["edges"] = [dict(e) for e in edges if isinstance(e, dict)]
+    view["scope"] = name
     return view
 
 
@@ -269,11 +331,13 @@ def has_scope(scope: str, machine: Optional[Dict[str, Any]] = None) -> bool:
     """结构表里是否有这个 scope 的表。"""
     machine = machine or load_state_machine()
     name = str(scope or "").strip().lower()
-    if name == SCOPE_QUBIT:
-        return bool(machine.get("states"))
-    if name == SCOPE_PAIR:
-        return bool(machine.get(_PAIR_STATES_KEY)) and bool(machine.get(_PAIR_EDGES_KEY))
-    return False
+    specs = scope_specs(machine)
+    spec = specs.get(name)
+    if not spec:
+        return False
+    states = machine.get(str(spec.get("states_key") or ""))
+    edges = machine.get(str(spec.get("edges_key") or ""))
+    return isinstance(states, dict) and bool(states) and isinstance(edges, list)
 
 
 def scope_states(
@@ -291,41 +355,70 @@ def scope_states(
     return [name for _, name in sorted(rows)]
 
 
+def _config_state_table(scope: str, view: Dict[str, Any]) -> Dict[str, Any]:
+    """配置驱动 scope 的状态表（形状与 ``qubit_state.state_table()`` 对齐，便于前端复用）。"""
+    states = view.get("states") or {}
+    rows = sorted(
+        (
+            (int(info.get("index", 0)), name, info)
+            for name, info in states.items()
+            if isinstance(info, dict)
+        ),
+        key=lambda row: row[0],
+    )
+    table: Dict[str, Any] = {
+        "scope": scope,
+        "states": [name for _, name, _ in rows],
+        "descriptions": {name: str(info.get("description") or "") for _, name, info in rows},
+        "next_action": {name: str(info.get("next_action") or "") for _, name, info in rows},
+        "evidence_sources": {
+            key: dict(value)
+            for key, value in (view.get("evidence_sources") or {}).items()
+            if isinstance(value, dict)
+        },
+        "missing_by_state": {
+            key: list(value)
+            for key, value in (view.get("missing_by_state") or {}).items()
+            if isinstance(value, (list, tuple))
+        },
+    }
+    return table
+
+
 def state_table_extended(
     machine: Optional[Dict[str, Any]] = None,
     scope: str = SCOPE_QUBIT,
 ) -> Dict[str, Any]:
-    """状态机全表 = 旧表（qubit_state.state_table）+ 边表 + 闸门 + 结构版本。
+    """状态机全表 = 该 scope 的状态表 + 边表 + 闸门 + 结构版本。
 
     旧表字段**一字不改**地保留在结果里，前端与自检脚本按新表读即可。
     """
     name = str(scope or SCOPE_QUBIT).strip().lower()
     machine = machine or load_state_machine()
+    specs = scope_specs(machine)
+    if name not in specs:
+        raise ValueError("未知 scope %r；可用：%s" % (scope, ", ".join(specs)))
+    view = machine_for_scope(name, machine)
+    gates = gate_config(machine)
+    version = state_version(machine)
+    ttl = {key: ttl_for(key, view) for key in (view.get("states") or {})}
 
     if name == SCOPE_PAIR:
         from services.common.pair_state import state_table_pair
 
-        view = machine_for_scope(SCOPE_PAIR, machine)
         table = dict(state_table_pair())
-        table["scope"] = SCOPE_PAIR
-        table["edges"] = all_edges(view)
-        table["gates"] = gate_config(machine)
-        table["state_version"] = state_version(machine)
-        table["state_ttl"] = {
-            key: ttl_for(key, view) for key in (view.get("states") or {})
-        }
-        return table
+    elif name == SCOPE_QUBIT and str(specs[name].get("engine") or "legacy") == "legacy":
+        from services.common.qubit_state import state_table
 
-    from services.common.qubit_state import state_table
+        table = dict(state_table())
+    else:
+        table = _config_state_table(name, view)
 
-    table = dict(state_table())
-    table["scope"] = SCOPE_QUBIT
-    table["edges"] = all_edges(machine)
-    table["gates"] = gate_config(machine)
-    table["state_version"] = state_version(machine)
-    table["state_ttl"] = {
-        key: ttl_for(key, machine) for key in (machine.get("states") or {})
-    }
+    table["scope"] = name
+    table["edges"] = all_edges(view)
+    table["gates"] = gates
+    table["state_version"] = version
+    table["state_ttl"] = ttl
     return table
 
 
