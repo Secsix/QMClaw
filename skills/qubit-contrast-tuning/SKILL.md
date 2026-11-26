@@ -1,164 +1,98 @@
 ---
 name: qubit-contrast-tuning
 description: >
-  量子比特态区分度（readout contrast）迭代调优。用 iqraw -> piamp -> iqraw -> pidf -> iqraw -> piamp
-  的序列，借 pi 脉冲频率失谐扫描把 f10 拉回正确位置、把 contrast 从"勉强可用"推到实验室合格线。
-  含 contrast 的计算口径、判定门限、实测基线（q2ld3：0.22 -> 0.765）以及踩过的坑。
-  Triggers: '态区分', '对比度', 'contrast', 'visibility', 'iqraw 调优', 'pidf', 'f10 偏了',
-  'IQ 云分不开', 'readout optimization', 'state discrimination'
+  态区分度（contrast）迭代调优：比特"能读出但分不清 |0> 和 |1>"时的诊断与收敛路径。
+  核心判断——对比度卡住先怀疑频率而不是幅度；区分度判据看 contrast 不看 discriminator 中心；
+  平坦光谱的拟合峰位不可信。含实测基线与五条现场坑。
+  Triggers: '对比度', 'contrast', '区分度', '分不清 0 和 1', 'iqraw 不好', 'SNR 低',
+  'discriminator', '读出不好', '态区分'
+version: 2.0.0
+author: qmclaw
 ---
 
-# 态区分度（contrast）迭代调优
+# 态区分度（contrast）调优
 
-当一个比特"能读出但分不清 |0> 和 |1>"时，不要直接重跑 spectroscopy，也不要盲目调读出功率。
-按下面的顺序做，先确认 contrast 的量级，再用 `sq.pidf` 找频率。
+现象：比特能读出信号（有 IQ 云团、有峰），但 |0> 与 |1> 分不开。
+**不要**直接重跑扫频，也**不要**盲目调读出功率。按下面的顺序排。
 
-## 一、先算清楚 contrast，别只看 discriminator 中心
+## 一、先把 contrast 算清楚
 
-contrast 定义（与实验室 `qubit_sensing/tools/calibrate.py` 的 `stage_check` 同口径）：
+判据是 `contrast`（`server/config/lab_criteria.json`）：
 
-```
-contrast = | P(1 | prep X) - P(1 | prep I) |
-```
+| 区间 | 结论 |
+| --- | --- |
+| `< 0.2` | 不可用：这样采下去所有结论都不可信 |
+| `0.2 – 0.4` | 弱可用：能推进状态，但结论要标"低区分度" |
+| `> 0.4` | 合格 |
+| `> 0.7` | 良好（演示与教学都用这一档） |
 
-其中投影轴和阈值取 discriminator 的 `center0` / `center1`：
-
-```python
-u   = (center1 - center0) / norm(center1 - center0)
-thr = 0.5 * (center0 + center1) @ u
-P1  = mean(shots @ u > thr)      # shots 取 Is|I/Qs|I 或 Is|X/Qs|X 两列
-```
-
-判定门限：
-
-| contrast | 含义 | 动作 |
-|---|---|---|
-| < 0.2 | 不可用 | 先查 f10 是否偏了、π 是否在共振 |
-| 0.2 ~ 0.4 | 可用但弱，**从这里可以开始优化** | 跑迭代序列 |
-| > 0.4 | 实验室合格 | 继续微调或进入下一步标定 |
-| > 0.7 | 良好 | 停止，转去调 T1/T2/XEB |
-
-辅助指标：两云间距 `sep`、云半径 `sigma`、`SNR = sep / sigma`。经验上 `SNR > 2` 对应 contrast 0.7 左右。
-
-## 二、迭代序列
+取数方式：
 
 ```
-sq.iqraw  ->  sq.piamp  ->  sq.iqraw  ->  sq.pidf  ->  sq.iqraw  ->  sq.piamp
-  测基线        调π幅度        复测          调f10       复测         再调π幅度
+POST http://localhost:3002/api/analysis/fit
+{"dataset_id": "<iqraw 的数据集>", "kind": "iqraw"}
 ```
 
-**核心思想**：`sq.pidf` 扫的是 π 脉冲相对当前 `f10` 的失谐 `df`，在 `±df` 窗口里找态区分度最高的频点，
-它写回的是比特频率。`sq.piamp` 只动幅度，**不改频率**。所以：
+返回 `metrics.contrast`（若原始数据只有 separation 或 SNR，换算口径已在服务里：
+`contrast = separation/2`，退化时 `contrast = SNR/20`，都截断到 0..1）。
 
-- 如果 contrast 卡在低位，**先怀疑频率**（pidf），不要指望 piamp；
-- 频率对了之后，piamp 只在 1~2% 的范围内微调，converge 很快。
+**不要用两个 discriminator 中心之间的距离当区分度**：中心每次读都可能重算，
+它变了不代表物理变了。判据只看 `contrast`。
 
-每轮约 30 秒（iqraw 3 s / piamp 6 s / pidf 8 s），跑 2~3 轮即可收敛。
+## 二、迭代序列（哪一步先做）
 
-## 三、脚本
+1. **先确认频率**。频率错了，怎么调 π 幅度对比度都上不去。
+   - 看 `freq_locked` 证据在不在、有没有过期（TTL 1 天）；
+   - 过期或怀疑漂了：重扫（`spectroscopy`）；峰位不可信时用 `pidf` 做功率依赖修正；
+   - 平坦光谱的拟合峰位是噪声——**图看起来是平的，就不要信它写回的频率**。
+2. **再确认 π 幅度**。频率对了之后，`piamp` 只在 1~2% 范围内微调，很快收敛。
+   如果 `piamp` 要动 >5%，说明上游（频率/脉冲形状）还有问题，别硬调。
+3. **最后看读出**。读出声光子数不够、读出脉冲长度不当、态制备不干净，
+   都会压低 contrast；这些是实验参数，不是拟合问题。
+4. **每轮都重判状态**：`POST /api/quantum/qubit/state {"name":"q0"}`。
+   对比度上去了，状态应从 `amp_calibrated` 推到 `state_discriminated`；
+   没推进就如实说没推进。
 
-`tools/iqraw_contrast_tune.py`
+## 三、典型症状 → 先查什么
 
-```bash
-# 单个比特，扫 ±50 MHz，跑一轮
-python tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05
+| 症状 | 先查 | 不要做 |
+| --- | --- | --- |
+| contrast 长期 < 0.2，IQ 两团重叠 | 频率是否真的锁住（`pidf` 复核） | 只调读出功率 |
+| contrast 在 0.3 附近徘徊，重跑也不变 | 态制备与读出脉冲长度 | 反复重跑 iqraw |
+| 今天好明天差 | 状态是否过期、频率是否漂（TTL） | 假设"昨天已标定过" |
+| IQ 云团呈一条线（不是两团） | 是否根本没加 π 脉冲 / 幅度为 0 | 拟合参数 |
+| 拟合 r² 很低 | 数据本身有问题（点数太少、扫描范围不对） | 相信拟合结果 |
 
-# 连跑三轮观察是否收敛
-python tools/iqraw_contrast_tune.py --qubit q2ld3 --df 0.05 --rounds 3
+## 四、实测基线（供对照）
 
-# 只看会下发什么，不碰硬件
-python tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
-```
+一台超导比特（q2ld3，2026-11 记录）在正常标定后的量级：
 
-脚本行为：
+- `contrast ≈ 0.71`（separation ≈ 1.41，SNR ≈ 4）；
+- `pi_amplitude ≈ 0.275`；
+- `T1 ≈ 49.5 μs`、`T2* ≈ 20.7 μs`、`xeb_gate_fidelity ≈ 0.995`。
 
-1. 通过 `POST :3003/execute` 逐步下发（尊重 quantum_service 的 LabRAD 锁），每步 `do_plot=False`；
-2. 每跑完一个 `sq.iqraw` 就读回数据集算 contrast / P1 / SNR；
-3. 结束后打印 contrast 历史表并指出最佳一轮。
-
-> ⚠️ **`--df` 必须覆盖实际频偏**。默认 `df=0.03` 只有 ±30 MHz；若 f10 已被写偏 35 MHz 以上，
-> 这个窗口会扫不到正确频点。怀疑频率写坏时直接给 `--df 0.05` 或更大。
-
-## 四、实测基线（q2ld3，2026-11-03）
-
-起点是 f10 被一次平坦数据上的噪声拟合推高了 35.7 MHz：
-
-| 轮次 | 步骤 | dataset | contrast | P1(I) | P1(X) | SNR | f10 (GHz) | PiGate.amp |
-|---|---|---|---|---|---|---|---|---|
-| 0 | 调优前 | 536 | 0.216 | 0.062 | 0.278 | 0.65 | 3.656875155 | 1.218983 |
-| 1 | iqraw | 537 | 0.261 | 0.143 | 0.404 | 0.74 | 3.656875155 | 1.313216 |
-| 1 | piamp | 539 | 0.233 | 0.109 | 0.342 | 0.65 | 3.656875155 | 1.313216 |
-| 1 | **pidf** | 541 | **0.633** | 0.247 | 0.880 | 1.93 | **3.621327046** | 1.157553 |
-| 2 | iqraw | 544 | 0.715 | 0.165 | 0.880 | 2.25 | 3.621327046 | 1.157553 |
-| 2 | piamp | 546 | 0.727 | 0.166 | 0.893 | 2.34 | 3.621327046 | 1.205319 |
-| 2 | pidf | 548 | 0.719 | 0.167 | 0.886 | 2.27 | 3.621954083 | 1.205319 |
-| 3 | iqraw | 550 | 0.711 | 0.178 | 0.889 | 2.22 | 3.621954083 | 1.161461 |
-| 3 | piamp | 552 | 0.734 | 0.161 | 0.894 | 2.36 | 3.621954083 | 1.173172 |
-| 3 | **pidf** | 554 | **0.765** | 0.133 | 0.898 | 2.51 | **3.621227332** | 1.173172 |
-
-结论：**一次 pidf 就把 contrast 从 0.22 拉到 0.63**（f10 修正 −35.55 MHz，几乎正好是错误回写的镜像），
-后续两轮只做微调（0.72 → 0.765）。piamp 在第一轮把幅度从 1.219 调到 1.313，contrast 反而略降。
+这些数字只用来判断"量级对不对"，不是判据。判据永远在配置文件里。
 
 ## 五、坑（都踩过）
 
-1. **spectroscopy 的自动拟合会把 f10 写坏。** `sq_nodes` 的 `spectroscopy.update_f10` 会把 `distance`
-   曲线的峰和 `deviation` 曲线的峰做平均，任一拟合发散就会写出离谱的值（实验室见过 35.18 / 1.19 / 2.62 GHz
-   被写到平坦数据上）。所以：**光谱图看起来是平的，就不要信它写回的 f10**，用 pidf 或 `inspect_dataset.py` 复核。
-2. **不要用 discriminator 中心间距判断态区分。** `sq.iqraw(update=True)` 每次都拿当前数据重写
-   `discriminator.center0/center1`；在一片单峰宽分布上做二分类也会得到"看起来分得很开"的假中心。
-   要看 contrast（P1 对比度）。
-3. **`sq.iqraw` 的 stdout 里没有 `dataset: N`**（只有 spectroscopy 这类更新型实验才打印）。
-   数据集号必须从 `cxn.data_vault.dir()` 解析，注意它返回的是元组 `(子目录列表, 数据集文件列表)`，
-   且独立连接默认停在 `['', 'LQHL']`，要先 `cd` 到 session 叶子目录。
-4. **服务端执行一律 `do_plot=False`。** 微服务跑在没有显示环境的后台，本机 matplotlib 默认后端是 `qtagg`，
-   `do_plot=True` 会在工作线程拉起 Qt GUI，把整个服务卡死（进程仍 `LISTENING`，但 accept 不再响应）。
-   画图统一交给 analysis_service 的 `/plot`。
-5. **跨轮比较要用同一组 discriminator 中心。** 用"当时的中心"评分不可复现；脚本统一用当前中心。
+1. **平坦光谱会写回一个假频率**：拟合在平数据上也能给出峰位，且看起来"像真的"。
+   凡是光谱图没有明显峰，就不要拿它的 `f10`。
+2. **对比度掉可能是频率先掉**：顺序永远是 频率 → 幅度 → 读出，倒过来调会白跑。
+3. **过期的状态不能当依据**：`freq_locked` 的有效期只有 1 天；用它来做准入判定会
+   被 GATE-TTL 拦下（这就是它存在的意义）。
+4. **别用"跑完了"代替"推进了"**：一次 iqraw 跑完但没写进证据，状态不会动。
+5. **模拟后端的 contrast 是算出来的**：qiskit 给的是 separation 与 SNR，
+   换算出来的 contrast 恰好落在 0.7 左右；演示时说明这是模拟值。
 
-## 六、调完还不够怎么办
+## 六、调不上去怎么办
 
-残余 `P1(I)` 偏高（如 0.13）通常是**读出泄露**，而不是激发不足（`P1(X)` 已 0.89）：
-
-1. `sq.set_pi(qobjs, gate='X')` —— 同时细调 `amp` 与 `alpha`（piamp 不碰 alpha）；
-2. 读出端扫 `ReadOut.amp` / `ReadOut.length` / `ReadIn.power`；
-3. 再跑 `sq.iqraw` 确认 contrast 不降。
-
-## 七、判据真源与治理（2026-11-09 起）
-
-**判据唯一真源**：`server/config/lab_criteria.json`。
-本节写的门槛只是速查；脚本、goal、报告一律引用该文件里的 `metrics.contrast.thresholds`。
-改了阈值要同时改那个文件和 `.Codex/progress.md`，不要在别处另写一套数字。
-
-| 项 | 值 | 备注 |
-|---|---|---|
-| 不可用 | `< 0.2` | 用户 m13944/m14121 定 |
-| 可用但弱 | `0.2 ~ 0.4` | 从这里开始迭代 |
-| 实验室合格 | `> 0.4` | 历史实验室判据 |
-| 良好 | `> 0.7` | 转 T1/T2/XEB |
-
-同文件里还有：`t1`（固定 c=ground floor 的两参拟合）、`t2_star`（`fitData` 的 T2 在 `data[1][0]`，
-不在 `para['T2']`）、`xeb`、`s21_dip`、`dmu_sig`、`registry_facts`、`capabilities`（含 lqms 可用函数清单与厂商坑）。
-
-### 治理闸门
-真机执行走 `:3003/execute` 时，若服务端 `quantum_service.actuation.require_task=true`（热切），
-**必须带 task_id**（先 `POST :3009/task`，或直接走 `:3008/workflows/run_ir`），否则返回
-`status=blocked, reason_code=task_required`。这是"单写者原则"的第一步，见
-`docs/ARCHITECTURE_ROADMAP.md` §2.1（私有设计稿，不在公开版本库）。
-
-### 三条容易翻车的现场事实
-1. **fread 是逐比特独立的**（`q7ld3.fread`），实验的 auto-update 会静默回写**该比特自己**的 fread
-   （q1/q3 被 s21 写成 6.7255 → 假死；q7 被 iqraw 写成 6.802）。扫描时用
-   `sq.iqraw(auto=False, update=False, do_plot=False)`，每点显式钉 fread，
-   事后用数据集 `parameters` 快照反查实际值。
-2. **lqms 的 `.pyd` 遮蔽了更新的 `.py`**：`spectroscopy_iq` / `time_rabi` / `iqcenter` 当前**不可用**
-   （`D:/anaconda3/envs/lqcs/Lib/site-packages/lqms/measure/tuners/` 下 `.pyd`(2026-04-21) 优先于
-   `.py`(2026-09-08)），重启服务无用，需实验室重编译。可用函数清单见 `lab_criteria.json` 的
-   `capabilities.lqms_available_functions`。
-3. **厂商 `sq.*` 的静默副作用**：spectroscopy 在平坦数据上会把 f10 写坏；`freq=None` 会崩；
-   `zpa` 不传会展开成几千点的二维扫描。
+- 连续两轮同状态不推进 → 停，把 `missing` 与波形证据交人（别死循环）；
+- 自环次数（`recenter` 等）有上限，用尽 Router 会判 hold；
+- 需要改阈值 → 改 `server/config/lab_criteria.json`（由人改，智能体不改配置），
+  并在 `.Codex/progress.md` 记一笔。
 
 ## 相关
 
-- 标定全流程：`skills/qubit-calibration/SKILL.md`
-- 数据集判读工具：`D:/lqcs/qubit_sensing/tools/inspect_dataset.py`
-- 实验室判据实现：`D:/lqcs/qubit_sensing/tools/calibrate.py` 的 `stage_check`
+- 全流程：`skills/qubit-calibration/SKILL.md`
+- 分析口径：`skills/qubit-data-analysis/SKILL.md`
+- 状态与闸门：`skills/qmclaw-state-graph/SKILL.md`

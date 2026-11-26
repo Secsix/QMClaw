@@ -5,7 +5,7 @@ description: >-
   一维曲线（S21、Rabi、T1）、二维热力图（ZPA Scan、Power Scan）。
   支持 Nature/IEEE/APS/Springer 学术图表样式，SVG+PDF 导出。
   触发词：绘图、可视化、plot、figure、图表、scientific figure。
-version: 1.0.0
+version: 1.1.0
 author: QMClaw Contributors
 ---
 
@@ -69,3 +69,7 @@ data.plotDataset()
 d = data.get_data()
 ax.pcolormesh(d[0], d[1], d[2].T, shading='auto')
 ```
+
+## 数据来源
+
+绘图数据来自语义端点：`POST /api/analysis/fit`（拟合结果）、`POST /api/analysis/replay/plot`（历史数据复现）。不要把原始数据格式的处理逻辑写进绘图脚本。

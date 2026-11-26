@@ -58,6 +58,8 @@ OFFLINE = [
     "_web_proxy_check.py",
     "_docs_paths_check.py",
     "_repo_hygiene_check.py",
+    "_skills_boundary_check.py",
+    "_skills_endpoints_check.py",
     "_syntax_check.py",
 ]
 # 需要在跑的服务的套件

@@ -921,6 +921,8 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 | `_service_groups_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
 | `_web_proxy_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
+| `_skills_boundary_check.py` | 阶段 3（服务边界）：`skills/**/{SKILL,README}.md` 里不许出现厂商库 import、`qter.fitData` 这类调用、数据格式（hdf5/.pyd）、本机绝对路径、直连设备客户端；政策句（「由服务处理」「不要直连」）豁免 | PASS=20 FAIL=0 |
+| `_skills_endpoints_check.py` | 阶段 3（服务边界）：`skills/qmclaw-service-endpoints/SKILL.md` 必须与路由表一致（`gen_service_endpoints.py --check` 的 CI 包装，防手改/过期） | PASS=1 FAIL=0 |
 | `_repo_hygiene_check.py` | 仓库卫生：tracked 里没有临时/备份/日志/字节码产物、没有 >1 MiB 大文件、`docs/` 下没有私设计/计划/进度类文档、关键目录都有 README、仓库根 `.py` 只留白名单、`.gitignore` 关键规则齐全、tracked 文件里没有个人机器绝对路径 | PASS=7 FAIL=0 |
 | `_syntax_check.py` | 全仓 Python 语法（`ast.parse` 全仓 `.py`，跳过 `vendor/`、`_local/` 与构建目录）—— 抓"从来没能 import"的角落文件 | 动态（当前 314）FAIL=0 |
 

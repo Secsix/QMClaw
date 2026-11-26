@@ -1,250 +1,90 @@
 ---
 name: qubit-data-analysis
 description: >
-  量子比特实验数据分析指导。使用 qter.fitData() 提取参数、可视化绘图、质量判定。支持 S21、IQraw、Ramsey、T1、T2、XEB 等实验的数据处理。
-  Triggers: '数据分析', 'data analysis', 'fitData', '实验结果分析', 'qubit data', '测控数据处理'
+  量子比特实验数据的语义分析与质量判定：用 POST /api/analysis/fit 按 kind 提取物理量，
+  用 POST /api/analysis/metrics/convert 把指标换成状态机证据，再按 lab_criteria 阈值判质量。
+  支持 T1、Ramsey/T2*、T2 echo、S21/扫频、XEB、IQraw 对比度、π 幅度、DRAG。
+  Triggers: '数据分析', 'data analysis', '拟合', 'fitData', '实验结果分析', 'T1 怎么算',
+  'T2 怎么算', '对比度', '保真度', 'qubit data', '测控数据处理'
+version: 2.0.0
+author: qmclaw
 ---
 
 # 量子比特实验数据分析
 
-量子测控实验的数据分析流程：数据获取 -> 参数提取 -> 质量判定 -> 可视化绘图。
+三件事，按顺序：**取数 → 拟合 → 判质量**。每一步都有对应端点，技能里不出现模型代码。
 
----
+> 拟合口径的唯一实现：`server/services/analysis_service/fitting.py`；
+> 换算口径的唯一实现：`server/services/common/metric_convert.py`。
+> 本文件只记「该问什么、怎么读结果、门限在哪」。
 
-## 数据获取方式
+## 1. 先查能拟合什么
 
-### 1. 执行实验后加载数据集
-
-```python
-# 在同一个 labrad 连接中
-data.loadDataset(-1)  # -1 表示最后数据集
-
-# 获取参数
-params = data.parameters  # 字典，可访问 create_time, config 等
-items = data.items()      # 字典的键值对
+```
+GET http://localhost:3002/api/analysis/fit/kinds
 ```
 
-### 2. 获取原始数据
+返回 `kinds`（kind 名）、`aliases`（别名）、`engines`（`scipy` 恒可用，`lqcs` 取决于本机）。
+kind 决定用哪个模型：`t1` 指数、`ramsey*` 拉伸指数×余弦、`xeb` 幂衰减、
+`iqraw`/`single_shot` 双高斯、`spectroscopy`/`s21*` 洛伦兹、`piamp`/`rabi*` 正弦、
+`drag_calibrate` 抛物线。
 
-```python
-d = data.get_data()
-# d[0] = X轴数据（如 ZPA）
-# d[1] = Y轴数据（如 频率）
-# d[2] = S21数据矩阵
+## 2. 拟合一个数据集
+
+```
+POST http://localhost:3002/api/analysis/fit
+{"dataset_id": "20251103_00485", "kind": "t1", "do_plot": true}
 ```
 
----
+- `dataset_id` 可以是离线库索引（形如 `20251103_00485`）或活数据编号（纯数字）；
+  也可以用 `x` / `y` 两列内联传数据（工具与测试用）。
+- `kind` 省略时按数据集的 `experiment_type` 猜。
+- `engine`：`scipy`（默认）/ `lqcs` / `auto`。**厂商引擎不可用时会明确报错**，
+  不会悄悄换成另一个引擎还声称是厂商结果。
+- `do_plot: true` 会返回 `plot_url`（`/plots/fit_*.png`），可直接给前端展示。
 
-## fitData 参数提取
+返回里值得看的是：
 
-### 通用调用方式
+| 字段 | 含义 |
+| --- | --- |
+| `ok` / `reason` | 拟合成没成；失败时 `reason` 说明是数据太少、模型不收敛还是引擎不可用 |
+| `metrics` | 物理量（`t1_us`、`t2_star_us`、`xeb_p`、`contrast`、`pi_amplitude`、`drag_delta`…） |
+| `params` | 模型参数（幅度、时间常数、频率、偏置），排障时看这个 |
+| `r2` | 拟合质量；`< 0.5` 会带 warning，此时结论只能当参考 |
+| `evidence` | 已经换成状态机证据键的结果（可直接拿去 `/qubit/state` 的 `evidence`） |
+| `warnings` | 例如「门保真度由 1 比特关系 F=1-(1-p)/2 折算」「洛伦兹未收敛，中心取极值点」 |
 
-```python
-result = qter.fitData(-1, collect=True, do_plot=False)
-# 返回格式：[{'variables': [('name', 'unit'), ...]}, array of values, ...]
-```
+**不要自己再算一遍**：如果 `evidence` 里已有 `t1_us`，就不要在报告里用别的公式重算。
 
-**注意**：fitData(-1) 会改变当前 dataset（绑定 -1 → loadDataset() 后的值）
+## 3. 判质量：门限在配置里
 
----
+阈值真源是 `server/config/lab_criteria.json`（`GET /api/quantum/qubit/state` 会回带
+`criteria_version`）。当前常用门限：
 
-### IQraw 数据分析
+| 指标 | 门限 | 含义 |
+| --- | --- | --- |
+| `contrast` | `< 0.2` 不可用 / `0.2–0.4` 弱可用 / `> 0.4` 合格 / `> 0.7` 良好 | 态区分度 |
+| `t1_us` | `≥ 20` | 能量弛豫 |
+| `t2_star_us` | `≥ 1` | 相干（Ramsey） |
+| `xeb_p` / `xeb_gate_fidelity` | `≥ 0.99` | 单比特门保真度 |
 
-```python
-result = qter.fitData(-1, collect=True, do_plot=False)
+结论要带来源：`kind` + `dataset_id` + `run_id`。三者缺一，结论就只是猜测。
 
-# 返回值结构：
-# result[1][0] = freq (频率)
-# result[1][1] = separation (分离度)
-# result[1][2] = SNR (信噪比)
-# result[1][-2] = visibilityMax (可见度)
-# result[1][-1] = position (分割位置/threshold)
+## 4. 常见坑
 
-visibility = result[1][-2]
-snr = result[1][2]
-```
+- **T1 的 1D 数据**：如果扫描只有时间一维而没有 zpa 维度，拟合能给出 T1，但要说明
+  「本次未扫 zpa」，否则与真机上「zpa×时间」的二维结论混在一起。
+- **对比度偏低先怀疑频率**：丢对比度时先看 `f10` 与 `spectroscopy` 结果，
+  再用 `pidf` 修正；不要一味调 π 幅度。
+- **XEB 的 p 与门保真度不是一回事**：`p` 是每周期存活率，`F=1-(1-p)/2` 是 1 比特折算；
+  2 比特（CZ）要用 `cz_gate_fidelity` 判据，别拿单比特公式套。
+- **拟合失败不要退成"上次的值"**：缺证据就是缺，重跑或换 kind。
 
-**质量标准**：
-| SNR | visibility | 质量 |
-|-----|-----------|------|
-| > 3 | > 0.8 | Excellent |
-| 2-3 | 0.5-0.8 | Good |
-| 1-2 | 0.2-0.5 | Fair |
-| <1 | < 0.2 | Poor |
+## 5. 与状态机的关系
 
----
+一次运行回来后：
 
-### T1 数据分析
-
-```python
-result = qter.fitData(-1, collect=True, do_plot=False)
-
-# 返回值结构：
-# result[1][0] = zpa (Z偏置)
-# result[1][1] = T1 (弛豫时间，μs)
-# result[1][2] = freq (频率)
-
-t1 = result[1][1][0]  # T1值（μs）
-```
-
-**质量标准**：
-| T1 (μs) | 质量 |
-|---------|------|
-| > 100 | Excellent |
-| 50-100 | Good |
-| 20-50 | Fair |
-| < 20 | Poor |
-
----
-
-### XEB 数据分析
-
-```python
-xeb_res = px.XEB(data, [-1], collect=True)
-xeb_fid = 1 - xeb_res[data.dataset_num]['error_Pauli_per_cycle']/1.5
-```
-
-**质量标准**：
-| Fidelity | 质量 |
-|----------|------|
-| > 0.99 | Excellent |
-| 0.95-0.99 | Good |
-| 0.90-0.95 | Fair |
-| < 0.90 | Poor |
-
----
-
-## 绘图（重要！）
-
-### 核心问题
-
-**`data.plotDataset()` 在 headless 模式下不能真正渲染，会生成空白图！**
-
-### 一维数据绘图（S21曲线）
-
-```python
-import matplotlib
-matplotlib.use('Agg')  # 关键：使用非交互式后端
-import matplotlib.pyplot as plt
-
-qobj = q11ld4
-sq.s21(qobj, update=False, do_plot=False)
-result = qter.fitData(-1, collect=True, do_plot=True)
-
-plt.savefig(r'D:\lqcs\measure_scripts\sq_workflow\result.png', dpi=150)
-plt.close('all')
-```
-
-### 二维数据绘图（ZPA实验）
-
-```python
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-qobj = q11ld4
-sq.s21_zpa2d(qobj)
-d = data.get_data()  # d[0]=ZPA, d[1]=频率, d[2]=S21数据
-
-plt.figure(figsize=(10,6))
-plt.pcolormesh(d[0], d[1], d[2].T, shading='auto')
-plt.colorbar(label='S21')
-plt.xlabel('ZPA')
-plt.ylabel('Frequency (GHz)')
-plt.title(data.dataset_name)
-plt.savefig(r'D:\lqcs\measure_scripts\sq_workflow\result.png', dpi=150)
-plt.close('all')
-```
-
----
-
-## 科研绘图（sciplot-academic）
-
-### 安装
-
-```bash
-pip install sciplot-academic
-```
-
-### 使用
-
-```python
-import sciplot as sp
-
-# 1. 选择期刊样式
-sp.style('nature')  # Nature/Science
-sp.style('ieee')   # IEEE
-sp.style('aps')    # APS Physical Review
-
-# 2. 创建图表
-fig, ax = sp.new_figure(figsize=(7, 5))
-ax.plot(x, y, linewidth=1.5, label='Data')
-ax.set_xlabel('Frequency (GHz)', fontsize=11)
-ax.set_ylabel('S21 (dB)', fontsize=11)
-
-# 3. 添加面板标签
-sp.add_panel_labels([ax], labels=['a'])
-
-# 4. 保存
-sp.save(fig, r'workspace\output\figure', formats=('svg', 'pdf'), dpi=1200)
-```
-
-### 量子测控常用
-
-| 实验 | 推荐函数 |
-|------|---------|
-| S21 曲线 | `sp.plot()` / `sp.plot_multi()` |
-| T1 衰减 | `sp.plot()` + 误差棒 |
-| 热力图（ZPA scan） | `sp.plot_heatmap()` |
-| 门保真度对比 | `sp.plot_grouped_bar()` |
-
----
-
-## 实验分析汇总
-
-| 实验名称 | 分析函数 | 分析后绘图 |
-|---------|---------|-----------|
-| IQraw | qter.fitData | fitFunc.IQ_raw |
-| Ramsey df | qter.fitData | fitFunc.ramsey |
-| S21zpa2d | qter.fitData | fitFunc.s21_zpa2d |
-| S21 | data.plotDataset | 直接绘图 |
-| Spectroscopy | data.plotDataset | 直接绘图 |
-| PiPulse | data.plotDataset | 直接绘图 |
-| PiAmpFine | data.plotDataset | 直接绘图 |
-| AlphaFine | data.plotDataset | 直接绘图 |
-| T1 | data.plotDataset | 直接绘图 |
-| T2 | data.plotDataset | 直接绘图 |
-| S21_dis | data.plotDataset | 直接绘图 |
-| IQcenter | data.plotDataset | 直接绘图 |
-| XEB | data.plotDataset | 直接绘图 |
-| TimingXYZ | data.plotDataset | 直接绘图 |
-
----
-
-## Python环境
-
-```python
-# 激活测控Python环境
-python = r"<测控环境 python.exe 路径>"
-
-# 常用模块
-from lqms.data_process import dataAnalysisCore as qter
-from lqms.data_process import pyle_analysis as px
-from lqms.data_process import data as data
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-```
-
----
-
-## 常见问题
-
-**Q: fitData 返回 None？**
-A: S21 是 2D 数据，fitData 无法处理。用 data.plotDataset 直接绘图。
-
-**Q: 绘制的图是空白的？**
-A: 一定要用 `matplotlib.use('Agg')` 设置非交互式后端。
-
-**Q: 如何提取具体参数值？**
-A: 根据实验类型访问 result[1] 的不同索引。详见上方各实验的分析说明。
+1. `POST /api/analysis/fit`（或实验节点自动调）拿到 `metrics`；
+2. `POST /api/analysis/metrics/convert` 换成 `evidence`；
+3. `POST /api/quantum/qubit/evidence` 写演练证据（仅模拟/演示，`source` 如实标注）；
+4. `POST /api/quantum/qubit/state` 看状态是否推进；没推进就如实报「未推进」。
