@@ -599,8 +599,10 @@ class QuantumService(BaseService):
         3. 查找匹配的离线数据
         4. 生成模拟输出
         """
-        # 0. qiskit 优先：这是"没有 lqcs 的机器也能演示测控实验"的主路径
-        if self._policy.active(self._get_mode()) == BACKEND_QISKIT:
+        # 0. qiskit 优先：这是"没有 lqcs 的机器也能演示测控实验"的主路径。
+        #    但 `/experiments/run` 显式指定 offline_sim 时用 `_skip_qiskit` 跳过这一步，
+        #    否则"我要回放"会被 qiskit 悄悄接走。
+        if not data.get("_skip_qiskit") and self._policy.active(self._get_mode()) == BACKEND_QISKIT:
             qiskit_result = self._execute_with_qiskit(code, task_id, data)
             if qiskit_result is not None:
                 return qiskit_result
@@ -830,6 +832,10 @@ class QuantumService(BaseService):
             return self._handle_qubit_state(data)
         elif path == "/qubit/state_table":
             return self._handle_qubit_state_table(data)
+        elif path == "/experiments/catalog":
+            return self._handle_experiments_catalog(data)
+        elif path == "/experiments/run":
+            return self._handle_experiments_run(data)
         elif path == "/qubit/scopes":
             return self._handle_qubit_scopes(data)
         elif path == "/qubit/evidence":
@@ -874,6 +880,118 @@ class QuantumService(BaseService):
             return self._handle_qiskit_health()
         else:
             raise ValueError(f"Unknown path: {path}")
+
+    # ── 实验语义层（2026-11-26 收口）────────────────────────────────────
+    #
+    # 背景：以前"跑一个实验"意味着调用方自己拼 `sq.t1('q0', zpa=...)` 这种 vendor
+    # 代码再 POST /execute，于是技能、智能体、workflow 节点各有一份"参数怎么拼"
+    # 的知识，换后端（lqcs → qiskit）就全线崩。现在收敛成两个语义端点：
+    #
+    #   GET  /experiments/catalog   有哪些实验、各自要什么参数、哪些后端支持
+    #   POST /experiments/run       按 kind 跑一次，后端由策略选（可显式指定）
+    #
+    # 技能只需要知道 kind 与参数含义，永远看不到 vendor 函数名之外的实现细节。
+
+    def _handle_experiments_catalog(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """/experiments/catalog：实验目录 + 本机后端可用性。"""
+        from services.quantum_service.experiments import backend_status, catalog_json
+
+        backend = str(data.get("backend") or "").strip() or None
+        payload = catalog_json(backend)
+        try:
+            payload["runtime_backends"] = backend_status(self)
+        except Exception as exc:  # noqa: BLE001 —— 探测失败不影响目录本身
+            payload["runtime_backends_error"] = f"{type(exc).__name__}: {exc}"
+        payload["policy"] = self._backend_policy_summary()
+        return payload
+
+    def _handle_experiments_run(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """/experiments/run：按语义 kind 跑一次实验。
+
+        请求体::
+
+            {"kind": "t1", "qubits": ["q0"], "params": {"zpa": 0.0},
+             "backend": "auto",              # auto | lqcs | qiskit | offline_sim
+             "shots": 2000, "seed": 42, "doPlot": true, "reportDataset": true,
+             "coupler": "c2", "task_id": "task_..."}
+
+        写闸门照旧：真机执行仍受 ``allow_execute`` 约束（由 ``_handle_execute`` 内部判定）。
+        """
+        from services.common.errors import error_envelope
+        from services.quantum_service.experiments import ExperimentRequest, run_experiment
+        from services.quantum_service.experiments.base import BackendError
+
+        kind = str(data.get("kind") or data.get("experiment") or "").strip()
+        if not kind:
+            return {"success": False, **error_envelope("validation_error", "kind is required（看 GET /experiments/catalog）")}
+
+        raw_qubits = data.get("qubits")
+        qubits: List[str] = []
+        if isinstance(raw_qubits, list):
+            qubits = [str(q).strip() for q in raw_qubits if str(q).strip()]
+        if not qubits:
+            single = str(data.get("qubit") or "").strip()
+            qubits = [single] if single else []
+        if not qubits:
+            return {"success": False, **error_envelope("validation_error", "qubit (or qubits) is required")}
+
+        params = data.get("params")
+        if params is not None and not isinstance(params, dict):
+            return {"success": False, **error_envelope("validation_error", "params must be an object")}
+
+        backend = str(data.get("backend") or data.get("prefer") or "").strip().lower() or None
+        if backend in ("auto", ""):
+            backend = None
+
+        request = ExperimentRequest(
+            kind=kind,
+            qubits=tuple(qubits),
+            params=dict(params or {}),
+            shots=_optional_int(data.get("shots")),
+            seed=_optional_int(data.get("seed")),
+            timeout=_optional_float(data.get("timeout")),
+            do_plot=bool(data.get("doPlot", data.get("do_plot", True))),
+            coupler=str(data.get("coupler") or "").strip() or None,
+            report_dataset=bool(data.get("reportDataset", data.get("report_dataset", True))),
+            task_id=str(data.get("task_id") or "").strip() or None,
+        )
+
+        try:
+            outcome = run_experiment(self, request, backend)
+        except BackendError as exc:
+            return {
+                "success": False,
+                **error_envelope("backend_unavailable", f"没有后端跑得了 {kind!r}：{exc.reason}"),
+                "kind": kind,
+                "backend": exc.backend,
+                "attempts": [],
+            }
+        except Exception as exc:  # noqa: BLE001 —— 语义层异常不外冒成 500
+            return {
+                "success": False,
+                **error_envelope("internal_error", f"{type(exc).__name__}: {exc}"),
+                "kind": kind,
+            }
+
+        result = outcome["result"]
+        payload = {"success": result.ok, **result.to_dict(), "attempts": outcome["attempts"]}
+        if data.get("debug"):
+            payload["raw"] = result.raw
+        if not result.ok:
+            payload["error_code"] = "experiment_failed"
+        return payload
+
+    def _backend_policy_summary(self) -> Dict[str, Any]:
+        """当前策略视角（谁排第一、谁生效），失败时给空壳。"""
+        try:
+            mode = self._get_mode()
+            return {
+                "mode": getattr(mode, "value", str(mode)),
+                "order": list(self._policy.resolve(mode) or []),
+                "active": self._policy.active(mode),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {"error": f"{type(exc).__name__}: {exc}"}
 
     def _handle_health(self) -> Dict[str, Any]:
         """健康检查（HTTP 层通常已被 base_service 拦下，这里只做委托）。
@@ -3467,6 +3585,23 @@ class QuantumService(BaseService):
         if not code:
             return {"error": "code is required"}
 
+        # 单次请求强制指定后端（只有 /experiments/run 这个语义入口会带）：
+        # 语义层承诺"我说了用哪个后端就用哪个"，不能让它被策略悄悄换成别的。
+        # qiskit / offline_sim 都是不碰硬件的模拟路径，因此不经过写闸门；
+        # force=lqcs 不做特殊处理 —— 真机执行照旧走下面的闸门与治理。
+        force_backend = str(data.get("_force_backend") or "").strip().lower() or None
+        if force_backend == "qiskit":
+            forced = self._execute_with_qiskit(code, task_id, data)
+            if forced is None:
+                return {
+                    **error_envelope("backend_unavailable",
+                                     "qiskit 词表里没有这个实验，或 qiskit 不可用", task_id=task_id),
+                    "backend": "qiskit",
+                }
+            return forced
+        if force_backend == "offline_sim":
+            return self._execute_offline_simulation(code, task_id, {**data, "_skip_qiskit": True})
+
         # 离线模式下执行模拟实验（不碰硬件，不受闸门限制）
         if self._is_offline_mode:
             return self._execute_offline_simulation(code, task_id, data)
@@ -4670,6 +4805,25 @@ class QuantumService(BaseService):
         if self._labrad:
             self._labrad.shutdown()
         super().shutdown()
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    """``None`` / 空串 / 非数字 → ``None``（不抛错，语义层参数尽量宽容）。"""
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def main():

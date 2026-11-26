@@ -294,6 +294,18 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // 实验语义层（2026-11-26 收口）：调用方只认 kind，不再自己拼 vendor 代码
+  proxy.get('/quantum/experiments/catalog', async (req, res) => {
+    const query = req.originalUrl.split('?')[1] ?? '';
+    const result = await proxyToService('quantum', '/experiments/catalog', 'GET', undefined, undefined, query);
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/quantum/experiments/run', async (req, res) => {
+    const result = await proxyToService('quantum', '/experiments/run', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.get('/quantum/qubit/scopes', async (_req, res) => {
     const result = await proxyToService('quantum', '/qubit/scopes', 'GET');
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });

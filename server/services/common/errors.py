@@ -130,6 +130,13 @@ ERROR_CODES: Dict[str, Dict[str, Any]] = {
         "retryable": False,
         "hint": "该 scope 在当前芯片能力下未启用（看 device_capabilities.json 的 capabilities / scopes）",
     },
+    "backend_unavailable": {
+        "status": "failed",
+        "legacy_status": "read_only",
+        "http": 503,
+        "retryable": True,
+        "hint": "没有后端跑得了这个实验（kind 不被当前后端支持 / 真机未连 / qiskit 未装）；看 GET /experiments/catalog 的 backends 矩阵与 runtime_backends",
+    },
     "not_found": {
         "status": "failed",
         "legacy_status": "not_found",
