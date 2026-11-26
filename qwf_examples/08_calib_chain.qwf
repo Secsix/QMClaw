@@ -1,0 +1,68 @@
+# 范例 08 —— 多节点标定链（measure → measure → measure → measure → say）
+
+# 用途：一条 QWF 里串多个测控实验，说明「一份工作流 = 一串步骤」，
+#      而不是一次只能跑一个实验。没有真机时用 qiskit 模拟后端也能跑通。
+# 要点：
+#   - 每个 measure 都是一个节点，say 是收尾节点；节点按依赖连成链
+#   - 读出结果有两种口径：
+#       * `read` 只能读 LabRAD DataVault 的数据集 → 真机路径
+#       * 模拟后端（qiskit/Aer）没有数据集，read 节点会失败，
+#         结果直接看 measure 节点的指标（见范例 06）
+#   - qiskit/Aer 侧只认 points（t1_us / t_max_us / points），
+#     delay/zpa 会被过滤掉；写上 zpa 是为了满足"t1 必须固定 zpa"的校验
+
+workflow ex08_calib_chain {
+  meta {
+    name        "ex08_calib_chain"
+    description "iqraw → piamp → t1 → ramsey → say（多节点标定链）"
+    tags        ["demo", "chain", "multi-node"]
+  }
+
+  env {
+    qubit   "q0"
+  }
+
+  budget {
+    max_wall     20m
+    max_writes   4
+    max_datasets 4
+  }
+
+  measure as c1 {
+    fn      sq.iqraw
+    qubit   $env.qubit
+    timeout 120
+    note    "第一步：测态区分（看 contrast）"
+    args {
+      update false
+    }
+  }
+
+  measure as s2 {
+    fn      sq.piamp
+    qubit   $env.qubit
+    timeout 300
+    note    "第二步：幅度扫描标定 π 脉冲"
+  }
+
+  measure as s4 {
+    fn      sq.t1
+    qubit   $env.qubit
+    timeout 300
+    note    "第三步：测 T1（相干时间）"
+    args {
+      points 21
+      zpa    0.0
+      delay range 0 2000 100
+    }
+  }
+
+  measure as s5 {
+    fn      sq.ramsey_df
+    qubit   $env.qubit
+    timeout 300
+    note    "第四步：Ramsey 测 T2*"
+  }
+
+  say "iqraw=${c1.dataset}｜piamp=${s2.dataset}｜t1=${s4.dataset}｜ramsey=${s5.dataset}"
+}

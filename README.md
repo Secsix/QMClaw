@@ -34,6 +34,18 @@ QMClaw 把这件事拆成四层：Agent 只在规则允许的范围内动手，�
 在合法边上选一个动作；动作先落成一份 QWF 工作流再提交执行；执行回来的指标换算成证据，
 证据再决定状态是否推进。画面里的比特从 `unknown` 一路走到 `characterized`。
 
+**QWF 不是只能跑一个实验**：录屏后段跑的是一条多节点标定链
+（[`qwf_examples/08_calib_chain.qwf`](qwf_examples/08_calib_chain.qwf)），
+控制台上的流程图按真实拓扑连线展示：
+
+![多节点 QWF 流程图](docs/assets/qwf-flow-closeup.png)
+
+*`sq.iqraw` → `sq.piamp` → `sq.t1` → `sq.ramsey_df` → `say`：四个实验串成一条链，
+节点之间是工作流本身的依赖边，不是画给人看的装饰。*
+录屏中段驾驶循环每轮只提交**一个**实验，所以那几帧流程图只有一个节点 ——
+那是驾驶层的粒度，不是工作流的极限。工作流语言本身支持分支、循环与读写数据集，
+节点清单见 [`docs/QWF_NODES.md`](docs/QWF_NODES.md)。
+
 > **诚实标注**：本段录屏跑在 **qiskit 模拟后端**上，证据来自演练通道（`source=loop`），
 > **不是真机实测数据**。接上真机时这条链路一行不变，只是后端换了 —— 见
 > [`docs/REAL_MACHINE.md`](docs/REAL_MACHINE.md)。

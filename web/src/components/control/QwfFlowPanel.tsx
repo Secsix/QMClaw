@@ -5,7 +5,9 @@ import {
   ReactFlow,
   Background,
   Controls,
+  Handle,
   MarkerType,
+  Position,
   type Node,
   type Edge,
   type NodeProps,
@@ -67,10 +69,14 @@ function FlowNode({ data }: NodeProps) {
         animation: running ? "qm-pulse 1.1s ease-in-out infinite" : undefined,
       }}
     >
+      {/* 自绘节点必须显式给把手，否则 React Flow 无法把边挂到节点上
+          （只读画布的连线会整条消失，报 error#008）。 */}
+      <Handle type="target" position={Position.Top} />
       <div className="qm-flow-node-title">{d.label || d.nodeType}</div>
       <div className="qm-flow-node-meta" style={{ color: c.text }}>
         {d.nodeType} · {d.status || "pending"}
       </div>
+      <Handle type="source" position={Position.Bottom} />
     </div>
   );
 }
@@ -90,10 +96,18 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
     const canvasNodes = canvas?.nodes ?? [];
 
     if (canvasNodes.length > 0) {
+      const runNodes = run?.nodes ?? [];
       canvasNodes.forEach((n, idx) => {
-        const rn = statusByNode.get(n.id);
+        // 画布节点 id 与运行节点 id 可能对不上（例如 say 节点画布上是 n5、运行里是 s1），
+        // 兜底按同序位取运行节点，避免明明跑完了却显示 pending。
+        const rn = statusByNode.get(n.id) ?? runNodes[idx];
         const status = rn?.status ?? "pending";
+        const cfgFn = typeof (n.config as Record<string, unknown> | undefined)?.fn === "string"
+          ? ((n.config as Record<string, unknown>).fn as string)
+          : "";
+        // 优先显示实验函数名（sq.iqraw 之类），比裸节点 id 好认
         const label =
+          cfgFn ||
           n.label ||
           (n.dsl?.as ? `${n.dsl.as}` : n.dsl?.op || n.type || n.id);
         ns.push({
@@ -116,10 +130,10 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
           source: e.source,
           target: e.target,
           animated: false,
-          style: { stroke: "var(--qm-border-strong)", strokeWidth: 1.4 },
+          style: { stroke: "var(--qm-accent)", strokeWidth: 2 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: "var(--qm-border-strong)",
+            color: "var(--qm-accent)",
           },
         });
       });
@@ -190,6 +204,9 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
         </div>
       ) : null}
       <ReactFlow
+        // 画布数据是异步到的：节点/连线变化时强制重挂载，
+        // 否则 React Flow 不会重新测量，节点会溢出面板、连线画不出来。
+        key={`${fallback ? "fb" : "cv"}-${nodes.length}-${edges.length}`}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

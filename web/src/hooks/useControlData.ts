@@ -195,7 +195,7 @@ export function useControlData(): ControlData {
       canvasFor.current = { id: "", canvas: null };
       return;
     }
-    if (canvasFor.current.id === wfId) {
+    if (canvasFor.current.id === wfId && canvasFor.current.canvas) {
       setCanvas(canvasFor.current.canvas);
       return;
     }
@@ -235,7 +235,9 @@ export function useControlData(): ControlData {
     return () => {
       cancelled = true;
     };
-  }, [activeRun?.workflowId]);
+    // 依赖 run 的 id/status：同一条 workflowId 可能先后对应多次运行，
+    // 运行状态变化时重取一次画布，避免一次瞬时失败把画布永久缓存成空。
+  }, [activeRun?.workflowId, activeRun?.id, activeRun?.status]);
 
   return {
     stateTable,
