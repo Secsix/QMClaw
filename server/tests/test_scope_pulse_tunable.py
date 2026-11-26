@@ -174,7 +174,12 @@ class TestScopeEndpoints(unittest.TestCase):
         self.assertTrue(r["success"])
         self.assertEqual(r["scope"], "pulse")
         self.assertEqual(r["state"]["state"], "drag_tuned")
+        # state.missing 仍是裸 key（脚本用）；plan.missing 才是给前端的 [{key, produced_by}]
         self.assertEqual(r["state"]["missing"], ["single_qubit_fidelity"])
+        self.assertEqual(
+            [row["key"] for row in r["plan"]["missing"]], ["single_qubit_fidelity"]
+        )
+        self.assertTrue(r["plan"]["missing"][0]["produced_by"])
         self.assertEqual(r["record"]["scope"]["type"], "pulse")
         self.assertEqual([e["id"] for e in r["edges"]],
                          ["drag_tuned--self--drag", "drag_tuned->fidelity_verified"])

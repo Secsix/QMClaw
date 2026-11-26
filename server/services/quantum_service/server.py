@@ -1265,7 +1265,11 @@ class QuantumService(BaseService):
             "reasons": list(result.get("reasons") or []),
             "missing": missing,
             "missing_detail": [
-                {"key": key, "produced_by": ((view.get("evidence_sources") or {}).get(key) or {}).get("produced_by") or []}
+                {
+                    "key": key,
+                    "produced_by": ((view.get("evidence_sources") or {}).get(key) or {}).get("produced_by") or [],
+                    "note": ((view.get("evidence_sources") or {}).get(key) or {}).get("note") or "",
+                }
                 for key in missing
             ],
             "next_action": definition.get("next_action", ""),
@@ -1306,7 +1310,9 @@ class QuantumService(BaseService):
             },
             "plan": {
                 "state": name,
-                "missing": missing,
+                # 与单比特一致：missing 是 [{key, produced_by}] 而不是裸字符串，
+                # 前端直接拼「还缺证据：drag_delta（sq.drag_calibrate）」。
+                "missing": state["missing_detail"],
                 "next_action": definition.get("next_action", ""),
                 "evidence_sources": view.get("evidence_sources") or {},
             },
