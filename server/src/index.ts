@@ -2917,15 +2917,38 @@ app.post("/api/hermes/memory/delete", async (req, res) => {
   }
 });
 
-// Helper to get Hermes skills directory
+/**
+ * 仓库根：从当前文件往上找，第一个同时含 `skills/` 与 `server/` 的目录。
+ *
+ * 不能用固定层数 —— `__dirname` 在 `ts-node` 下是 `server/src`、编译后是 `server/dist`，
+ * 目录重构前又是 `<repo>/Agentic Workflow/qmclaw-server/src`；写死 `../../..` 会让
+ * `/api/hermes/skills` 指到仓库外面去（表现为技能列表永远为空）。
+ */
+function findRepoRoot(): string {
+  const candidates = [process.env.QMCLAW_HOME, path.resolve(__dirname, '..', '..'), process.cwd()];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    let dir = path.resolve(raw);
+    for (let i = 0; i < 5; i += 1) {
+      if (fs.existsSync(path.join(dir, 'server')) && fs.existsSync(path.join(dir, 'skills'))) {
+        return dir;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return path.resolve(__dirname, '..', '..');
+}
+
 // Helper to get Hermes skills directory
 function getHermesSkillsDir(): string {
-  return path.resolve(__dirname, '..', '..', '..', 'skills');
+  return path.join(findRepoRoot(), 'skills');
 }
 
 // Helper to get Hermes memory directory
 function getHermesMemoryDir(): string {
-  return path.resolve(__dirname, '..', '..', '..', 'memory');
+  return path.join(findRepoRoot(), 'memory');
 }
 
 // Helper to get Hermes data directory (cron, config, etc.)
