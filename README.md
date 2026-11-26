@@ -1,13 +1,10 @@
 # QMClaw
 
-可扩展的通用量子比特测控平台与技能框架 —— 平台负责**执行**（真机 / 模拟 / 离线），
-技能包负责**教 AI Agent 怎么用**。
+**让 AI Agent 真正会标定量子比特 —— 靠一套可执行的规矩，而不是一段更长的提示词。**
 
-A scalable general-purpose framework for quantum measurement and control: an
-execution platform (gateway + microservice + web console) plus a set of reusable
-instruction bundles centred on `SKILL.md`.
-
----
+量子实验的瓶颈从来不是"能不能调 API"，而是**每一步都可不可信**：状态从哪来、
+下一步凭什么合法、数据算完怎么落成证据、出岔子时谁来收手。
+QMClaw 把这件事拆成四层：Agent 只在规则允许的范围内动手，人始终握着闸门。
 
 <p align="center">
   <a href="https://github.com/Secsix/QMClaw/blob/main/LICENSE">
@@ -26,36 +23,98 @@ instruction bundles centred on `SKILL.md`.
 
 ---
 
-## 📦 里面有什么
+## 🎬 控制台配合 DSH 的测控现场
 
-| 组成 | 位置 | 说明 |
-|------|------|------|
-| 执行平台 | `server/` | Express 网关 :3002 + Python 微服务 :3003–:3012（真机 / qiskit / 离线三种后端） |
-| 控制台 | `web/` | Next.js 14 仪表盘 :8081（工作流画布、Agent 对话、队列、绘图） |
-| 技能包 | `skills/` | 12 个以 `SKILL.md` 为入口的 Agent 技能 → [索引](skills/README.md) |
-| 领域脚本 | `qwf_scripts/` `qwf_examples/` | QWF DSL 实验与工作流脚本（校准、Ramsey、T1、XEB…） |
-| 自检 | `checks/` | 17 项离线静态自检 + 3 项需真机/服务的在线自检 |
-| 工具 | `tools/` | OpenQWF 同步与漂移检查、qiskit 冒烟、对比度调参、S21 读图、自动标定 |
-| 文档 | `docs/` | 架构、运维、真机、DSL、上游同步等（见 [文档索引](#-文档索引)） |
-| 上游 submodule | `vendor/` | OpenQWF（DSL 运行时）、hermes-agent、QubitClient、QCA Blueprint |
+![控制台配合 DSH 进行测控的实时画面](docs/assets/control-loop-demo.gif)
+
+*上面这段录屏里，DSH 正在驾驶一次真实形态的测控循环，控制台 `/control` 同步呈现三件事：
+① 测控状态转移图（当前状态与合法下一步）② 本次运行落成的 QWF 流程图 ③ 实验动态（本次运行的图像与指标）。*
+
+**这段画面里发生了什么**：Agent 每一轮先问"这个比特现在是什么状态"，再问"从这个状态能往哪走"，
+在合法边上选一个动作；动作先落成一份 QWF 工作流再提交执行；执行回来的指标换算成证据，
+证据再决定状态是否推进。画面里的比特从 `unknown` 一路走到 `characterized`。
+
+> **诚实标注**：本段录屏跑在 **qiskit 模拟后端**上，证据来自演练通道（`source=loop`），
+> **不是真机实测数据**。接上真机时这条链路一行不变，只是后端换了 —— 见
+> [`docs/REAL_MACHINE.md`](docs/REAL_MACHINE.md)。
 
 ---
 
-## 🚀 快速开始
+## 🧭 四条信条
 
-### 前置条件
+**一 · 证据驱动，不靠自信。**
+状态只能由"本次运行落下来的指标"换算得到；没有证据，状态就不许推进 —— 模型再确信也不行。
+证据的来源、判据、有效期都记在台账里，可回溯、可复核。
 
-| 组件 | 版本 | 必需？ |
-|------|------|--------|
-| Node.js | ≥ 18 | 是（网关 + 前端） |
-| Python | ≥ 3.10 | 是（微服务 / QWF 工具） |
-| Git | 任意 | 是 |
-| LabRAD | — | 否，**只有接真机时需要** |
+**二 · 驾驶与执行分离。**
+人（或 DSH 里的 Agent）负责决定"下一步做什么"，平台负责"安全地去做"。
+状态机只认合法边：模板库里没有可用写法时，它把决策权交还给人（G3），不替人猜。
 
-没有真机也能完整跑通：量子后端默认按 `lqcs → qiskit → offline_sim` 的顺序自动降级
-（qiskit 本地模拟 / 历史数据回放），详见 [`docs/DEMO_NO_LQCS.md`](docs/DEMO_NO_LQCS.md)。
+**三 · 实验先落成 QWF，执行只有一道门。**
+任何实验都必须先变成一份工作流再提交，执行层不接受临时拼出来的代码。
+于是"跑过什么"和"跑对没有"有了唯一可查的答案。
 
-### 方式 A：只装技能（用 AI Agent，不跑平台）
+**四 · 降级要诚实。**
+真机 → 模拟 → 历史回放是一条**有序策略**，不是一个开关。模拟跑出来的数据，汇报时永远写成演练数据，
+不冒充实测；真机掉线时平台如实说"不可用"，不拿演示数据顶替。
+
+---
+
+## 🔁 一次真实的测控动线
+
+标定一个比特只有一条入口：[`server/tools/measurement_loop.py`](server/tools/measurement_loop.py)。
+每轮四步，缺一不可：
+
+| 步骤 | 做什么 | 为什么不能省 |
+|------|--------|--------------|
+| 1 · 问状态 | 取当前状态与已有证据 | 不先问，就会基于过期状态行动 |
+| 2 · 问路由 | 取合法边、候选动作、闸门状态 | 合法边是实验室的安全边界，不是建议 |
+| 3 · 选动作 | 只在允许的动作里选；选不出来就**停下问人** | 决定权在驾驶层，不由模型私吞 |
+| 4 · 换算落证 | 指标 → 证据（带来源与有效期）→ 状态 | 状态必须能被复现，不能靠嘴说 |
+
+第 4 步的换算口径是固定的、可查的：态区分度 `separation > 1` 时归一化除以 2，
+相干时间以秒落库时统一换算成微秒，等等。完整口径表与退出码契约见
+[`docs/MEASUREMENT_LOOP.md`](docs/MEASUREMENT_LOOP.md)。
+
+想先看一遍端到端的样子，可以跑演示剧本
+[`server/tools/demo_control_console.py`](server/tools/demo_control_console.py)，
+它按"扫频 → π 脉冲 → 态区分度 → T1 → Ramsey → XEB"六段推进，每段都真的提交一份 QWF。
+手册见 [`docs/CONTROL_CONSOLE_DEMO.md`](docs/CONTROL_CONSOLE_DEMO.md)。
+
+---
+
+## 🗺️ 能力地图
+
+| 你想做的事 | 用哪一块 |
+|------------|----------|
+| 让 Agent 学会平台怎么用 | [`skills/`](skills/README.md) —— 12 个以 `SKILL.md` 为入口的技能包 |
+| 看着 Agent 干活 | `web/` 控制台：状态转移图、QWF 流程图、实验动态 |
+| 真的把实验跑起来 | `server/` 网关 + 微服务：真机 / 模拟 / 离线三种后端 |
+| 复查"这个结论凭什么" | 证据台账：演练证据（`source=loop`）与台账实测证据分开记 |
+| 提交前先自检 | [`checks/`](docs/OPERATIONS.md) 17 项离线静态自检 + 3 项在线自检 |
+
+---
+
+## 🧱 分层只为分工
+
+- **驾驭层** —— 人和 DSH 里的 Agent。问状态、问路由、选动作、担责任。
+- **机制层** —— 状态机与路由。知道哪些边合法、哪些判据算数。
+  改结构的权力在人手里（`server/config/state_machine.json`、`server/config/lab_criteria.json`）。
+- **执行层** —— 工作流服务。所有实验以 QWF 提交，没有旁路。
+- **证据层** —— 台账与演练证据。只认本次运行的指标，来源可追。
+
+同一件事里，**规则先、模型后**：能被规则说清的（合法边、判据阈值、写闸门）一律规则先行，
+模型只兜底规则没覆盖的新情况 —— 快了、也便宜了，而且每一步都能解释。
+
+---
+
+## 🚀 怎么开始
+
+前置条件：Node.js ≥ 18、Python ≥ 3.10、Git。
+**没有真机也能完整跑通** —— 后端会按 `lqcs → qiskit → offline_sim` 自动降级，
+详见 [`docs/DEMO_NO_LQCS.md`](docs/DEMO_NO_LQCS.md)。
+
+**A · 只装技能**（用 AI Agent，不跑平台）
 
 ```bash
 git clone https://github.com/Secsix/QMClaw.git
@@ -71,187 +130,58 @@ cp -R skills/_shared skills/qmclaw-* skills/qubit-* skills/quantum-* skills/lqms
 ```
 
 重启 Agent 会话后直接用自然语言触发（"执行单比特校准工作流"、"怎么画 T1 拟合图"）。
-完整说明见 [`skills/README.md`](skills/README.md) 与 [`install.md`](install.md)。
+详见 [`skills/README.md`](skills/README.md) 与 [`install.md`](install.md)。
 
-### 方式 B：跑起平台（推荐）
+**B · 跑起平台**（推荐）
 
 ```bash
-# 1) 取代码（含上游 submodule；OpenQWF 是私有仓，没凭证时可跳过，只影响 QWF 功能）
 git clone --recurse-submodules https://github.com/Secsix/QMClaw.git
 cd QMClaw
 
-# 2) 后端依赖
 cd server
 npm install                                    # 网关
 pip install -r python/requirements.txt          # Python 微服务
 pip install -r python/requirements-qiskit.txt   # 可选：无真机时用 qiskit 模拟
 cd ..
-
-# 3) 配置（密钥只走 .env，不进版本库）
-cp server/.env.example server/.env              # 填 MINIMAX_API_KEY / OPENAI_API_KEY 等
-# 机器相关的标定值放 server/config/*.local.json（同样不入库）
 ```
 
-启动（**两个终端**，服务启停由人控制）：
+启动（**三个终端**，服务启停由人控制）：
 
 ```bash
 # 终端 1：Python 微服务
-cd server
-python scripts/start_all_services.py --all     # :3003 quantum / :3004 analysis / :3005 agent ...
+cd server && python scripts/start_all_services.py --all   # :3003 quantum / :3004 analysis / :3005 agent ...
 
 # 终端 2：Express 网关
-cd server
-npm run dev                                    # :3002
+cd server && npm run dev                                    # :3002
 
 # 终端 3：前端控制台
-cd web
-npm install
-npm run dev                                    # :8081
+cd web && npm install && npm run dev                        # :8081
 ```
 
-打开 **http://localhost:8081** —— 前端默认连 `http://localhost:3002`（Express 网关），
-用 `NEXT_PUBLIC_API_URL` 可改。
-
-验证：
+打开 **http://localhost:8081**（前端默认连 `http://localhost:3002`，可用 `NEXT_PUBLIC_API_URL` 改）：
 
 ```bash
 python checks/run_all_checks.py                # 17 项离线静态自检
 curl http://localhost:3002/health              # 网关健康
-curl http://localhost:3003/health              # 量子服务健康（含当前后端）
 ```
 
-### 方式 C：接真机（LabRAD）
+**C · 接真机**（LabRAD）
 
-1. 装 LabRAD 侧依赖并让 `labrad` 可导入：`pip install -r server/python/requirements.txt`
-2. 按实验室约定配置 `server/config/session.json`（DataVault session）
-3. 标定值写 `server/config/device_profile.json`（**不入库**，仓内有
-   `device_profile.example.json` 作模板）
-4. 真机写闸门默认关闭：需要下发实验时由人显式打开
-   `server/config/fallback_config.json` 里的 `allow_execute` / `allow_set_params`
-5. 细节与故障排查见 [`docs/REAL_MACHINE.md`](docs/REAL_MACHINE.md)
-
-> **安全约定**：写闸门只在服务端强制，打开必须由人显式执行并记录；
-> 执行超时会标记 `stuck` 并拒绝后续下发。
+装好 LabRAD 侧依赖、按实验室约定配好 session、写闸门由人显式打开。
+提权步骤与故障排查见 [`docs/REAL_MACHINE.md`](docs/REAL_MACHINE.md)。
 
 ---
 
-## 🧩 常用命令
+## 🔒 边界与安全
 
-| 目的 | 命令 |
-|------|------|
-| 起全部微服务 | `python server/scripts/start_all_services.py --all` |
-| 起网关（开发） | `cd server && npm run dev` |
-| 起前端 | `cd web && npm run dev` |
-| 离线自检（17 项） | `python checks/run_all_checks.py` |
-| 单跑一个自检 | `python checks/_p3_check.py` |
-| 在线自检（需服务/真机） | `python checks/_p3_e2e.py` · `_registry_ep_check.py` · `_apply_dataset_ep_check.py` |
-| 生成 DSL 实验脚本 | `python qwf_gen.py --help` |
-| 运行 DSL 工作流 | `python qwf_run.py --help` |
-| 校验 DSL 脚本 | `python qwf_lint.py qwf_examples/*.qwf` |
-| 对比度调参工具 | `python tools/iqraw_contrast_tune.py --help` |
-| 上游 OpenQWF 漂移检查 | `python tools/check_openqwf_drift.py` |
-
----
-
-## 🏗️ 架构
-
-### 部署拓扑
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  浏览器 → Next.js 控制台 :8081                              │
-└──────────────────────────────────────────────────────────────┘
-                              │ HTTP / REST + WebSocket
-┌──────────────────────────────────────────────────────────────┐
-│  Express 网关 :3002（TypeScript + Socket.IO）                │
-└──────────────────────────────────────────────────────────────┘
-                              │ 代理
-┌──────────────────────────────────────────────────────────────┐
-│  Python 微服务                                               │
-│  quantum :3003   analysis :3004   agent :3005   llm :3006    │
-│  image :3007      workflow :3008  task_queue :3009           │
-│  qubitclient :3010  qca :3011   hermes :3012                 │
-└──────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-   LabRAD 真机          qiskit Aer 模拟        历史数据离线回放
-```
-
-量子后端是一条**有序策略**（`server/config/fallback_config.json` →
-`quantum_service.backends.order`，默认 `["lqcs", "qiskit", "offline_sim"]`）：
-装了真机的机器行为不变；没装 lqcs 的机器自动落到 qiskit；再不行就回放历史数据。
-
-### Six-Layer Execution Stack
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  L6: Natural Language Interface    │  User commands         │
-├─────────────────────────────────────────────────────────────┤
-│  L5: Analysis & Report             │  Data fitting          │
-├─────────────────────────────────────────────────────────────┤
-│  L4: Workflow Orchestration        │  Workflow execution    │
-├─────────────────────────────────────────────────────────────┤
-│  L3: Tool Scheduling               │  Tool dispatch         │
-├─────────────────────────────────────────────────────────────┤
-│  L2: Knowledge & Rules             │  RAG, rule learning    │
-├─────────────────────────────────────────────────────────────┤
-│  L1: Hardware Interface            │  Instruments/simulators│
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Three-Layer Decision Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  L3: LLM Fallback Layer                                    │
-│  ├── Use case: New problems, no rule match                 │
-│  ├── Speed: ~300ms                                         │
-│  └── Cost: API cost                                        │
-├─────────────────────────────────────────────────────────────┤
-│  L2: Learned Rules Layer                                   │
-│  ├── Source: L3 success case promotion                     │
-│  ├── Speed: <1ms                                           │
-│  └── Cost: $0                                              │
-├─────────────────────────────────────────────────────────────┤
-│  L1: RuleEngine Layer                                      │
-│  ├── Content: Expert knowledge, physics rules              │
-│  ├── Speed: <1μs                                           │
-│  └── Cost: $0                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 目录结构
-
-```
-QMClaw/
-├── server/            # 后端：Express 网关 :3002 + Python 微服务 :3003–3012
-├── web/               # 前端：Next.js 控制台 :8081
-├── skills/            # Agent 技能包（12 个）→ skills/README.md
-├── checks/            # 自检脚本 + run_all_checks.py（17 离线 / 3 在线）
-├── tools/             # 运维与科研工具（OpenQWF 同步、qiskit 冒烟、调参、读图）
-├── qwf_scripts/       # QWF DSL 实验与工作流脚本（校准、Ramsey、T1…）
-├── qwf_examples/      # QWF DSL 示例（受 lint 保护，CI 必过）
-├── experiments/       # 实验产物与报告
-├── docs/              # 架构 / 运维 / 真机 / DSL / 上游同步文档
-├── vendor/            # 上游 submodule（OpenQWF、hermes-agent、QubitClient、QCA）
-├── qwf_gen.py         # QWF DSL CLI：gen / run / lint（薄壳委派上游 OpenQWF）
-├── AGENTS.md          # 开发约定（本仓唯一约定文件）
-├── install.md         # 详细安装指南
-└── requirements.txt   # Python 依赖
-```
-
-各目录职责与新增文件的落位规则见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。
-
-**不入库的东西**（本机保留，clone 下来不会有）：
-
-- `_local/legacy/` —— 历史目录（`new_ctrl` / `new_templates` / `measure_scripts`），仅本机保留，不入库
-- `server/config/*.local.json`、`server/config/device_profile.json` —— 本机覆盖配置与真机标定值
-- `server/config/memory/` —— Agent 长期记忆（`episodes/`、`skills/`、`index.json`）
-- `server/data/`、`logs/`、`cache/`、`_local/artifacts/`（自检归档、`qwf_out/` 等）等运行产物
-- 一次性诊断脚本与**设计过程文档**（`_local/docs/*PLAN*.md` 等）—— 见 `.gitignore` 的私有文档规则段
+- **写闸门默认关闭**：`allow_execute` / `allow_set_params` 默认为 false，只在服务端强制；
+  打开它必须是人的显式动作，并且留痕。
+- **执行超时会标记 `stuck`** 并拒绝后续下发，须人工确认现场安全后再恢复。
+- **不越界的三条红线**：模拟数据不冒充实测；真机掉线如实报"不可用"；
+  单个后端异常就地转成"不可用 + 原因"，不连累别的服务。
+- **该停就停**：模板库里没有可用写法时，测控循环会停下来等人给指令，而不是猜一个。
+- **演练与台账分开**：模拟后端跑出来的证据一律标 `source=loop`，汇报时说明是演练，
+  不得说成台账实测。
 
 ---
 
@@ -262,39 +192,21 @@ QMClaw/
 | [`install.md`](install.md) | 详细安装指南（技能安装、Python 包用法、MCP 配置、故障排查） |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 平台架构与模块边界 |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | 日常运维：起停、配置、自检清单、排障 |
+| [`docs/MEASUREMENT_LOOP.md`](docs/MEASUREMENT_LOOP.md) | 测控循环契约：四步流程、换算口径、退出码 |
+| [`docs/STATE_GRAPH_PROFILES.md`](docs/STATE_GRAPH_PROFILES.md) | 状态图随芯片变化的配置方法 |
 | [`docs/REAL_MACHINE.md`](docs/REAL_MACHINE.md) | 真机接入、写闸门、只读回归自检 |
 | [`docs/DEMO_NO_LQCS.md`](docs/DEMO_NO_LQCS.md) | 无真机环境下的 qiskit / 离线演示 |
+| [`docs/CONTROL_CONSOLE_DEMO.md`](docs/CONTROL_CONSOLE_DEMO.md) | 控制台演示剧本（六阶段） |
 | [`docs/QWF_NODES.md`](docs/QWF_NODES.md) | QWF DSL 节点参考 |
 | [`docs/qiskit_backend.md`](docs/qiskit_backend.md) | qiskit/Aer 本地模拟后端配置与用法 |
 | [`docs/RUNTIME_DEPS.md`](docs/RUNTIME_DEPS.md) | 运行时依赖与安装校验 |
-| [`docs/OPENQWF_SYNC.md`](docs/OPENQWF_SYNC.md) | 上游 OpenQWF 同步规则（门面 / vendor 副本） |
+| [`docs/OPENQWF_SYNC.md`](docs/OPENQWF_SYNC.md) | 上游 OpenQWF 同步规则（门面 / vendor 指针） |
 | [`docs/ADAPTER_GUIDE.md`](docs/ADAPTER_GUIDE.md) | 后端适配器接入指南 |
-| [`docs/CONTROL_CONSOLE_DEMO.md`](docs/CONTROL_CONSOLE_DEMO.md) | 控制台演示脚本 |
 | [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md) | 仓库结构与文件放位规则 |
 | [`docs/QMClaw介绍及架构.md`](docs/QMClaw介绍及架构.md) | 中文版整体介绍 |
 | [`docs/QMClaw_Skills_用户手册.md`](docs/QMClaw_Skills_用户手册.md) | 技能包使用手册 |
 | [`AGENTS.md`](AGENTS.md) | 开发约定（提交节奏、日志、实验约定） |
 | [`skills/README.md`](skills/README.md) | 技能索引与安装 |
-
----
-
-## 🧩 技能包
-
-12 个技能覆盖框架理解、决策架构、调校流程、工具调度、微服务端点、数据分析、
-标定、对比度调优、学术绘图、S21 读图、离线 DataVault 出图。
-
-索引与触发词见 **[`skills/README.md`](skills/README.md)**。
-
----
-
-## 🛠️ Roadmap
-
-- [ ] 多智能体协作 —— 支持多个 agent 并行执行不同任务
-- [ ] 工作流可视化增强 —— 前端展示 agent 执行步骤流程图
-- [ ] 语音输入 / 输出 —— 语音命令与语音播报
-- [x] Agent 流式对话与长期记忆（`/api/agent/chat/stream`、`server/config/memory/`）
-- [x] 三层决策架构 + 工具白名单 + MCP 接入
-- [x] 真机 / qiskit / 离线三档后端策略
 
 ---
 
@@ -316,9 +228,8 @@ Contributions are welcome! Please follow these steps:
 4. **Push** to the branch (`git push origin feature/amazing-feature`)
 5. **Open** a Pull Request
 
-新增技能 / 新增文件放位规则见 [`AGENTS.md`](AGENTS.md) 与
-[`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。提交前请跑一遍
-`python checks/run_all_checks.py`。
+新增技能 / 新增文件的放位规则见 [`AGENTS.md`](AGENTS.md) 与 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)；
+提交前请跑一遍 `python checks/run_all_checks.py`。
 
 ---
 
@@ -339,6 +250,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📧 Contact
 
 - **GitHub Issues**: [Issues](https://github.com/Secsix/QMClaw/issues)
+
+---
+
+## English summary
+
+QMClaw is a general-purpose framework for quantum measurement and control. It pairs an
+execution platform (an Express gateway, Python microservices, and a web console) with a set of
+reusable Agent instruction bundles centred on `SKILL.md`. Its core idea is simple: let the Agent
+act only inside rules a human can audit. Each measurement round asks for the qubit state, asks
+which transitions are legal, picks an action from the allowed set — and stops for a human when no
+template fits. Every experiment is submitted as a QWF workflow, and every state change is derived
+from the metrics of that run, never from assertion. Hardware access degrades honestly along an
+ordered policy (real instrument → simulator → recorded replay), and simulated results are always
+labelled as drill evidence rather than measurements.
 
 ---
 
