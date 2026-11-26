@@ -17,6 +17,14 @@ import {
 /** 轮询间隔（ms）。插件页是"跟随后端"的展示面，3 秒一次足够跟手又不至于压后端。 */
 const POLL_MS = 3000;
 
+/**
+ * scopes 端点拿不到时的兜底（老后端 / 服务没重启）。
+ * 只留单比特一张图：多出来那几张在后端还没表态前不该凭空画。
+ */
+const FALLBACK_SCOPES: ScopeSummary[] = [
+  { scope: "qubit", label: "单比特六态", enabled: true, reason: "scopes 端点不可用，按旧行为只显示单比特", source: "structure" },
+];
+
 export interface ControlData {
   stateTable: QubitStateTable | null;
   /** 当前芯片启用了哪几张状态图（qubit / pair / pulse / tunable），以及启用依据。 */
@@ -120,7 +128,7 @@ export function useControlData(): ControlData {
       setLegacyJobs(Array.isArray(lJobs) ? lJobs : []);
       setRuns(runList?.runs ?? []);
       setScopeInfo(scopeData);
-      setScopes(scopeData?.scopes ?? []);
+      setScopes(scopeData?.scopes ?? FALLBACK_SCOPES);
       // 全挂才是致命错误；部分失败降级为提示，页面其余部分照常展示。
       setError(partial.length === results.length ? partial.join("；") : null);
       setPartialErrors(partial.length === results.length ? [] : partial);
