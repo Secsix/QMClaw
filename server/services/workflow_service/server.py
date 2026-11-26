@@ -729,7 +729,7 @@ class WorkflowService(BaseService):
             return self._run_quantum_job(node, _contrast_snippet(dataset_id, qubit, kind))
 
         elif node_type in ("analysis", "analyze"):
-            # Analyze 节点：用 qter.fitData 对上游实验数据做统计拟合
+            # Analyze 节点：调 analysis_service 的语义拟合端点（POST /fit）
             dataset_id = str(config.get("datasetId", "") or "")
             if not dataset_id:
                 # 多级回溯：沿 depends 链向上找 dataset_id（支持 experiment -> image_analysis -> analyze 这类链路）
@@ -751,114 +751,94 @@ class WorkflowService(BaseService):
                             frontier.extend(wf_node.depends)
             if not dataset_id:
                 return {"error": "dataset_id not found from upstream experiment", "status": "failed"}
-            command = str(config.get("command", "qter.fitData(do_plot=True)"))
-            # 白名单：command 会被 analysis_service 当 Python 执行，只放行拟合入口
-            if not _ANALYZE_CMD_RE.match(command):
-                return {
-                    "error": f"analyze command not allowed: {command[:60]!r} "
-                             f"(must start with qter.fitData()",
-                    "status": "failed",
-                }
-            fit_payload = {"dataset_id": dataset_id, "command": command}
-            fit_data = json.dumps(fit_payload).encode("utf-8")
-            # 路由：活数据 id 是纯数字实验编号（"894"）→ 在线端点（LabRAD DataLab）；
-            # 离线 HDF5 索引 id 形如 "20251103_00485" → 离线端点。
-            # 在线失败（analysis_service 没连上 LabRAD 等）时回落离线端点再试一次。
-            is_live_id = dataset_id.isdigit()
-            endpoints = (["/plot/online/v2", "/plot/offline/v2"] if is_live_id else ["/plot/offline/v2"])
-            if is_live_id:
-                # analysis_service 启动时若抢 LabRAD 超时会进入 degraded_permanent（data_source=offline），
-                # 此时在线端点必然失败。先看健康状态，若没连上就把它切回 online 再拟合；
-                # 切不回来也不拦（后面还有离线端点兜底）。
-                try:
-                    with urllib.request.urlopen(f"{self._analysis_service_url}/health", timeout=10) as _h:
-                        _hh = json.loads(_h.read().decode("utf-8"))
-                    if not _hh.get("datalab_connected", False):
-                        _mode_req = urllib.request.Request(
-                            f"{self._analysis_service_url}/mode",
-                            data=json.dumps({"mode": "online"}).encode("utf-8"),
-                            headers={"Content-Type": "application/json"},
-                            method="POST",
-                        )
-                        with urllib.request.urlopen(_mode_req, timeout=60) as _r:
-                            _log(f"[analyze] analysis_service switched to online: {_r.read().decode('utf-8')[:120]}")
-                    else:
-                        _log("[analyze] analysis_service already online")
-                except Exception as e:
-                    _log(f"[analyze] switch analysis_service to online failed: {e}")
-            fit_result = None
-            last_err = ""
-            for ep in endpoints:
-                fit_req = urllib.request.Request(
-                    f"{self._analysis_service_url}{ep}",
-                    data=fit_data,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                try:
-                    with urllib.request.urlopen(fit_req, timeout=120) as resp:
-                        fit_result = json.loads(resp.read().decode("utf-8"))
-                except Exception as e:
-                    last_err = f"{ep}: {e}"
-                    _log(f"[analyze] fit request to {ep} failed: {e}")
-                    continue
-                if fit_result.get("success"):
-                    break
-                last_err = f"{ep}: {fit_result.get('error', 'fitData failed')}"
-                _log(f"[analyze] fit request to {ep} returned error: {last_err}")
-                fit_result = None
-            if fit_result is None:
-                return {"error": f"qter.fitData failed: {last_err}", "status": "failed"}
-            # 把拟合图 base64 存为文件，返回 plotPath（与 experiment 节点一致）
-            import base64 as _b64
-            plot_path = None
-            img_data_url = fit_result.get("image", "") or ""
-            if isinstance(img_data_url, str) and img_data_url.startswith("data:image/png;base64,"):
-                try:
-                    b64part = img_data_url.split(",", 1)[1]
-                    web_public = Path(__file__).parent.parent.parent.parent / "web" / "public"
-                    plots_dir = web_public / "plots"
-                    plots_dir.mkdir(parents=True, exist_ok=True)
-                    fname = f"analyze_{int(time.time()*1000)}.png"
-                    with open(plots_dir / fname, "wb") as _fh:
-                        _fh.write(_b64.b64decode(b64part))
-                    plot_path = f"/plots/{fname}"
-                except Exception as _se:
-                    _log(f"[analyze] save fit image failed: {_se}")
-            fit_metrics = fit_result.get("fit_metrics", {}) or {}
-            # 只透出标量指标：IR 的 assert 要按名字取（$a_t1.T1_us / $a_t2.T2_us），
-            # 而拟合结果里可能带曲线/数组，全塞进节点结果会把 status 撑爆。
-            # 原先只认 T1_us / R_squared，导致 T2、contrast 之类的阈值 gate 写不出来。
+            # ── 拟合归口（2026-11-26 阶段2）────────────────────────────────
+            # 以前这里拼 `qter.fitData(...)` 并在线/离线两个端点间回落，等于把厂商调用
+            # 抄了一遍。现在只调 analysis_service 的语义端点 `POST /fit`：
+            # 该用什么模型、产出哪些物理量由微服务决定，workflow 只负责传 dataset_id 与 kind。
+            kind = str(config.get("kind") or config.get("experimentType") or "").strip()
+            if not kind:
+                for dep_id in getattr(node, "depends", []) or []:
+                    dep_result = (context or {}).get(dep_id) or {}
+                    if isinstance(dep_result, dict) and dep_result.get("experiment_type"):
+                        kind = str(dep_result["experiment_type"]).strip()
+                        break
+            command = config.get("command")
+            if command is not None:
+                # 老画布仍写 command(...)：只当"声明要拟合"看，不再执行里面的代码。
+                if not _ANALYZE_CMD_RE.match(str(command)):
+                    return {
+                        "error": f"analyze command not allowed: {str(command)[:60]!r} "
+                                 f"(must start with qter.fitData()",
+                        "status": "failed",
+                    }
+            engine = str(config.get("engine") or "auto").strip().lower()
+            fit_payload = {
+                "dataset_id": dataset_id,
+                "kind": kind,
+                "engine": engine,
+                "do_plot": bool(config.get("doPlot", True)),
+            }
+            fit_req = urllib.request.Request(
+                f"{self._analysis_service_url}/fit",
+                data=json.dumps(fit_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(fit_req, timeout=180) as resp:
+                    fit_result = json.loads(resp.read().decode("utf-8"))
+            except Exception as e:
+                return {"error": f"analysis /fit failed: {e}", "status": "failed"}
+            if not fit_result.get("success"):
+                reason = fit_result.get("reason") or fit_result.get("error") or "拟合失败"
+                return {"error": f"analysis /fit: {reason}", "status": "failed"}
+
+            fit_metrics = fit_result.get("metrics") or {}
             metrics_out = {
                 "dataset_id": dataset_id,
-                "qubit": fit_result.get("qubit", ""),
-                "experiment_type": fit_result.get("experiment_type", ""),
+                "qubit": fit_result.get("qubit") or "",
+                "experiment_type": fit_result.get("experiment_type") or kind,
             }
             for _k, _v in fit_metrics.items():
-                if isinstance(_v, bool):
+                if isinstance(_v, bool) or not isinstance(_v, (int, float)):
                     continue
-                if isinstance(_v, (int, float)):
-                    metrics_out[_k] = _v
-            t1_us = metrics_out.get("T1_us")
-            r2 = metrics_out.get("R_squared")
+                metrics_out[_k] = _v
+            # 兼容老 assert 的名字：上游画布写 $a_t1.T1_us / $a_t2.T2_us / R_squared
+            if "t1_us" in metrics_out:
+                metrics_out.setdefault("T1_us", metrics_out["t1_us"])
+            if "t2_star_us" in metrics_out:
+                metrics_out.setdefault("T2_us", metrics_out["t2_star_us"])
+            if fit_result.get("r2") is not None:
+                metrics_out.setdefault("R_squared", fit_result["r2"])
+
             stdout_lines = [
-                f"[ANALYZE] qter.fitData on {dataset_id}",
-                f"Qubit: {fit_result.get('qubit', '')}",
-                f"Experiment: {fit_result.get('experiment_type', '')}",
-                f"Dataset: {fit_result.get('dataset_name', '')}",
+                f"[ANALYZE] /fit kind={fit_result.get('kind') or kind} dataset={dataset_id}",
+                f"engine = {fit_result.get('engine')}",
+                f"model = {fit_result.get('model')}",
+                f"r2 = {fit_result.get('r2')}",
             ]
             for _k, _v in metrics_out.items():
                 if _k in ("dataset_id", "qubit", "experiment_type"):
                     continue
                 stdout_lines.append(f"{_k} = {_v}")
+            for _w in fit_result.get("warnings") or []:
+                stdout_lines.append(f"[WARN] {_w}")
             return {
                 "status": "completed",
-                "plotPath": plot_path,
+                "plotPath": fit_result.get("plot_url"),
                 "dataset_id": dataset_id,
-                "qubit": fit_result.get("qubit", ""),
-                "experiment_type": fit_result.get("experiment_type", ""),
-                "dataset_name": fit_result.get("dataset_name", ""),
+                "qubit": fit_result.get("qubit") or "",
+                "experiment_type": fit_result.get("experiment_type") or kind,
+                "kind": fit_result.get("kind") or kind,
                 "metrics": metrics_out,
+                "evidence": fit_result.get("evidence") or {},
+                "fit": {
+                    "engine": fit_result.get("engine"),
+                    "model": fit_result.get("model"),
+                    "params": fit_result.get("params"),
+                    "r2": fit_result.get("r2"),
+                    "warnings": fit_result.get("warnings") or [],
+                },
                 "stdout": "\n".join(stdout_lines),
             }
         elif node_type == "decision":

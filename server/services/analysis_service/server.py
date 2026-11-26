@@ -27,6 +27,17 @@ from ..common.offline_data_provider import OfflineDataProvider
 from ..common.offline_data_lab import OfflineDataLab, OfflineQubitUpdater
 from ..common.offline_variant_generator import VariantGenerator
 from ..common.plotting import serialized_plot
+from ..common.metric_convert import describe as describe_conversion, to_evidence
+from . import fitting
+
+
+def _lqcs_available() -> bool:
+    """厂商引擎是否可 import（不 import 就不报错，只回答有没有）。"""
+    try:
+        import lqms  # noqa: F401
+    except Exception:
+        return False
+    return True
 
 
 def _log(msg: str):
@@ -443,6 +454,18 @@ class AnalysisService(BaseService):
             return self._handle_plot_offline_v2(data)
         elif path == "/plot/online/v2":
             return self._handle_plot_online_v2(data)
+        elif path == "/fit":
+            return self._handle_fit(data)
+        elif path == "/fit/kinds":
+            return self._handle_fit_kinds()
+        elif path == "/metrics/convert":
+            return self._handle_metrics_convert(data)
+        elif path == "/metrics/schema":
+            return {"success": True, **describe_conversion()}
+        elif path == "/replay/datasets":
+            return self._handle_datasets_offline(query)
+        elif path == "/replay/plot":
+            return self._handle_replay_plot(data)
         elif path == "/variants/types":
             return self._handle_variant_types()
         elif path == "/variants/generate":
@@ -651,6 +674,120 @@ class AnalysisService(BaseService):
             return {"error": str(e), "plotPath": None}
 
     @serialized_plot
+    # ── 语义拟合 / 指标换算 / 离线复现（阶段2 收口） ──────────────────────
+
+    def _handle_fit_kinds(self) -> Dict[str, Any]:
+        return {
+            "success": True,
+            "kinds": fitting.kinds(),
+            "aliases": dict(fitting.KIND_ALIASES),
+            "engines": {"scipy": True, "lqcs": _lqcs_available()},
+            "r2_warn_threshold": fitting.R2_WARN_THRESHOLD,
+            "note": "kind 只是物理口径；具体实验支持哪些 kind 见 quantum_service 的 GET /experiments/catalog",
+        }
+
+    def _handle_metrics_convert(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        metrics = data.get("metrics")
+        if metrics is None:
+            metrics = {k: v for k, v in data.items() if k not in ("metrics",)}
+        if not isinstance(metrics, dict):
+            return {"success": False, **error_envelope("validation_error", "metrics 必须是对象")}
+        evidence, notes = to_evidence(metrics)
+        return {"success": True, "metrics": metrics, "evidence": evidence, "notes": notes}
+
+    def _series_for(self, data: Dict[str, Any]):
+        """拿到 ``(x, y, meta)``：优先内联 x/y（工具与测试用），否则按 dataset_id 读离线库。"""
+        xs = data.get("x")
+        ys = data.get("y")
+        dataset_id = data.get("dataset_id") or data.get("dataset")
+        if xs is not None and ys is not None:
+            x, y = fitting.extract_series({"x": xs, "y": ys})
+            return x, y, {"dataset_id": dataset_id, "source": "inline"}
+        if not dataset_id:
+            raise ValueError("dataset_id（或内联 x / y）是必填的")
+        if self._offline_provider is None:
+            raise RuntimeError("离线数据不可用（offline_data_provider 未初始化）")
+        lab = OfflineDataLab(self._offline_provider)
+        lab.loadDatasetById(str(dataset_id))
+        info = lab.get_current_info() or {}
+        x, y = fitting.extract_series(lab.data)
+        return x, y, {"dataset_id": str(dataset_id), "source": "offline", "info": info}
+
+    def _handle_fit(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        kind = data.get("kind") or ""
+        try:
+            x, y, meta = self._series_for(data)
+        except Exception as exc:
+            return {"success": False, **error_envelope("not_found", str(exc))}
+        info = meta.get("info") or {}
+        if not kind:
+            kind = info.get("experiment_type") or ""
+        engine = str(data.get("engine") or "scipy").strip().lower()
+        if engine not in ("scipy", "lqcs", "auto"):
+            return {
+                "success": False,
+                **error_envelope("validation_error", f"engine 只能是 scipy / lqcs / auto，收到 {engine!r}"),
+            }
+        if not kind:
+            return {
+                "success": False,
+                **error_envelope("validation_error", "kind 是必填的（数据集里也没有 experiment_type）"),
+            }
+        result = fitting.analyse(kind, {"x": x, "y": y}, engine=engine)
+        payload: Dict[str, Any] = {
+            "success": bool(result.get("ok")),
+            "dataset_id": meta.get("dataset_id"),
+            "qubit": info.get("qubit") or data.get("qubit"),
+            "experiment_type": info.get("experiment_type"),
+            **result,
+        }
+        if result.get("ok"):
+            evidence, notes = to_evidence(result.get("metrics") or {})
+            payload.update({"evidence": evidence, "conversion_notes": notes})
+            if data.get("do_plot"):
+                try:
+                    payload["plot_url"] = self._render_fit_plot(kind, x, y, result)
+                except Exception as exc:  # 出图失败不影响拟合结论
+                    payload.setdefault("warnings", []).append(f"出图失败：{exc}")
+        else:
+            payload.setdefault("error", result.get("reason"))
+            payload.setdefault("error_code", "fit_failed")
+        return payload
+
+    def _render_fit_plot(self, kind: str, x, y, result: Dict[str, Any]) -> str:
+        """把散点 + 关键物理量画一张图，存到 web/public/plots 并返回相对 URL。"""
+        import uuid
+
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        plt.close("all")
+        fig, ax = plt.subplots(figsize=(7.2, 4.2), dpi=self._default_dpi)
+        try:
+            ax.plot(x, y, "o", ms=4, color="#1E4FA8", label="data")
+            metrics = result.get("metrics") or {}
+            summary = " · ".join(f"{k}={v:g}" if isinstance(v, (int, float)) else f"{k}={v}" for k, v in metrics.items())
+            ax.set_title(f"{kind}: {summary}")
+            ax.set_xlabel("x")
+            ax.set_ylabel("signal")
+            ax.grid(True, alpha=0.3)
+            fig.tight_layout()
+            name = f"fit_{fitting.normalize_kind(kind)}_{uuid.uuid4().hex[:8]}.png"
+            path = PLOTS_DIR / name
+            fig.savefig(path, format="png", bbox_inches="tight")
+        finally:
+            plt.close(fig)
+        return f"/plots/{name}"
+
+    def _handle_replay_plot(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """离线复现：按 dataset_id 重新拟合并出图（不依赖厂商 qter.fitData）。"""
+        body = dict(data)
+        body.setdefault("do_plot", True)
+        body.setdefault("engine", "scipy")
+        return self._handle_fit(body)
+
     def _handle_plot_offline_v2(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         新版离线绘图接口

@@ -470,6 +470,38 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  // 语义拟合 / 指标换算 / 离线复现（阶段2 收口）
+  proxy.post('/analysis/fit', async (req, res) => {
+    const result = await proxyToService('analysis', '/fit', 'POST', req.body ?? {}, 180000);
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.get('/analysis/fit/kinds', async (_req, res) => {
+    const result = await proxyToService('analysis', '/fit/kinds', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/analysis/metrics/convert', async (req, res) => {
+    const result = await proxyToService('analysis', '/metrics/convert', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.get('/analysis/metrics/schema', async (_req, res) => {
+    const result = await proxyToService('analysis', '/metrics/schema', 'GET');
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.get('/analysis/replay/datasets', async (req, res) => {
+    const query = req.originalUrl.split('?')[1] ?? '';
+    const result = await proxyToService('analysis', '/replay/datasets', 'GET', undefined, undefined, query);
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
+  proxy.post('/analysis/replay/plot', async (req, res) => {
+    const result = await proxyToService('analysis', '/replay/plot', 'POST', req.body ?? {}, 180000);
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.get('/analysis/datasets', async (_req, res) => {
     const result = await proxyToService('analysis', '/datasets', 'GET');
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });

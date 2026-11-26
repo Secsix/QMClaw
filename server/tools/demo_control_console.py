@@ -263,93 +263,12 @@ def stage_qwf(stage: int, qubit: str) -> str:
 def metrics_to_evidence(metrics: Optional[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[str]]:
     """把一次运行的 metrics 换算成状态机认的证据键。
 
-    返回 ``(evidence, notes)``：``notes`` 逐条记录「原值 → 证据值（口径）」，
-    演示时打印出来，评审能顺着核对，不做隐式换算。
+    真正的口径在 ``server/services/common/metric_convert.py``（微服务 ``POST /metrics/convert``
+    用的是同一份实现）—— 这里只是 import 过来，脚本与微服务不会各算一套。
     """
-    metrics = dict(metrics or {})
-    evidence: Dict[str, Any] = {}
-    notes: List[str] = []
+    from services.common.metric_convert import to_evidence
 
-    def _num(value: Any) -> Optional[float]:
-        if isinstance(value, bool) or value is None:
-            return None
-        if isinstance(value, (int, float)):
-            return float(value)
-        try:
-            return float(str(value).strip())
-        except (TypeError, ValueError):
-            return None
-
-    # contrast：优先用真正的 contrast，其次把 separation / SNR 折成 0..1 的近似
-    contrast = _num(metrics.get("contrast"))
-    if contrast is not None:
-        evidence["contrast"] = round(contrast, 6)
-        notes.append(f"contrast={contrast:g}（直接取自 metrics.contrast）")
-    else:
-        separation = _num(metrics.get("separation"))
-        snr = _num(metrics.get("SNR"))
-        if separation is not None:
-            value = separation if separation <= 1.0 else min(1.0, separation / 2.0)
-            evidence["contrast"] = round(value, 6)
-            notes.append(f"separation={separation:g} → contrast={value:.4f}（separation/2 归一化）")
-        elif snr is not None:
-            value = min(1.0, max(0.0, snr / 20.0))
-            evidence["contrast"] = round(value, 6)
-            notes.append(f"SNR={snr:g} → contrast={value:.4f}（SNR/20 归一化，仅演示口径）")
-
-    # T1 / T2：模拟后端给秒，状态机认微秒
-    t1 = _num(metrics.get("T1_us"))
-    if t1 is not None:
-        evidence["t1_us"] = round(t1, 6)
-        notes.append(f"T1_us={t1:g}（直接取自 metrics.T1_us）")
-    else:
-        t1_s = _num(metrics.get("T1"))
-        if t1_s is not None:
-            evidence["t1_us"] = round(t1_s * 1e6, 6)
-            notes.append(f"T1={t1_s:g}s → t1_us={t1_s * 1e6:.3f}（秒 ×1e6）")
-
-    t2 = _num(metrics.get("T2_us"))
-    if t2 is not None:
-        evidence["t2_star_us"] = round(t2, 6)
-        notes.append(f"T2_us={t2:g}（直接取自 metrics.T2_us）")
-    else:
-        t2_s = _num(metrics.get("T2"))
-        if t2_s is not None:
-            evidence["t2_star_us"] = round(t2_s * 1e6, 6)
-            notes.append(f"T2={t2_s:g}s → t2_star_us={t2_s * 1e6:.3f}（秒 ×1e6）")
-
-    fidelity = _num(metrics.get("xeb_gate_fidelity"))
-    if fidelity is None:
-        fidelity = _num(metrics.get("gate_fidelity"))
-        if fidelity is not None:
-            notes.append(f"gate_fidelity={fidelity:g} → xeb_gate_fidelity")
-    if fidelity is not None:
-        evidence["xeb_gate_fidelity"] = round(fidelity, 6)
-
-    # xeb_p：状态机的 characterized 需要 xeb 判据，p 与 gate_fidelity 分别取
-    xeb_p = _num(metrics.get("xeb_p"))
-    if xeb_p is None:
-        xeb_p = _num(metrics.get("p_xeb"))
-        if xeb_p is not None:
-            notes.append(f"p_xeb={xeb_p:g} → xeb_p")
-    if xeb_p is not None:
-        evidence["xeb_p"] = round(xeb_p, 6)
-
-    if "freq_locked" in metrics:
-        evidence["freq_locked"] = bool(metrics.get("freq_locked"))
-    else:
-        # 扫频跑完且找到了 f10 —— 这本身就是「频率锁定」的证据（freq_locked 由 sq.spectroscopy 产出）
-        f10 = _num(metrics.get("f10"))
-        if f10:
-            evidence["freq_locked"] = True
-            notes.append(f"f10={f10:g} 已找到 → freq_locked=True（扫频成功即锁定频率）")
-        elif "f10" in metrics:
-            # 模拟后端跑完扫频但 f10 恒为 0（不返回真实峰位）。按「扫频已执行完成」记录，
-            # 并在 note 里写明这个前提 —— 真机上 f10>0 才算锁定。
-            evidence["freq_locked"] = True
-            notes.append("f10=0（模拟后端不返回峰位）：按「扫频已执行完成」记 freq_locked=True；真机需 f10>0")
-
-    return evidence, notes
+    return to_evidence(metrics)
 
 
 def decide_stage_evidence(
