@@ -15,16 +15,52 @@ export interface ControlCardMeta {
   title: string;
   /** 编辑模式下的短名 */
   short: string;
+  /** 卡片头部的两位编号（瑞士风的网格坐标感） */
+  index: string;
+  /** 卡片头部的小标题（英文大写标签，作为标题之上的一层） */
+  kicker: string;
   /** 缩放下限（栅格单位） */
   minW: number;
   minH: number;
 }
 
 export const CONTROL_CARDS: ControlCardMeta[] = [
-  { id: "stateGraph", title: "① 测控状态转移图", short: "状态转移图", minW: 3, minH: 6 },
-  { id: "qwfFlow", title: "② QWF 流程图", short: "QWF 流程图", minW: 3, minH: 6 },
-  { id: "liveExperiment", title: "③ 实验动态", short: "实验动态", minW: 4, minH: 8 },
-  { id: "runs", title: "运行记录", short: "运行记录", minW: 2, minH: 4 },
+  {
+    id: "stateGraph",
+    title: "测控状态转移图",
+    short: "状态转移图",
+    index: "01",
+    kicker: "State Machine",
+    minW: 3,
+    minH: 6,
+  },
+  {
+    id: "qwfFlow",
+    title: "QWF 流程图",
+    short: "QWF 流程图",
+    index: "02",
+    kicker: "QWF Flow",
+    minW: 3,
+    minH: 6,
+  },
+  {
+    id: "liveExperiment",
+    title: "实验动态",
+    short: "实验动态",
+    index: "03",
+    kicker: "Live Experiment",
+    minW: 4,
+    minH: 8,
+  },
+  {
+    id: "runs",
+    title: "运行记录",
+    short: "运行记录",
+    index: "04",
+    kicker: "Run History",
+    minW: 2,
+    minH: 4,
+  },
 ];
 
 export const CONTROL_CARD_IDS: ControlCardId[] = CONTROL_CARDS.map((c) => c.id);

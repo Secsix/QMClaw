@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 /**
- * 卡片外壳：标题栏 + 内容区。
+ * 卡片外壳：编号 + 小标题 + 标题栏 + 内容区（瑞士风卡片语言）。
  *
  * 栅格格子给了固定像素高度，所以外壳必须 height:100% + 内部滚动，
  * 否则内容长的卡片（实验动态、运行记录）会把格子顶开。
@@ -13,6 +13,10 @@ import type { ReactNode } from "react";
 
 export interface ControlCardFrameProps {
   title: string;
+  /** 卡片编号（两位数，瑞士风的网格坐标） */
+  index?: string;
+  /** 标题上方的小标签（英文大写） */
+  kicker?: string;
   subtitle?: ReactNode;
   right?: ReactNode;
   /** 编辑态：显示隐藏按钮、标题栏变成 move 光标 */
@@ -23,6 +27,8 @@ export interface ControlCardFrameProps {
 
 export default function ControlCardFrame({
   title,
+  index,
+  kicker,
   subtitle,
   right,
   editing = false,
@@ -30,44 +36,15 @@ export default function ControlCardFrame({
   children,
 }: ControlCardFrameProps) {
   return (
-    <section
-      className="qm-card-frame"
-      style={{
-        height: "100%",
-        minHeight: 0,
-        background: "var(--qm-bg)",
-        border: "1px solid var(--qm-border)",
-        borderRadius: "0.6rem",
-        padding: "0.7rem 0.8rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.55rem",
-        minWidth: 0,
-        overflow: "hidden",
-      }}
-    >
-      <header
-        className="qm-card-handle"
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-          flexShrink: 0,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: "0.9rem", color: "var(--qm-text)" }}>{title}</h2>
-        {subtitle ? (
-          <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>{subtitle}</span>
-        ) : null}
-        <span
-          style={{
-            marginLeft: "auto",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
+    <section className="qm-card-frame">
+      <header className="qm-card-head qm-card-handle">
+        {index ? <span className="qm-card-index">{index}</span> : null}
+        <div className="qm-card-heading">
+          {kicker ? <span className="qm-kicker">{kicker}</span> : null}
+          <h2 className="qm-card-title">{title}</h2>
+        </div>
+        {subtitle ? <span className="qm-card-sub">{subtitle}</span> : null}
+        <span className="qm-card-tools">
           {right}
           {editing && onHide ? (
             <button
@@ -82,19 +59,7 @@ export default function ControlCardFrame({
         </span>
       </header>
 
-      <div
-        className="qm-card-body"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-          overflow: "auto",
-        }}
-      >
-        {children}
-      </div>
+      <div className="qm-card-body">{children}</div>
     </section>
   );
 }

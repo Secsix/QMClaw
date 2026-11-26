@@ -86,59 +86,7 @@
   scrollbar-gutter: stable;
 }
 
-/* 编辑工具条 */
-.qm-layout-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.6rem;
-}
-
-.qm-layout-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.28rem 0.6rem;
-  font-size: 0.74rem;
-  border-radius: 0.42rem;
-  border: 1px solid var(--qm-border, #334155);
-  background: var(--qm-panel, #1e293b);
-  color: var(--qm-text-dim, #cbd5e1);
-  cursor: pointer;
-  transition:
-    border-color 120ms ease,
-    color 120ms ease,
-    background 120ms ease;
-}
-
-.qm-layout-btn:hover {
-  border-color: var(--qm-accent, #38bdf8);
-  color: var(--qm-text, #f8fafc);
-}
-
-.qm-layout-btn[data-active="true"] {
-  border-color: var(--qm-accent, #38bdf8);
-  background: var(--qm-accent-soft, rgba(56, 189, 248, 0.16));
-  color: var(--qm-accent, #38bdf8);
-}
-
-.qm-layout-btn[data-variant="danger"]:hover {
-  border-color: var(--qm-err, #f87171);
-  color: var(--qm-err, #f87171);
-}
-
-.qm-layout-hint {
-  font-size: 0.72rem;
-  color: var(--qm-text-mute, #94a3b8);
-}
-
-.qm-layout-chips {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
+/* 编辑工具条、按钮、空状态的样式在 control-swiss.css 里（瑞士风） */
 
 /* 卡片上的隐藏按钮：只在编辑态出现 */
 .qm-card-hide {

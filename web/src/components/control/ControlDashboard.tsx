@@ -56,15 +56,13 @@ export default function ControlDashboard() {
         : "暂无运行记录",
       right:
         data.activeRun?.totalDuration != null ? (
-          <span style={{ fontSize: "0.7rem", color: "var(--qm-text-mute)" }}>
-            总耗时 {data.activeRun.totalDuration}ms
-          </span>
+          <span className="qm-mono-note">{data.activeRun.totalDuration} ms</span>
         ) : null,
       body: <QwfFlowPanel canvas={data.canvas} run={data.activeRun} height="100%" />,
     },
     {
       id: "liveExperiment",
-      subtitle: "本次运行的每个节点图 / 当前运行中 / 上一个已结束 / 近期作业",
+      subtitle: "节点图 · 运行中 · 近期作业",
       body: (
         <LiveExperimentPanel
           quantumJobs={data.quantumJobs}
@@ -75,47 +73,33 @@ export default function ControlDashboard() {
     },
     {
       id: "runs",
-      subtitle: "工作流历史（最近 8 条）",
+      subtitle: "工作流历史 · 最近 8 条",
       body: (
-        <div style={{ display: "grid", gap: "0.25rem" }}>
-          {data.runs.slice(0, 8).map((r) => (
-            <div
-              key={r.id}
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                alignItems: "baseline",
-                fontSize: "0.75rem",
-                color: "var(--qm-text-dim)",
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  color: String(r.status).toLowerCase().includes("run")
-                    ? "var(--qm-accent)"
-                    : String(r.status).toLowerCase().includes("fail")
-                      ? "var(--qm-err)"
-                      : "var(--qm-ok)",
-                }}
-              >
-                {r.status}
-              </span>
-              <span style={{ color: "var(--qm-text)" }}>
-                {r.workflowName || r.workflowId}
-              </span>
-              <span style={{ color: "var(--qm-text-mute)" }}>
-                {(r.nodes ?? []).length} 节点
-              </span>
-              <span style={{ marginLeft: "auto", color: "var(--qm-text-mute)" }}>
-                {r.startedAt ? String(r.startedAt).slice(11, 19) : ""}
-              </span>
-            </div>
-          ))}
+        <div className="qm-run-list">
+          {data.runs.slice(0, 8).map((r) => {
+            const st = String(r.status).toLowerCase();
+            const tone = st.includes("run")
+              ? "run"
+              : st.includes("fail") || st.includes("error")
+                ? "fail"
+                : "ok";
+            return (
+              <div key={r.id} className="qm-run-row">
+                <span className="qm-run-status" data-tone={tone}>
+                  {r.status}
+                </span>
+                <span className="qm-run-name">
+                  {r.workflowName || r.workflowId}
+                </span>
+                <span className="qm-run-meta">{(r.nodes ?? []).length} 节点</span>
+                <span className="qm-run-time">
+                  {r.startedAt ? String(r.startedAt).slice(11, 19) : ""}
+                </span>
+              </div>
+            );
+          })}
           {data.runs.length === 0 ? (
-            <span style={{ fontSize: "0.75rem", color: "var(--qm-text-mute)" }}>
-              暂无运行记录
-            </span>
+            <span className="qm-empty-inline">暂无运行记录</span>
           ) : null}
         </div>
       ),
@@ -123,16 +107,7 @@ export default function ControlDashboard() {
   ];
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        background: "var(--qm-bg)",
-        color: "var(--qm-text)",
-        fontFamily: "system-ui, sans-serif",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div className="qm-control-root">
       <ControlHeader
         qubits={data.qubits}
         selectedQubit={data.selectedQubit}
@@ -144,13 +119,7 @@ export default function ControlDashboard() {
         partialErrors={data.partialErrors}
       />
 
-      <main
-        style={{
-          flex: 1,
-          overflow: "auto",
-          padding: "0.8rem",
-        }}
-      >
+      <main className="qm-control-main">
         <ControlCardGrid layout={layout} cards={cards} />
       </main>
     </div>

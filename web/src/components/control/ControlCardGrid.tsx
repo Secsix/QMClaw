@@ -6,6 +6,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
 import "./control-grid.css";
+import "./control-swiss.css";
 
 import ControlCardFrame from "./ControlCardFrame";
 import {
@@ -79,9 +80,10 @@ export default function ControlCardGrid({ layout, cards }: Props) {
   return (
     <div>
       <div className="qm-layout-toolbar">
+        <span className="qm-kicker">Layout</span>
         <button
           type="button"
-          className="qm-layout-btn"
+          className="qm-btn"
           data-active={editing ? "true" : "false"}
           onClick={layout.toggleEditing}
         >
@@ -93,7 +95,7 @@ export default function ControlCardGrid({ layout, cards }: Props) {
             <span className="qm-layout-hint">
               拖卡片标题栏移动、拖右下角改大小；布局按当前屏幕宽度分别记忆，存在本机浏览器
             </span>
-            <button type="button" className="qm-layout-btn" onClick={layout.reset}>
+            <button type="button" className="qm-btn" onClick={layout.reset}>
               ↺ 恢复默认布局
             </button>
             {hiddenCards.length > 0 ? (
@@ -103,7 +105,7 @@ export default function ControlCardGrid({ layout, cards }: Props) {
                   <button
                     key={c.id}
                     type="button"
-                    className="qm-layout-btn"
+                    className="qm-btn"
                     onClick={() => layout.show(c.id)}
                     title={`显示「${c.title}」`}
                   >
@@ -121,16 +123,8 @@ export default function ControlCardGrid({ layout, cards }: Props) {
       </div>
 
       {!ready ? null : visible.length === 0 ? (
-        <div
-          style={{
-            border: "1px dashed var(--qm-border)",
-            borderRadius: "0.6rem",
-            padding: "2rem 1rem",
-            textAlign: "center",
-            color: "var(--qm-text-mute)",
-            fontSize: "0.8rem",
-          }}
-        >
+        <div className="qm-empty">
+          <span className="qm-kicker">No cards</span>
           所有卡片都已隐藏 —— 点「编辑布局」→「＋ …」把它们加回来，或「恢复默认布局」。
         </div>
       ) : (
@@ -157,6 +151,8 @@ export default function ControlCardGrid({ layout, cards }: Props) {
                 <div key={card.id} className="qm-grid-item">
                   <ControlCardFrame
                     title={meta?.title ?? card.id}
+                    index={meta?.index}
+                    kicker={meta?.kicker}
                     subtitle={card.subtitle}
                     right={card.right}
                     editing={editing}

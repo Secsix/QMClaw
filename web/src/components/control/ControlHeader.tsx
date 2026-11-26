@@ -14,6 +14,12 @@ interface Props {
   partialErrors?: string[];
 }
 
+/**
+ * 控制台顶栏（瑞士风）。
+ *
+ * 信息分三层：品牌块（识别）→ 状态元信息（这一轮的数据新鲜度）→ 操作区。
+ * 状态用「方点 + 大写标签」的药丸，一眼能区分 running / idle / 后端异常。
+ */
 export default function ControlHeader({
   qubits,
   selectedQubit,
@@ -24,98 +30,54 @@ export default function ControlHeader({
   error,
   partialErrors = [],
 }: Props) {
+  const state = error ? "error" : status === "running" ? "running" : "idle";
+  const stateColor =
+    state === "error"
+      ? "var(--qm-err)"
+      : state === "running"
+        ? "var(--qm-accent)"
+        : "var(--qm-ok)";
+  const stateLabel = error ? "后端异常" : status;
+
   return (
-    <header
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.6rem",
-        flexWrap: "wrap",
-        padding: "0.5rem 0.8rem",
-        borderBottom: "1px solid var(--qm-border)",
-        background: "var(--qm-panel)",
-        flexShrink: 0,
-      }}
-    >
-      <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--qm-text)" }}>
-        ⚛ qmclaw · 测控控制台
-      </span>
-
-      <span
-        style={{
-          fontSize: "0.72rem",
-          padding: "0.1rem 0.4rem",
-          borderRadius: "0.25rem",
-          border: `1px solid ${
-            error
-              ? "var(--qm-err)"
-              : status === "running"
-                ? "var(--qm-accent)"
-                : "var(--qm-ok)"
-          }`,
-          color: error
-            ? "var(--qm-err)"
-            : status === "running"
-              ? "var(--qm-accent)"
-              : "var(--qm-ok)",
-        }}
-      >
-        {error ? "后端异常" : status}
-      </span>
-
-      {lastUpdated ? (
-        <span style={{ fontSize: "0.7rem", color: "var(--qm-text-mute)" }}>
-          更新于 {new Date(lastUpdated).toLocaleTimeString("zh-CN", { hour12: false })}
+    <header className="qm-control-header">
+      <div className="qm-brand">
+        <span className="qm-brand-mark" aria-hidden="true">
+          QC
         </span>
-      ) : null}
+        <div className="qm-brand-text">
+          <span className="qm-kicker">Quantum Measurement &amp; Control</span>
+          <h1 className="qm-brand-title">qmclaw · 测控控制台</h1>
+        </div>
+      </div>
 
-      {partialErrors.length > 0 ? (
-        <span
-          title={partialErrors.join("\n")}
-          style={{
-            fontSize: "0.7rem",
-            color: "var(--qm-warn)",
-            border: "1px solid var(--qm-warn)",
-            borderRadius: "0.25rem",
-            padding: "0.05rem 0.3rem",
-            cursor: "help",
-          }}
-        >
-          部分降级（{partialErrors.length}）
+      <div className="qm-header-meta">
+        <span className="qm-status-pill" data-state={state} style={{ color: stateColor }}>
+          <span className="qm-status-dot" />
+          {stateLabel}
         </span>
-      ) : null}
 
-      <div
-        style={{
-          marginLeft: "auto",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          flexWrap: "wrap",
-        }}
-      >
-        {qubits.length > 0 && (
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              fontSize: "0.75rem",
-              color: "var(--qm-text-dim)",
-            }}
-          >
-            比特
+        {lastUpdated ? (
+          <span className="qm-meta-text">
+            更新 {new Date(lastUpdated).toLocaleTimeString("zh-CN", { hour12: false })}
+          </span>
+        ) : null}
+
+        {partialErrors.length > 0 ? (
+          <span className="qm-degrade-chip" title={partialErrors.join("\n")}>
+            部分降级 · {partialErrors.length}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="qm-header-actions">
+        {qubits.length > 0 ? (
+          <label className="qm-field">
+            <span className="qm-field-label">Qubit</span>
             <select
+              className="qm-select"
               value={selectedQubit}
               onChange={(e) => onSelectQubit(e.target.value)}
-              style={{
-                background: "var(--qm-bg-2)",
-                color: "var(--qm-text)",
-                border: "1px solid var(--qm-border)",
-                borderRadius: "0.3rem",
-                padding: "0.2rem 0.35rem",
-                fontSize: "0.75rem",
-              }}
             >
               {qubits.map((q) => (
                 <option key={q} value={q}>
@@ -124,37 +86,15 @@ export default function ControlHeader({
               ))}
             </select>
           </label>
-        )}
+        ) : null}
 
-        <button
-          onClick={onRefresh}
-          title="立即刷新"
-          style={{
-            background: "var(--qm-panel-2)",
-            color: "var(--qm-text)",
-            border: "1px solid var(--qm-border)",
-            borderRadius: "0.3rem",
-            padding: "0.22rem 0.5rem",
-            fontSize: "0.75rem",
-            cursor: "pointer",
-          }}
-        >
+        <button type="button" className="qm-btn" onClick={onRefresh} title="立即刷新">
           ⟳ 刷新
         </button>
 
         <ThemeToggle compact />
 
-        <a
-          href="/"
-          style={{
-            fontSize: "0.72rem",
-            color: "var(--qm-text-dim)",
-            textDecoration: "none",
-            border: "1px solid var(--qm-border)",
-            borderRadius: "0.3rem",
-            padding: "0.2rem 0.45rem",
-          }}
-        >
+        <a className="qm-btn" href="/">
           工作台 →
         </a>
       </div>

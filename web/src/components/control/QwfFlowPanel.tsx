@@ -58,23 +58,15 @@ function FlowNode({ data }: NodeProps) {
   const running = d.running;
   return (
     <div
+      className="qm-flow-node"
       style={{
-        minWidth: 150,
-        maxWidth: 220,
-        padding: "0.45rem 0.6rem",
-        borderRadius: "0.4rem",
-        border: `1px solid ${c.border}`,
+        borderColor: c.border,
         background: c.bg,
-        color: "var(--qm-text)",
-        fontSize: "0.75rem",
-        lineHeight: 1.35,
         animation: running ? "qm-pulse 1.1s ease-in-out infinite" : undefined,
       }}
     >
-      <div style={{ fontWeight: 600, wordBreak: "break-word" }}>
-        {d.label || d.nodeType}
-      </div>
-      <div style={{ color: c.text, fontSize: "0.68rem", marginTop: "0.15rem" }}>
+      <div className="qm-flow-node-title">{d.label || d.nodeType}</div>
+      <div className="qm-flow-node-meta" style={{ color: c.text }}>
         {d.nodeType} · {d.status || "pending"}
       </div>
     </div>
@@ -175,51 +167,19 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
 
   if (nodes.length === 0) {
     return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--qm-text-mute)",
-          fontSize: "0.82rem",
-          background: "var(--qm-panel)",
-          border: "1px solid var(--qm-border)",
-          borderRadius: "0.5rem",
-        }}
-      >
+      <div className="qm-empty" style={{ height }}>
+        <span className="qm-kicker">No canvas</span>
         暂无流程图（当前运行没有关联的 QWF 画布，也没有可回退的运行节点）
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        height,
-        position: "relative",
-        background: "var(--qm-panel)",
-        border: "1px solid var(--qm-border)",
-        borderRadius: "0.5rem",
-        overflow: "hidden",
-      }}
-    >
+    <div className="qm-flow-canvas" style={{ height }}>
       {fallback ? (
         <div
+          className="qm-fallback-chip"
           title="这次运行用的是临时工作流，后端没有对应的 QWF 画布，这里按运行节点顺序回退绘制"
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 8,
-            zIndex: 5,
-            padding: "0.15rem 0.4rem",
-            borderRadius: "0.25rem",
-            border: "1px solid var(--qm-warn)",
-            background: "var(--qm-warn-soft)",
-            color: "var(--qm-warn)",
-            fontSize: "0.65rem",
-            pointerEvents: "none",
-          }}
         >
           按运行节点回退绘制
         </div>
@@ -251,6 +211,7 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
         .react-flow__controls button {
           background: var(--qm-panel-2);
           border-bottom: 1px solid var(--qm-border);
+          border-radius: 0;
           fill: var(--qm-text);
         }
         .react-flow__controls button:hover { background: var(--qm-panel-3); }

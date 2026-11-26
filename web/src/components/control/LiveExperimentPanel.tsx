@@ -70,25 +70,16 @@ function orderQuantum(jobs: QuantumJob[]): QuantumJob[] {
 
 function Badge({ status }: { status?: string }) {
   const s = (status || "unknown").toLowerCase();
-  const color =
+  const tone =
     s.includes("fail") || s.includes("error")
-      ? "var(--qm-err)"
+      ? "fail"
       : s.includes("run")
-        ? "var(--qm-accent)"
+        ? "run"
         : s.includes("complete") || s.includes("success") || s.includes("done")
-          ? "var(--qm-ok)"
-          : "var(--qm-text-mute)";
+          ? "ok"
+          : "idle";
   return (
-    <span
-      style={{
-        color,
-        border: `1px solid ${color}`,
-        borderRadius: "0.25rem",
-        padding: "0.02rem 0.32rem",
-        fontSize: "0.68rem",
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span className="qm-badge" data-tone={tone}>
       {status || "unknown"}
     </span>
   );
@@ -108,41 +99,15 @@ function JobCard({
   accent: string;
 }) {
   return (
-    <div
-      style={{
-        border: `1px solid ${accent}`,
-        borderRadius: "0.5rem",
-        background: "var(--qm-panel)",
-        padding: "0.6rem 0.7rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.35rem",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <span style={{ fontSize: "0.78rem", color: accent, fontWeight: 700 }}>
+    <div className="qm-job-card" style={{ borderLeftColor: accent }}>
+      <div className="qm-job-head">
+        <span className="qm-job-title" style={{ color: accent }}>
           {title}
         </span>
         <Badge status={badge} />
       </div>
       {meta.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.6rem",
-            flexWrap: "wrap",
-            fontSize: "0.72rem",
-            color: "var(--qm-text-dim)",
-          }}
-        >
+        <div className="qm-job-meta">
           {meta.map((m, i) => (
             <span key={i}>{m}</span>
           ))}
@@ -220,19 +185,13 @@ export default function LiveExperimentPanel({
     : null;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        gap: "0.6rem",
-      }}
-    >
+    <div className="qm-live-grid">
       {/* 本次运行逐节点图（BACKLOG O8）——整条运行的主视觉，占满整行 */}
-      <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
+      <div className="qm-span-all">
         <JobCard
           title="本次运行图"
           badge={run ? `${nodePlots.length} 张` : "none"}
-          accent="var(--qm-accent-2, var(--qm-accent))"
+          accent="var(--qm-accent)"
           meta={
             run
               ? [
@@ -244,67 +203,32 @@ export default function LiveExperimentPanel({
           }
           body={
             nodePlots.length > 0 ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    nodePlots.length === 1
-                      ? "minmax(0, 1fr)"
-                      : "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
-                  gap: "0.55rem",
-                }}
-              >
+              <div className="qm-plot-grid" data-single={nodePlots.length === 1 ? "true" : "false"}>
                 {nodePlots.map((plot) => (
                   <button
                     key={`${plot.nodeId}-${plot.path}`}
                     type="button"
+                    className="qm-plot-cell"
                     onClick={() => setZoom(plot)}
                     title={`${plot.nodeId} · ${plot.nodeType} · ${plot.status}\n${plot.path}\n（点击放大）`}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "0.2rem",
-                      padding: "0.35rem",
-                      border: "1px solid var(--qm-border)",
-                      borderRadius: "0.35rem",
-                      background: "var(--qm-bg-2)",
-                      cursor: "zoom-in",
-                      minWidth: 0,
-                      textAlign: "left",
-                    }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={plot.src}
                       alt={`${plot.nodeId} 实验结果图`}
+                      className="qm-plot-img"
                       style={{
-                        maxWidth: "100%",
                         maxHeight: nodePlots.length === 1 ? 560 : 340,
-                        width: "auto",
-                        height: "auto",
-                        margin: "0 auto",
-                        borderRadius: "0.25rem",
-                        background: "#fff",
-                        display: "block",
                       }}
                     />
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--qm-text-dim)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <span className="qm-plot-cap">
                       {plot.nodeId} · {plot.nodeType} · {plot.status}
                     </span>
                   </button>
                 ))}
               </div>
             ) : (
-              <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>
+              <span className="qm-empty-inline">
                 本次运行没有产出图像（模拟后端可能只给指标；节点 output.plotPath 为空）
               </span>
             )
@@ -339,39 +263,9 @@ export default function LiveExperimentPanel({
         }
         body={
           running?.stdout ? (
-            <pre
-              style={{
-                margin: 0,
-                maxHeight: 110,
-                overflow: "auto",
-                fontSize: "0.68rem",
-                color: "var(--qm-text-dim)",
-                background: "var(--qm-bg-2)",
-                borderRadius: "0.3rem",
-                padding: "0.4rem",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              {running.stdout}
-            </pre>
+            <pre className="qm-pre">{running.stdout}</pre>
           ) : runningQuantum[0]?.code ? (
-            <pre
-              style={{
-                margin: 0,
-                maxHeight: 110,
-                overflow: "auto",
-                fontSize: "0.68rem",
-                color: "var(--qm-text-dim)",
-                background: "var(--qm-bg-2)",
-                borderRadius: "0.3rem",
-                padding: "0.4rem",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              {runningQuantum[0].code}
-            </pre>
+            <pre className="qm-pre">{runningQuantum[0].code}</pre>
           ) : undefined
         }
       />
@@ -399,62 +293,12 @@ export default function LiveExperimentPanel({
         }
         body={
           <>
-            {lastLegacy?.stdout ? (
-              <pre
-                style={{
-                  margin: 0,
-                  maxHeight: 120,
-                  overflow: "auto",
-                  fontSize: "0.68rem",
-                  color: "var(--qm-text-dim)",
-                  background: "var(--qm-bg-2)",
-                  borderRadius: "0.3rem",
-                  padding: "0.4rem",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                {lastLegacy.stdout}
-              </pre>
-            ) : null}
-            {lastLegacy?.error ? (
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: "var(--qm-err)",
-                  background: "var(--qm-err-soft)",
-                  borderRadius: "0.3rem",
-                  padding: "0.3rem 0.4rem",
-                }}
-              >
-                {lastLegacy.error}
-              </div>
-            ) : null}
-            {lastQuantum?.error ? (
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: "var(--qm-err)",
-                  background: "var(--qm-err-soft)",
-                  borderRadius: "0.3rem",
-                  padding: "0.3rem 0.4rem",
-                }}
-              >
-                {lastQuantum.error}
-              </div>
-            ) : null}
+            {lastLegacy?.stdout ? <pre className="qm-pre">{lastLegacy.stdout}</pre> : null}
+            {lastLegacy?.error ? <div className="qm-err-box">{lastLegacy.error}</div> : null}
+            {lastQuantum?.error ? <div className="qm-err-box">{lastQuantum.error}</div> : null}
             {plotSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={plotSrc}
-                alt="上一次实验结果图"
-                style={{
-                  width: "100%",
-                  borderRadius: "0.35rem",
-                  border: "1px solid var(--qm-border)",
-                  background: "#fff",
-                }}
-              />
+              <img src={plotSrc} alt="上一次实验结果图" className="qm-shot" />
             ) : null}
           </>
         }
@@ -466,29 +310,18 @@ export default function LiveExperimentPanel({
         accent="var(--qm-text-dim)"
         meta={[]}
         body={
-          <div style={{ display: "grid", gap: "0.2rem", maxHeight: 160, overflow: "auto" }}>
+          <div className="qm-job-list">
             {orderQuantum(quantumJobs).slice(0, 8).map((j) => (
-              <div
-                key={j.job_id ?? j.task_id ?? String(j.created_at)}
-                style={{
-                  display: "flex",
-                  gap: "0.4rem",
-                  alignItems: "center",
-                  fontSize: "0.7rem",
-                  color: "var(--qm-text-dim)",
-                }}
-              >
+              <div key={j.job_id ?? j.task_id ?? String(j.created_at)} className="qm-job-row">
                 <Badge status={j.status} />
-                <span style={{ color: "var(--qm-text-mute)" }}>
+                <span className="qm-job-id">
                   {j.job_id ?? j.task_id ?? "?"}
                 </span>
-                <span style={{ marginLeft: "auto" }}>{ts(j.created_at)}</span>
+                <span className="qm-job-time">{ts(j.created_at)}</span>
               </div>
             ))}
             {quantumJobs.length === 0 && legacyJobs.length === 0 ? (
-              <span style={{ fontSize: "0.72rem", color: "var(--qm-text-mute)" }}>
-                暂无作业记录
-              </span>
+              <span className="qm-empty-inline">暂无作业记录</span>
             ) : null}
           </div>
         }
@@ -499,52 +332,17 @@ export default function LiveExperimentPanel({
           role="dialog"
           aria-modal="true"
           aria-label="实验结果图放大"
+          className="qm-zoom"
           onClick={() => setZoom(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(2, 6, 23, 0.82)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "1rem",
-          }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.6rem",
-              color: "#e2e8f0",
-              fontSize: "0.78rem",
-              maxWidth: "100%",
-            }}
-          >
+          <div className="qm-zoom-bar">
             <strong>{zoom.nodeId}</strong>
-            <span style={{ opacity: 0.75 }}>
+            <span className="qm-zoom-sub">
               {zoom.nodeType} · {zoom.status}
               {zoom.duration != null ? ` · ${zoom.duration}ms` : ""}
             </span>
-            <span style={{ opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {zoom.path}
-            </span>
-            <button
-              type="button"
-              onClick={() => setZoom(null)}
-              style={{
-                marginLeft: "auto",
-                background: "transparent",
-                color: "#e2e8f0",
-                border: "1px solid rgba(226,232,240,0.4)",
-                borderRadius: "0.3rem",
-                padding: "0.1rem 0.5rem",
-                cursor: "pointer",
-                fontSize: "0.75rem",
-              }}
-            >
+            <span className="qm-zoom-path">{zoom.path}</span>
+            <button type="button" onClick={() => setZoom(null)} className="qm-zoom-close">
               关闭（Esc）
             </button>
           </div>
@@ -553,13 +351,7 @@ export default function LiveExperimentPanel({
             src={zoom.src}
             alt={`${zoom.nodeId} 实验结果图（放大）`}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "82vh",
-              borderRadius: "0.4rem",
-              background: "#fff",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-            }}
+            className="qm-zoom-img"
           />
         </div>
       ) : null}

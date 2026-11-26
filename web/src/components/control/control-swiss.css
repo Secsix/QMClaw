@@ -1,0 +1,903 @@
+/* ============================================================================
+ * /control 测控控制台 · 瑞士风（Swiss / IKB 克莱因蓝）
+ *
+ * 设计语言取自 guizang page skill 的瑞士风主题：
+ *   无衬线 · 网格点阵 · 单一锚点色（克莱因蓝）· 直角 · 卡片语言
+ *   （用色块与留白分隔，而不是线条堆叠）
+ *
+ * 作用域严格限定在 .qm-control-root 内：
+ *   - 令牌层把 --qm-* 重新定义成纸面（浅）/ 墨面（深）两套克莱因蓝配色
+ *   - 工作台（/）及其它页面继续用 src/theme/tokens.css 的原有主题
+ * ========================================================================== */
+
+/* ── 1. 令牌 ──────────────────────────────────────────────────────────────
+   浅色 = 纸面 IKB（#fafaf8 / #002FA7）
+   深色 = 墨面 IKB（#101010 / 提亮后的克莱因蓝，保证暗底可读） */
+
+html .qm-control-root {
+  --qm-bg: #fafaf8;
+  --qm-bg-2: #f1f0ea;
+  --qm-panel: #ffffff;
+  --qm-panel-2: #f4f3ee;
+  --qm-panel-3: #e8e7e0;
+  --qm-border: #e1e0d8;
+  --qm-border-strong: #b6b5ab;
+  --qm-text: #0a0a0a;
+  --qm-text-dim: #55554e;
+  --qm-text-mute: #8b8a80;
+  --qm-accent: #002fa7;
+  --qm-accent-soft: #e7eafa;
+  --qm-ok: #1a7f4b;
+  --qm-ok-soft: #e2f1e8;
+  --qm-warn: #8a6d00;
+  --qm-warn-soft: #f6efd5;
+  --qm-err: #c2410c;
+  --qm-err-soft: #fbe8dd;
+  --qm-shadow: 0 1px 2px rgba(10, 10, 10, 0.05);
+  --qm-grid: rgba(10, 10, 10, 0.11);
+  --qm-overlay: rgba(250, 250, 248, 0.86);
+
+  /* 排版角色：瑞士风靠字号层级与字距拉开结构 */
+  --qm-fs-display: 1.05rem;
+  --qm-fs-title: 0.92rem;
+  --qm-fs-body: 0.8rem;
+  --qm-fs-meta: 0.72rem;
+  --qm-fs-micro: 0.66rem;
+  --qm-track-kicker: 0.16em;
+
+  --qm-font: "Helvetica Neue", Helvetica, Inter, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --qm-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Courier New", monospace;
+}
+
+html[data-qm-theme="dark"] .qm-control-root {
+  --qm-bg: #101010;
+  --qm-bg-2: #161615;
+  --qm-panel: #1a1a19;
+  --qm-panel-2: #222220;
+  --qm-panel-3: #2e2e2b;
+  --qm-border: #2c2c29;
+  --qm-border-strong: #4a4a45;
+  --qm-text: #ecebe4;
+  --qm-text-dim: #a3a29a;
+  --qm-text-mute: #74736b;
+  --qm-accent: #6b86ff;
+  --qm-accent-soft: rgba(107, 134, 255, 0.16);
+  --qm-ok: #45b57c;
+  --qm-ok-soft: rgba(69, 181, 124, 0.15);
+  --qm-warn: #d3a53c;
+  --qm-warn-soft: rgba(211, 165, 60, 0.16);
+  --qm-err: #e86a3c;
+  --qm-err-soft: rgba(232, 106, 60, 0.16);
+  --qm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --qm-grid: rgba(236, 235, 228, 0.1);
+  --qm-overlay: rgba(16, 16, 16, 0.86);
+}
+
+html[data-qm-theme="light"] .qm-control-root {
+  --qm-bg: #fafaf8;
+  --qm-bg-2: #f1f0ea;
+  --qm-panel: #ffffff;
+  --qm-panel-2: #f4f3ee;
+  --qm-panel-3: #e8e7e0;
+  --qm-border: #e1e0d8;
+  --qm-border-strong: #b6b5ab;
+  --qm-text: #0a0a0a;
+  --qm-text-dim: #55554e;
+  --qm-text-mute: #8b8a80;
+  --qm-accent: #002fa7;
+  --qm-accent-soft: #e7eafa;
+  --qm-ok: #1a7f4b;
+  --qm-ok-soft: #e2f1e8;
+  --qm-warn: #8a6d00;
+  --qm-warn-soft: #f6efd5;
+  --qm-err: #c2410c;
+  --qm-err-soft: #fbe8dd;
+  --qm-shadow: 0 1px 2px rgba(10, 10, 10, 0.05);
+  --qm-grid: rgba(10, 10, 10, 0.11);
+  --qm-overlay: rgba(250, 250, 248, 0.86);
+}
+
+/* ── 2. 页面骨架 ───────────────────────────────────────────────────────── */
+
+.qm-control-root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--qm-bg);
+  color: var(--qm-text);
+  font-family: var(--qm-font);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 瑞士风的点阵网格：让大片留白有坐标感 */
+.qm-control-root .qm-control-main {
+  flex: 1;
+  overflow: auto;
+  padding: 0.9rem 1.1rem 2rem;
+  background-image: radial-gradient(var(--qm-grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* ── 3. 顶栏 ───────────────────────────────────────────────────────────── */
+
+.qm-control-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1.1rem;
+  background: var(--qm-panel);
+  border-top: 3px solid var(--qm-accent);
+  border-bottom: 1px solid var(--qm-border);
+}
+
+.qm-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+/* 方块标记：瑞士风最常见的品牌落点 */
+.qm-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
+  background: var(--qm-accent);
+  color: #fff;
+  font-family: var(--qm-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.qm-brand-text {
+  min-width: 0;
+}
+
+/* 小标签：字母间距拉开，作为「标题之上的一层」 */
+.qm-kicker {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: var(--qm-track-kicker);
+  text-transform: uppercase;
+  color: var(--qm-text-mute);
+  line-height: 1.3;
+}
+
+.qm-brand-title {
+  margin: 0;
+  font-size: var(--qm-fs-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--qm-text);
+  white-space: nowrap;
+}
+
+.qm-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.qm-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+/* 状态药丸：方点 + 大写标签 */
+.qm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.16rem 0.5rem 0.16rem 0.42rem;
+  border: 1px solid currentColor;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.qm-status-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.qm-status-pill[data-state="running"] .qm-status-dot {
+  animation: qm-status-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes qm-status-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.qm-meta-text {
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-mute);
+  font-family: var(--qm-mono);
+  white-space: nowrap;
+}
+
+/* 降级提示：可点开看原因的标签 */
+.qm-degrade-chip {
+  font-size: var(--qm-fs-micro);
+  letter-spacing: 0.06em;
+  color: var(--qm-warn);
+  border: 1px solid var(--qm-warn);
+  background: var(--qm-warn-soft);
+  padding: 0.1rem 0.35rem;
+  cursor: help;
+  white-space: nowrap;
+}
+
+/* ── 4. 控件（直角、细边、无圆角） ────────────────────────────────────── */
+
+.qm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--qm-border-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--qm-text);
+  font-family: inherit;
+  font-size: var(--qm-fs-meta);
+  line-height: 1.3;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.qm-btn:hover {
+  border-color: var(--qm-accent);
+  color: var(--qm-accent);
+}
+
+.qm-btn[data-active="true"] {
+  background: var(--qm-accent);
+  border-color: var(--qm-accent);
+  color: #fff;
+}
+
+.qm-btn[data-variant="danger"]:hover {
+  border-color: var(--qm-err);
+  color: var(--qm-err);
+}
+
+.qm-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qm-field-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: var(--qm-track-kicker);
+  text-transform: uppercase;
+  color: var(--qm-text-mute);
+}
+
+.qm-select {
+  appearance: none;
+  border: 1px solid var(--qm-border-strong);
+  border-radius: 0;
+  background-color: var(--qm-panel);
+  color: var(--qm-text);
+  font-family: inherit;
+  font-size: var(--qm-fs-meta);
+  padding: 0.26rem 1.35rem 0.26rem 0.45rem;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.85rem) calc(50% + 1px),
+    calc(100% - 0.6rem) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.qm-select:hover {
+  border-color: var(--qm-accent);
+}
+
+/* ── 5. 布局工具条 ─────────────────────────────────────────────────────── */
+
+.qm-layout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--qm-panel-2);
+  border: 1px solid var(--qm-border);
+}
+
+.qm-layout-hint {
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-mute);
+}
+
+.qm-layout-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+/* ── 6. 卡片（瑞士风卡片语言：色块 + 细边 + 直角） ────────────────────── */
+
+.qm-card-frame {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.8rem 0.9rem 0.9rem;
+  background: var(--qm-panel);
+  border: 1px solid var(--qm-border);
+  border-radius: 0;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* 卡片头部：编号 + 标题 + 说明，一行基准线对齐，下方一条细线分隔 */
+.qm-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--qm-border);
+}
+
+.qm-card-index {
+  font-family: var(--qm-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--qm-accent);
+}
+
+/* 小标签压着标题：两层信息摞成一列 */
+.qm-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.qm-card-title {
+  margin: 0;
+  font-size: var(--qm-fs-title);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--qm-text);
+}
+
+.qm-card-sub {
+  font-size: var(--qm-fs-meta);
+  color: var(--qm-text-mute);
+}
+
+.qm-card-tools {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.qm-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+/* ── 7. 空状态 / 降级提示 ─────────────────────────────────────────────── */
+
+.qm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.3rem;
+  flex: 1;
+  min-height: 5.5rem;
+  padding: 1rem;
+  background: var(--qm-panel-2);
+  border: 1px solid var(--qm-border);
+  border-left: 3px solid var(--qm-border-strong);
+  color: var(--qm-text-dim);
+  font-size: var(--qm-fs-meta);
+}
+
+.qm-empty--error {
+  border-left-color: var(--qm-err);
+  color: var(--qm-err);
+}
+
+.qm-empty--accent {
+  border-left-color: var(--qm-accent);
+}
+
+/* ── 8. 作业卡（实验动态面板） ─────────────────────────────────────────── */
+
+.qm-job-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  background: var(--qm-panel-2);
+  border: 1px solid var(--qm-border);
+  border-left: 3px solid var(--qm-accent);
+}
+
+.qm-job-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.qm-job-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--qm-accent);
+}
+
+.qm-job-meta {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-dim);
+}
+
+.qm-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.02rem 0.3rem;
+  border: 1px solid currentColor;
+  border-radius: 0;
+  font-family: var(--qm-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ── 8b. 实验动态面板内部 ──────────────────────────────────────────────── */
+
+.qm-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.6rem;
+}
+
+.qm-span-all {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* 节点图铺排：图在上、说明在下，像样张一样对齐 */
+.qm-plot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 0.55rem;
+}
+
+.qm-plot-grid[data-single="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.qm-plot-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid var(--qm-border);
+  border-radius: 0;
+  background: var(--qm-bg-2);
+  cursor: zoom-in;
+  min-width: 0;
+  text-align: left;
+  font-family: inherit;
+}
+
+.qm-plot-cell:hover {
+  border-color: var(--qm-accent);
+}
+
+.qm-plot-img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.qm-plot-cap {
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 日志输出 */
+.qm-pre {
+  margin: 0;
+  max-height: 110px;
+  overflow: auto;
+  font-family: var(--qm-mono);
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-dim);
+  background: var(--qm-bg-2);
+  border-left: 2px solid var(--qm-border-strong);
+  border-radius: 0;
+  padding: 0.4rem 0.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qm-err-box {
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-err);
+  background: var(--qm-err-soft);
+  border-left: 2px solid var(--qm-err);
+  padding: 0.3rem 0.45rem;
+}
+
+.qm-shot {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--qm-border);
+  background: #fff;
+}
+
+/* 近期作业列表 */
+.qm-job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.qm-job-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-dim);
+}
+
+.qm-job-id {
+  font-family: var(--qm-mono);
+  color: var(--qm-text-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qm-job-time {
+  margin-left: auto;
+  font-family: var(--qm-mono);
+  white-space: nowrap;
+}
+
+/* 状态徽章的四种语气 */
+.qm-badge[data-tone="run"] {
+  color: var(--qm-accent);
+}
+
+.qm-badge[data-tone="fail"] {
+  color: var(--qm-err);
+}
+
+.qm-badge[data-tone="ok"] {
+  color: var(--qm-ok);
+}
+
+.qm-badge[data-tone="idle"] {
+  color: var(--qm-text-mute);
+}
+
+/* 图放大层：全屏暗底 + 顶部一条信息栏 */
+.qm-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(6, 6, 6, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+
+.qm-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: #ecebe4;
+  font-size: var(--qm-fs-body);
+  max-width: 100%;
+}
+
+.qm-zoom-sub {
+  opacity: 0.75;
+}
+
+.qm-zoom-path {
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--qm-mono);
+  font-size: var(--qm-fs-micro);
+}
+
+.qm-zoom-close {
+  margin-left: auto;
+  background: transparent;
+  color: #ecebe4;
+  border: 1px solid rgba(236, 235, 228, 0.4);
+  border-radius: 0;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--qm-fs-meta);
+}
+
+.qm-zoom-close:hover {
+  border-color: #fff;
+}
+
+.qm-zoom-img {
+  max-width: 100%;
+  max-height: 80vh;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 9. 运行记录行 ─────────────────────────────────────────────────────── */
+
+.qm-run-row {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto auto;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.45rem 0.15rem;
+  border-bottom: 1px solid var(--qm-border);
+  font-size: var(--qm-fs-meta);
+}
+
+.qm-run-row:last-child {
+  border-bottom: none;
+}
+
+.qm-run-status {
+  font-family: var(--qm-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qm-run-name {
+  color: var(--qm-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qm-run-count,
+.qm-run-meta,
+.qm-run-time {
+  font-family: var(--qm-mono);
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-mute);
+  white-space: nowrap;
+}
+
+.qm-run-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 状态列：色块化的一格，扫一眼就能分出运行中 / 失败 / 结束 */
+.qm-run-status[data-tone="run"] {
+  color: var(--qm-accent);
+}
+
+.qm-run-status[data-tone="fail"] {
+  color: var(--qm-err);
+}
+
+.qm-run-status[data-tone="ok"] {
+  color: var(--qm-ok);
+}
+
+/* 卡内的一行空状态：没有虚线框，用小字加一条左侧标 */
+.qm-empty-inline {
+  font-size: var(--qm-fs-meta);
+  color: var(--qm-text-mute);
+  padding: 0.3rem 0.15rem;
+}
+
+/* 等宽小注（耗时、编号等） */
+.qm-mono-note {
+  font-family: var(--qm-mono);
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-mute);
+  white-space: nowrap;
+}
+
+/* ── 10. 图表 / 画布内部微调 ──────────────────────────────────────────── */
+
+/* 瑞士风没有圆角：这一页所有元素（含各面板里的 inline borderRadius）一律压成直角 */
+.qm-control-root * {
+  border-radius: 0 !important;
+}
+
+.qm-flow-canvas {
+  position: relative;
+  background: var(--qm-panel);
+  border: 1px solid var(--qm-border);
+  overflow: hidden;
+}
+
+.qm-flow-node {
+  min-width: 150px;
+  max-width: 220px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--qm-border);
+  color: var(--qm-text);
+  font-size: var(--qm-fs-meta);
+  line-height: 1.35;
+}
+
+.qm-flow-node-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.qm-flow-node-meta {
+  font-size: var(--qm-fs-micro);
+  margin-top: 0.15rem;
+}
+
+/* 回退绘制提示：右上角一枚小标签 */
+.qm-fallback-chip {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 5;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--qm-warn);
+  background: var(--qm-warn-soft);
+  color: var(--qm-warn);
+  font-size: 0.65rem;
+  pointer-events: none;
+}
+
+.qm-card-body img {
+  background: #fff;
+}
+
+.qm-card-body pre {
+  background: var(--qm-bg-2);
+  border-left: 2px solid var(--qm-border-strong);
+  border-radius: 0;
+  font-size: var(--qm-fs-micro);
+  color: var(--qm-text-dim);
+}
+
+.qm-card-body .react-flow__attribution {
+  background: transparent;
+  color: var(--qm-text-mute);
+  font-size: 0.6rem;
+}
+
+/* 主题切换按钮是共享组件（inline style），这里把它拉进瑞士风的直角语言 */
+.qm-control-root button[data-qm-theme-toggle="true"] {
+  border-radius: 0 !important;
+  border-color: var(--qm-border-strong) !important;
+  background: transparent !important;
+  padding: 0.3rem 0.5rem !important;
+}
+
+.qm-control-root button[data-qm-theme-toggle="true"]:hover {
+  border-color: var(--qm-accent) !important;
+  color: var(--qm-accent) !important;
+}
+
+/* ── 11. 滚动条 ───────────────────────────────────────────────────────── */
+
+.qm-control-root ::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.qm-control-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.qm-control-root ::-webkit-scrollbar-thumb {
+  background: var(--qm-border-strong);
+  border-radius: 0;
+}
+
+.qm-control-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--qm-text-mute);
+}
+
+/* ── 12. 窄屏 ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .qm-control-header {
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .qm-header-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .qm-control-root .qm-control-main {
+    padding: 0.7rem 0.6rem 1.5rem;
+  }
+
+  .qm-run-row {
+    grid-template-columns: 4.2rem minmax(0, 1fr) auto;
+  }
+
+  .qm-run-count {
+    display: none;
+  }
+}

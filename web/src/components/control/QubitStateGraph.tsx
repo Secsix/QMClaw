@@ -133,16 +133,8 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
 
   if (states.length === 0) {
     return (
-      <div
-        style={{
-          padding: "1rem",
-          color: "var(--qm-text-dim)",
-          fontSize: "0.85rem",
-          background: "var(--qm-panel)",
-          border: "1px solid var(--qm-border)",
-          borderRadius: "0.5rem",
-        }}
-      >
+      <div className="qm-empty">
+        <span className="qm-kicker">State table</span>
         状态机表尚未加载（后端 /api/quantum/qubit/state-table 未响应）
       </div>
     );
@@ -422,7 +414,7 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
                   y={y}
                   width={NODE_W}
                   height={NODE_H}
-                  rx={8}
+                  rx={2}
                   fill={fill}
                   stroke={stroke}
                   strokeWidth={isCurrent ? 2 : 1}
