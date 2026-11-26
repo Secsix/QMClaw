@@ -143,8 +143,8 @@ class TestErrors(unittest.TestCase):
             state_expr.eval_when({"prerequisite": "qubit-state"}, {}, prerequisites={"qubit": "unknown"})
 
     def test_unknown_metric_is_false_not_crash(self):
-        # 判据表里没有 drag_delta 时按"未通过"处理，但不炸（P3 会补阈值）
-        self.assertFalse(state_expr.eval_when({"evidence": "drag_delta", "ok": True}, {"drag_delta": 0.02}))
+        # 判据表里没有这个指标时按"未通过"处理，但不炸
+        self.assertFalse(state_expr.eval_when({"evidence": "no_such_metric", "ok": True}, {"no_such_metric": 0.02}))
 
 
 class TestCompileStates(unittest.TestCase):

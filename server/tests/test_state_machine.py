@@ -92,10 +92,11 @@ class TestEdgeTable(unittest.TestCase):
 
     def test_edge_count_and_kinds(self):
         edges = all_edges()
-        self.assertEqual(len(edges), 11)
+        self.assertEqual(len(edges), 15)
         kinds = [e.get("kind") for e in edges]
-        self.assertEqual(kinds.count("forward"), 5)
-        self.assertEqual(kinds.count("self"), 3)
+        # P3 加了两条并列的正向路径（先区分再标幅）、T2 自环、两条 DRAG 自环
+        self.assertEqual(kinds.count("forward"), 6)
+        self.assertEqual(kinds.count("self"), 6)
         self.assertEqual(kinds.count("back"), 3)
 
     def test_edge_ids_unique(self):
@@ -123,9 +124,9 @@ class TestEdgeTable(unittest.TestCase):
     def test_a_of_each_state(self):
         expected = {
             "unknown": 1,
-            "freq_locked": 2,
-            "amp_calibrated": 3,
-            "state_discriminated": 3,
+            "freq_locked": 3,
+            "amp_calibrated": 4,
+            "state_discriminated": 5,
             "coherence_measured": 2,
             "characterized": 0,
         }
@@ -216,7 +217,7 @@ class TestStateTableExtended(unittest.TestCase):
 
     def test_new_keys_present(self):
         table = state_table_extended()
-        self.assertEqual(len(table["edges"]), 11)
+        self.assertEqual(len(table["edges"]), 15)
         self.assertIn("gates", table)
         self.assertEqual(table["state_version"], state_version())
         self.assertEqual(table["state_ttl"]["freq_locked"], 86400)

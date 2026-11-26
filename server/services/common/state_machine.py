@@ -319,6 +319,11 @@ def machine_for_scope(
     view["states"] = {k: dict(v) for k, v in states.items() if isinstance(v, dict)}
     view["edges"] = [dict(e) for e in edges if isinstance(e, dict)]
     view["scope"] = name
+    # 新 scope（pulse / tunable）的证据契约写在 scope 声明里而不是顶层，
+    # 必须并入视图，否则 _config_state_table 会返回空的 evidence_sources。
+    for key in ("evidence_sources", "missing_by_state", "prerequisite"):
+        if key in spec:
+            view[key] = spec[key]
     return view
 
 

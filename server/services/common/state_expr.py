@@ -48,6 +48,10 @@ EVIDENCE_METRICS: Dict[str, str] = {
     "cphase": "cphase",
     "cz_leakage": "cz_leakage",
     "cz_gate_fidelity": "cz_gate_fidelity",
+    "drag_delta": "drag_delta",
+    "single_qubit_fidelity": "single_qubit_fidelity",
+    "zpa_curve": "zpa_curve",
+    "t1_by_zpa": "t1_by_zpa",
 }
 
 #: 判据名 -> 参与 evaluate 的证据键（判据名与证据键并不总同名：t1 判据读 t1_us）。
@@ -60,6 +64,10 @@ METRIC_INPUTS: Dict[str, Tuple[str, ...]] = {
     "cphase": ("cphase",),
     "cz_leakage": ("cz_leakage",),
     "cz_gate_fidelity": ("cz_gate_fidelity",),
+    "drag_delta": ("drag_delta",),
+    "single_qubit_fidelity": ("single_qubit_fidelity",),
+    "zpa_curve": ("zpa_curve",),
+    "t1_by_zpa": ("t1_by_zpa",),
 }
 
 GROUP_KEYS = ("all_of", "any_of", "none_of")

@@ -1,7 +1,7 @@
 {
   "_doc": "指标与判据唯一真源（QMClaw Architecture Roadmap §2.5）。指标定义 = 标准算法 + 参数 + 阈值 + 置信度 + 数据列口径。goal / 脚本 / skill 一律引用这里的指标名与阈值，不在别处写死数值。改动请同时更新 .Codex/progress.md。",
-  "version": "1.1.0",
-  "updated": "2026-11-24",
+  "version": "1.2.0",
+  "updated": "2026-11-26",
   "authority": {
     "note": "同一指标出现多个阈值时，以本文件的 thresholds 为准；历史值仅作溯源。",
     "contrast_thresholds_history": {
@@ -133,6 +133,46 @@
       "algorithm": "argmin over freq of |S21| (power2d/auto)",
       "thresholds": { "min_depth_db": -20.0, "max_offset_from_fread_mhz": 5.0 },
       "reference_values": { "q2ld3_ds534": "-65.6% at 6.725331 GHz", "q7ld3": "-30.9 dB at 6.6328 / 6.7643 GHz" }
+    },
+
+    "drag_delta": {
+      "display_name": "DRAG 系数偏差",
+      "algorithm": "sq.drag_calibrate（或 sq.allxy 拟合）给出的 alpha 与最优 alpha 的偏差绝对值",
+      "unit": "abs",
+      "thresholds": { "max_abs": 0.05 },
+      "threshold_semantics": { "max_abs": "上界；超过它视为脉冲形状未调好（drag_tuned -> 需要重标）" },
+      "calibration": "TODO: calibrate —— 0.05 占位，按本机泄漏最小化实验定",
+      "note": "pulse scope 的第一级判据；单位是无量纲 alpha 残差，不是保真度"
+    },
+
+    "single_qubit_fidelity": {
+      "display_name": "单比特门保真度",
+      "algorithm": "sq.xeb（单比特随机基准）；也可由 sq.allxy 粗估",
+      "unit": "ratio",
+      "thresholds": { "min_fidelity": 0.999 },
+      "threshold_semantics": { "min_fidelity": "下界；低于它视为脉冲质量退化（fidelity_verified -> drag_tuned）" },
+      "calibration": "TODO: calibrate —— 0.999 占位",
+      "note": "与 xeb.gate_fidelity（同一实验的读数）区分：这条是 pulse scope 的显式判据，阈值可单独调"
+    },
+
+    "zpa_curve": {
+      "display_name": "zpa↔频率曲线点数",
+      "algorithm": "sq.spectroscopy_auto（扫 zpa 同时扫频率）/ sq.pulsed_spec",
+      "unit": "points",
+      "thresholds": { "min_points": 5 },
+      "threshold_semantics": { "min_points": "下界；有效点太少说明曲线没测全，不足以支撑后续挑 zpa" },
+      "calibration": "TODO: calibrate —— 5 点占位，按比特频率随 zpa 的曲率定",
+      "note": "tunable scope 的第一级判据；只对变频比特有意义"
+    },
+
+    "t1_by_zpa": {
+      "display_name": "T1 随 zpa 的样本点数",
+      "algorithm": "sq.t1（必须显式带 zpa，逐点测）；不传 zpa 会退化成 zpa×时间二维慢扫描",
+      "unit": "points",
+      "thresholds": { "min_points": 5 },
+      "threshold_semantics": { "min_points": "下界；点数不足无法看出 T1 在频率空间的地形" },
+      "calibration": "TODO: calibrate —— 5 点占位",
+      "note": "可用「固定弛豫时间后的剩余 1 态布居」替代单点 T1 作为同义证据"
     }
   },
 

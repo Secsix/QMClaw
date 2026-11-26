@@ -1,10 +1,10 @@
 {
   "_doc": "量子测控状态机的结构真源（边表 A(s) / 每态 TTL / 三道闸门参数 / 模板库）。设计稿见 docs/STATE_MACHINE_DESIGN.md。**阈值不在这里**——指标阈值的唯一真源是 config/lab_criteria.json；本文件只放结构，改阈值不要动本文件。",
-  "version": "1.3.0",
-  "updated": "2026-11-26",
+  "version": "1.4.0",
+  "updated": "2026-11-27",
   "authority": "structure-only: 状态定义 / 合法边 A(s) / 状态 TTL / 闸门参数 / 模板库",
   "criteria_source": "config/lab_criteria.json",
-  "scope_types": ["qubit", "pair"],
+  "scope_types": ["qubit", "pair", "pulse", "tunable"],
   "scopes": {
     "qubit": {
       "states_key": "states",
@@ -22,6 +22,83 @@
       "label": "双比特 CZ",
       "prerequisite": {"scope": "qubit", "state": "amp_calibrated"},
       "description": "两个比特 + 一条耦合边；没有 coupler 能力的芯片不会出现这个 scope"
+    },
+    "pulse": {
+      "states_key": "pulse_states",
+      "edges_key": "pulse_edges",
+      "enabled_by": [
+        "drag_required"
+      ],
+      "engine": "config",
+      "label": "脉冲质量",
+      "description": "DRAG / 脉冲形状 / 单比特门保真度；判据走声明式 when，不再硬编码",
+      "prerequisite": {
+        "scope": "qubit",
+        "state": "state_discriminated"
+      },
+      "evidence_sources": {
+        "drag_delta": {
+          "produced_by": [
+            "sq.drag_calibrate",
+            "sq.allxy"
+          ],
+          "note": "DRAG 系数偏差 |alpha-alpha_opt|，判据 metrics.drag_delta.thresholds.max_abs"
+        },
+        "single_qubit_fidelity": {
+          "produced_by": [
+            "sq.xeb",
+            "sq.allxy"
+          ],
+          "note": "单比特门保真度，判据 metrics.single_qubit_fidelity.thresholds.min_fidelity"
+        }
+      },
+      "missing_by_state": {
+        "pulse_unknown": [
+          "drag_delta"
+        ],
+        "drag_tuned": [
+          "single_qubit_fidelity"
+        ],
+        "fidelity_verified": []
+      }
+    },
+    "tunable": {
+      "states_key": "tunable_states",
+      "edges_key": "tunable_edges",
+      "enabled_by": [
+        "tunable"
+      ],
+      "engine": "config",
+      "label": "频率空间",
+      "description": "变频比特的 zpa↔频率曲线与 T1 地形；只有可调比特才有这两级",
+      "prerequisite": {
+        "scope": "qubit",
+        "state": "state_discriminated"
+      },
+      "evidence_sources": {
+        "zpa_curve": {
+          "produced_by": [
+            "sq.spectroscopy_auto",
+            "sq.pulsed_spec"
+          ],
+          "note": "zpa↔f10 曲线的有效点数，判据 metrics.zpa_curve.thresholds.min_points"
+        },
+        "t1_by_zpa": {
+          "produced_by": [
+            "sq.t1"
+          ],
+          "note": "不同 zpa 下的 T1 样本数，判据 metrics.t1_by_zpa.thresholds.min_points"
+        }
+      },
+      "missing_by_state": {
+        "tunable_unknown": [
+          "zpa_curve"
+        ],
+        "zpa_mapped": [
+          "t1_by_zpa"
+        ],
+        "t1_mapped": []
+      }
     }
   },
   "edge_kinds": ["forward", "self", "back"],
@@ -245,7 +322,123 @@
       "guard": {"evidence": ["amp_calibrated"], "ttl_s": 259200},
       "trigger": "幅度漂移导致对比度掉档",
       "semantic": "重标幅度"
-    }
+    },
+  {
+    "id": "freq_locked->state_discriminated",
+    "kind": "forward",
+    "from": "freq_locked",
+    "to": "state_discriminated",
+    "action": {
+      "fn": "sq.iqraw",
+      "alternatives": [
+        "sq.single_shot",
+        "sq.s21_dis"
+      ],
+      "params_hint": {
+        "qubit": "$qubit"
+      }
+    },
+    "requires": [
+      "contrast"
+    ],
+    "max_attempts": 3,
+    "guard": {
+      "evidence": [
+        "contrast"
+      ],
+      "ttl_s": 259200
+    },
+    "note": "跳过幅度标定：先确认态区分再回头优化幅度。两条顺序都合法（freq_locked→amp_calibrated→state_discriminated 或本边），由 Router 按已有证据选",
+    "semantic": "态区分",
+    "trigger": "对比度未确认"
+  },
+  {
+    "id": "state_discriminated--self--t2",
+    "kind": "self",
+    "from": "state_discriminated",
+    "to": "state_discriminated",
+    "action": {
+      "fn": "sq.ramsey_df",
+      "alternatives": [
+        "sq.ramsey",
+        "sq.ramsey_t2"
+      ],
+      "params_hint": {
+        "qubit": "$qubit"
+      }
+    },
+    "requires": [
+      "t2_star_us"
+    ],
+    "max_attempts": 3,
+    "guard": {
+      "evidence": [
+        "t2_star_us"
+      ],
+      "ttl_s": 1209600
+    },
+    "note": "只测 T2*：与 T1 完全独立，先拿到 T2 不必等 T1（coherence_measured 仍要求两者都达标）",
+    "semantic": "相干",
+    "trigger": "想先看退相干"
+  },
+  {
+    "id": "amp_calibrated--self--drag",
+    "kind": "self",
+    "from": "amp_calibrated",
+    "to": "amp_calibrated",
+    "action": {
+      "fn": "sq.drag_calibrate",
+      "alternatives": [
+        "sq.allxy",
+        "sq.pulse_shape"
+      ],
+      "params_hint": {
+        "qubit": "$qubit"
+      }
+    },
+    "requires": [
+      "drag_delta"
+    ],
+    "max_attempts": 3,
+    "guard": {
+      "evidence": [
+        "drag_delta"
+      ],
+      "ttl_s": 259200
+    },
+    "note": "DRAG alpha：幅度定下来之后才有意义（alpha 的最优值随脉幅变）",
+    "semantic": "脉冲质量",
+    "trigger": "幅度已标定、需要压低泄漏"
+  },
+  {
+    "id": "state_discriminated--self--drag",
+    "kind": "self",
+    "from": "state_discriminated",
+    "to": "state_discriminated",
+    "action": {
+      "fn": "sq.drag_calibrate",
+      "alternatives": [
+        "sq.allxy",
+        "sq.pulse_shape"
+      ],
+      "params_hint": {
+        "qubit": "$qubit"
+      }
+    },
+    "requires": [
+      "drag_delta"
+    ],
+    "max_attempts": 3,
+    "guard": {
+      "evidence": [
+        "drag_delta"
+      ],
+      "ttl_s": 259200
+    },
+    "note": "读出确认后复核 DRAG：alpha 会随脉幅/温度漂，重新标一次比一直用旧值稳",
+    "semantic": "脉冲质量",
+    "trigger": "态区分已确认、要复核脉冲"
+  }
   ],
   "pair_states": {
     "_doc": "双比特 CZ 状态机（pair scope，设计稿 §8.2）。与 states 是两套并列的 scope：载体的『两个比特 + 一条耦合边』，核心证据是 cphase / cz_leakage / cz_gate_fidelity，不是把单比特指标再报一遍。",
@@ -657,7 +850,317 @@
       "note": "前置退化是 pair scope 最常走的一条回退，前置判据见 pair_state.pair_prerequisites"
     }
   ],
-
+  "pulse_states": {
+    "pulse_unknown": {
+      "index": 0,
+      "description": "脉冲形状还没验证过（DRAG 系数、alpha 全是初值）",
+      "ttl_s": null,
+      "requires": [],
+      "when": {
+        "all_of": []
+      },
+      "next_action": "测 DRAG：sq.drag_calibrate（或 sq.allxy 看脉冲形状）",
+      "note": "初始态；没有结论可言，故不过期"
+    },
+    "drag_tuned": {
+      "index": 1,
+      "description": "DRAG 系数已调到容差内（X 门不再把布居推到 2 态）",
+      "ttl_s": 604800,
+      "requires": [
+        "drag_delta"
+      ],
+      "when": {
+        "any_of": [
+          {
+            "flag": "drag_tuned"
+          },
+          {
+            "evidence": "drag_delta",
+            "ok": true
+          }
+        ]
+      },
+      "next_action": "测单比特门保真度：sq.xeb（或 sq.allxy 复核形状）",
+      "note": "alpha 随脉幅漂，TTL 取 7 天"
+    },
+    "fidelity_verified": {
+      "index": 2,
+      "description": "单比特门保真度已达门槛（含 DRAG 与幅度）",
+      "ttl_s": 1209600,
+      "requires": [
+        "single_qubit_fidelity"
+      ],
+      "when": {
+        "all_of": [
+          {
+            "evidence": "drag_delta",
+            "ok": true
+          },
+          {
+            "evidence": "single_qubit_fidelity",
+            "ok": true
+          }
+        ]
+      },
+      "next_action": "定期复核：sq.allxy（快）或 sq.xeb（准）",
+      "note": "保真度变化慢，TTL 取 14 天"
+    }
+  },
+  "pulse_edges": [
+    {
+      "id": "pulse_unknown->drag_tuned",
+      "kind": "forward",
+      "from": "pulse_unknown",
+      "to": "drag_tuned",
+      "action": {
+        "fn": "sq.drag_calibrate",
+        "alternatives": [
+          "sq.allxy",
+          "sq.pulse_shape"
+        ],
+        "params_hint": {
+          "qubit": "$qubit"
+        }
+      },
+      "requires": [
+        "drag_delta"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "drag_delta"
+        ],
+        "ttl_s": 604800
+      },
+      "note": "先标 alpha（泄漏最小化），再看 alpha 下的门保真度",
+      "semantic": "脉冲形状",
+      "trigger": "脉冲未验证"
+    },
+    {
+      "id": "drag_tuned--self--drag",
+      "kind": "self",
+      "from": "drag_tuned",
+      "to": "drag_tuned",
+      "action": {
+        "fn": "sq.drag_calibrate",
+        "alternatives": [
+          "sq.allxy"
+        ],
+        "params_hint": {
+          "qubit": "$qubit"
+        }
+      },
+      "requires": [
+        "drag_delta"
+      ],
+      "max_attempts": 3,
+      "guard": {
+        "evidence": [
+          "drag_delta"
+        ],
+        "ttl_s": 604800
+      },
+      "note": "复核 alpha（脉幅改过之后必须重标）",
+      "semantic": "脉冲形状",
+      "trigger": "脉幅变化"
+    },
+    {
+      "id": "drag_tuned->fidelity_verified",
+      "kind": "forward",
+      "from": "drag_tuned",
+      "to": "fidelity_verified",
+      "action": {
+        "fn": "sq.xeb",
+        "alternatives": [
+          "sq.allxy",
+          "sq.single_shot"
+        ],
+        "params_hint": {
+          "qubit": "$qubit"
+        }
+      },
+      "requires": [
+        "single_qubit_fidelity"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "single_qubit_fidelity"
+        ],
+        "ttl_s": 1209600
+      },
+      "note": "XEB 拿到单比特门保真度（含 DRAG 效果）",
+      "semantic": "门保真度",
+      "trigger": "alpha 已调好"
+    }
+  ],
+  "tunable_states": {
+    "tunable_unknown": {
+      "index": 0,
+      "description": "这台比特的频率空间还没摸过（zpa ↔ 频率对应关系未知）",
+      "ttl_s": null,
+      "requires": [],
+      "when": {
+        "all_of": []
+      },
+      "next_action": "测 zpa↔频率曲线：sq.spectroscopy_auto",
+      "note": "初始态；没有结论可言，故不过期"
+    },
+    "zpa_mapped": {
+      "index": 1,
+      "description": "zpa ↔ 比特频率曲线已测出且点数足够（知道哪个 zpa 对应哪个 f10）",
+      "ttl_s": 2592000,
+      "requires": [
+        "zpa_curve"
+      ],
+      "when": {
+        "evidence": "zpa_curve",
+        "ok": true
+      },
+      "next_action": "沿曲线挑若干 zpa 测 T1：sq.t1（带固定 zpa）",
+      "note": "曲线不常变，但线圈/磁通偏移会动，TTL 取 30 天"
+    },
+    "t1_mapped": {
+      "index": 2,
+      "description": "已掌握 T1 随 zpa 的变化（频谱空间里的相干性地形图）",
+      "ttl_s": 2592000,
+      "requires": [
+        "zpa_curve",
+        "t1_by_zpa"
+      ],
+      "when": {
+        "all_of": [
+          {
+            "evidence": "zpa_curve",
+            "ok": true
+          },
+          {
+            "evidence": "t1_by_zpa",
+            "ok": true
+          }
+        ]
+      },
+      "next_action": "复核：换点补测 T1，或看固定弛豫时间后的剩余 1 态布居",
+      "note": "地形图随时间漂，TTL 取 30 天"
+    }
+  },
+  "tunable_edges": [
+    {
+      "id": "tunable_unknown->zpa_mapped",
+      "kind": "forward",
+      "from": "tunable_unknown",
+      "to": "zpa_mapped",
+      "action": {
+        "fn": "sq.spectroscopy_auto",
+        "alternatives": [
+          "sq.pulsed_spec",
+          "sq.spectroscopy"
+        ],
+        "params_hint": {
+          "qubit": "$qubit"
+        }
+      },
+      "requires": [
+        "zpa_curve"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "zpa_curve"
+        ],
+        "ttl_s": 2592000
+      },
+      "note": "扫 zpa 同时扫频率，得到 zpa↔f10 曲线；比单点 spectroscopy 慢但信息量大",
+      "semantic": "频率空间",
+      "trigger": "变频比特、曲线未知"
+    },
+    {
+      "id": "zpa_mapped--self--remap",
+      "kind": "self",
+      "from": "zpa_mapped",
+      "to": "zpa_mapped",
+      "action": {
+        "fn": "sq.spectroscopy_auto",
+        "alternatives": [
+          "sq.spectroscopy"
+        ],
+        "params_hint": {
+          "qubit": "$qubit"
+        }
+      },
+      "requires": [
+        "zpa_curve"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "zpa_curve"
+        ],
+        "ttl_s": 2592000
+      },
+      "note": "曲线复核（线圈/磁通漂移后重扫）",
+      "semantic": "频率空间",
+      "trigger": "曲线过期"
+    },
+    {
+      "id": "zpa_mapped->t1_mapped",
+      "kind": "forward",
+      "from": "zpa_mapped",
+      "to": "t1_mapped",
+      "action": {
+        "fn": "sq.t1",
+        "alternatives": [
+          "sq.ramsey_df"
+        ],
+        "params_hint": {
+          "qubit": "$qubit",
+          "zpa": "$zpa"
+        }
+      },
+      "requires": [
+        "t1_by_zpa"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "t1_by_zpa"
+        ],
+        "ttl_s": 2592000
+      },
+      "note": "沿曲线挑若干 zpa 各测一次 T1（必须显式传 zpa，否则 sq.t1 会跑二维慢扫描）",
+      "semantic": "相干",
+      "trigger": "曲线已知、想看相干地形"
+    },
+    {
+      "id": "t1_mapped--self--ret1",
+      "kind": "self",
+      "from": "t1_mapped",
+      "to": "t1_mapped",
+      "action": {
+        "fn": "sq.t1",
+        "alternatives": [
+          "sq.ramsey_df"
+        ],
+        "params_hint": {
+          "qubit": "$qubit",
+          "zpa": "$zpa"
+        }
+      },
+      "requires": [
+        "t1_by_zpa"
+      ],
+      "max_attempts": 2,
+      "guard": {
+        "evidence": [
+          "t1_by_zpa"
+        ],
+        "ttl_s": 2592000
+      },
+      "note": "补点/复核（换 zpa 再测一次）",
+      "semantic": "相干",
+      "trigger": "地形图过期"
+    }
+  ],
   "gates": {
     "PRE": {
       "id": "GATE-PRE",
@@ -702,6 +1205,13 @@
       "sq.time_rabi": "write",
       "sq.rabi": "write",
       "sq.set_pi": "write",
+    "sq.drag_calibrate": "write",
+    "sq.allxy": "read",
+    "sq.pulse_shape": "read",
+    "sq.single_shot": "read",
+    "sq.s21_dis": "read",
+    "sq.pulsed_spec": "read",
+    "sq.spectroscopy_auto": "write",
       "cz.initialize_gate": "write",
       "cz.find_zpa_c_half_cycle": "write",
       "cz.find_zpa_q": "write",

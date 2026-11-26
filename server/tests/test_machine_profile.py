@@ -215,7 +215,7 @@ class TestRealStructure(unittest.TestCase):
     def test_real_table_still_six_states(self):
         table = sm.state_table_extended()
         self.assertEqual(len(table["states"]), 6)
-        self.assertEqual(len(table["edges"]), 11)
+        self.assertEqual(len(table["edges"]), 15)  # P3 加了并列路径 / T2 / DRAG 自环
         self.assertEqual(table["scope"], "qubit")
 
 

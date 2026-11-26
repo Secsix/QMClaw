@@ -203,6 +203,54 @@ def evaluate_cz_gate_fidelity(value: float, criteria: Optional[Dict[str, Any]] =
     return _result("cz_gate_fidelity", v, verdict, th, ok, nxt, criteria)
 
 
+def evaluate_drag_delta(value: float, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """DRAG 系数偏差是否在容差内（pulse scope 的第一级判据）。"""
+    criteria = criteria or load_criteria()
+    d = metric_def(criteria, "drag_delta")
+    th = d.get("thresholds") or {}
+    v = abs(float(value))
+    max_abs = float(th.get("max_abs", 0.05))
+    ok = v <= max_abs
+    verdict = "tuned" if ok else "off_target"
+    nxt = "" if ok else "DRAG 偏差 %.4f 超过 %.4f：重标 alpha（自环 drag_tuned--self--drag）" % (v, max_abs)
+    return _result("drag_delta", v, verdict, th, ok, nxt, criteria)
+
+
+def evaluate_single_qubit_fidelity(value: float, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """单比特门保真度是否达下界（pulse scope 的第二级判据）。"""
+    criteria = criteria or load_criteria()
+    d = metric_def(criteria, "single_qubit_fidelity")
+    th = d.get("thresholds") or {}
+    v = float(value)
+    min_fidelity = float(th.get("min_fidelity", 0.999))
+    ok = v >= min_fidelity
+    verdict = "verified" if ok else "degraded"
+    nxt = "" if ok else "单比特保真度 %.4f 低于 %.4f：回到 DRAG 重标（回退 drag_tuned）" % (v, min_fidelity)
+    return _result("single_qubit_fidelity", v, verdict, th, ok, nxt, criteria)
+
+
+def evaluate_curve_points(
+    metric: str, value: Any, criteria: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """曲线类证据（zpa_curve / t1_by_zpa）的有效点数是否够。value 可为数字或 {"points": n}。"""
+    criteria = criteria or load_criteria()
+    name = str(metric).strip()
+    d = metric_def(criteria, name)
+    th = d.get("thresholds") or {}
+    if isinstance(value, dict):
+        raw = value.get("points", value.get("n"))
+        if raw is None:
+            raw = value.get("value")
+    else:
+        raw = value
+    v = float(raw)
+    min_points = float(th.get("min_points", 5))
+    ok = v >= min_points
+    verdict = "mapped" if ok else "insufficient"
+    nxt = "" if ok else "%s 只有 %d 个有效点（需 >= %d）：补测（自环重扫）" % (name, int(v), int(min_points))
+    return _result(name, v, verdict, th, ok, nxt, criteria)
+
+
 def evaluate(metric: str, value: Any, criteria: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """按指标名分发。value 语义：标量（contrast/dmu_sig/t1/t2_star）或 xeb 的 dict。"""
     criteria = criteria or load_criteria()
@@ -225,6 +273,12 @@ def evaluate(metric: str, value: Any, criteria: Optional[Dict[str, Any]] = None)
         return evaluate_cz_leakage(value, criteria)
     if name == "cz_gate_fidelity":
         return evaluate_cz_gate_fidelity(value, criteria)
+    if name == "drag_delta":
+        return evaluate_drag_delta(value, criteria)
+    if name == "single_qubit_fidelity":
+        return evaluate_single_qubit_fidelity(value, criteria)
+    if name in ("zpa_curve", "t1_by_zpa"):
+        return evaluate_curve_points(name, value, criteria)
     raise KeyError("未知指标 %r；可用指标：%s" % (name, ", ".join(sorted((criteria.get("metrics") or {}).keys()))))
 
 
@@ -257,6 +311,10 @@ THRESHOLD_ALIASES: Dict[str, Dict[str, str]] = {
     },
     "cz_leakage": {"max": "max_leakage", "max_leakage": "max_leakage"},
     "cz_gate_fidelity": {"min": "min_fidelity", "min_fidelity": "min_fidelity"},
+    "drag_delta": {"max": "max_abs", "max_abs": "max_abs", "min": "max_abs"},
+    "single_qubit_fidelity": {"min": "min_fidelity", "min_fidelity": "min_fidelity"},
+    "zpa_curve": {"min": "min_points", "min_points": "min_points"},
+    "t1_by_zpa": {"min": "min_points", "min_points": "min_points"},
 }
 
 # 绑定里的指标名 → lab_criteria 里的指标名（goal.success.criteria 可省，用这个推）
@@ -278,6 +336,14 @@ CRITERIA_NAME_ALIASES: Dict[str, str] = {
     "cphase": "cphase",
     "cz_leakage": "cz_leakage",
     "cz_gate_fidelity": "cz_gate_fidelity",
+    "drag_delta": "drag_delta",
+    "alpha": "drag_delta",
+    "single_qubit_fidelity": "single_qubit_fidelity",
+    "one_qubit_fidelity": "single_qubit_fidelity",
+    "zpa_curve": "zpa_curve",
+    "zpa_points": "zpa_curve",
+    "t1_by_zpa": "t1_by_zpa",
+    "t1_zpa": "t1_by_zpa",
 }
 
 
