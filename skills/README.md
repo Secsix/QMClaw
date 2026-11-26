@@ -4,7 +4,7 @@ QMClaw 的技能包集合。每个技能是一个以 `SKILL.md` 为入口的指�
 （Claude Code / Codex 等）加载后按自然语言触发；多数技能还附带脚本、参考文档与
 示例资产，供 Agent 直接调用。
 
-- 技能总数：12 个（1 个共享基础包 + 11 个技能包）
+- 技能总数：14 个（1 个共享基础包 + 13 个技能包）
 - 统一元数据：`SKILL.md` front-matter（`name` / `description` / `version` / `author`），
   `description` 里写明触发词，Agent 据此路由
 - 安装方式见下方「安装」；装的是**整个目录**（含 `README.md`、`static/`、`scripts/`、
@@ -56,6 +56,8 @@ cp -R skills/_shared skills/qmclaw-* skills/qubit-* skills/quantum-* skills/lqms
 | [`quantum-experiment-plotter`](quantum-experiment-plotter/) | 1.0 | 一维 / 二维学术级绘图与数据拟合 | 绘图、可视化、plot、figure |
 | [`s21-photo-reader`](s21-photo-reader/) | 1.0 | 从 S21 "find dips" 截图提取比特号→波谷值表格 | S21 照片、读图、截图识别、比特号 |
 | [`lqms-offline-datavault-plotting`](lqms-offline-datavault-plotting/) | 1.0 | 不连 LabRAD 读历史 DataVault hdf5 复现实验图并导出矢量图 | 离线出图、DataVault、历史数据出图 |
+| [`qmclaw-measurement-loop`](qmclaw-measurement-loop/) | 1.0 | 状态驱动的标定循环：每轮查状态、只在合法边内选动作、跑 QWF、证据回写 | 标定 qN、跑一轮测控、让状态机自己往下走 |
+| [`qmclaw-state-graph`](qmclaw-state-graph/) | 1.0 | 四张状态转移图（单比特 / CZ / 脉冲质量 / 频率空间）、scope、when 表达式、换芯片改法 | 状态转移图、状态机、scope、还缺什么证据、换芯片 |
 | [`_shared`](_shared/) | — | 公共术语表、量子参数定义、质量标准（被上面技能引用） | — |
 
 ---

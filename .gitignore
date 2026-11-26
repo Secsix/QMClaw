@@ -467,3 +467,7 @@ nohup.out
 *.temp
 .DS_Store
 Thumbs.db
+
+# DSH 项目级技能目录：里面是指向 skills/ 的联接（junction/symlink），
+# 属于本机路径，不入库；技能本体在 skills/ 下
+/.dsh/
