@@ -153,6 +153,9 @@ agent 的长期记忆存放在 `server/config/memory/`，**整个目录都在 `.
 - 任何实验都必须先落成 QWF 再提交（执行层唯一入口），不直接拼 `sq.xxx(...)` 代码
 - 证据只从本次 run 的指标来，不手写证据推状态；模拟后端的演练证据标 `source=loop`，汇报时不得说成台账实测
 - `server/config/state_machine.json`（结构）、`lab_criteria.json`（判据阈值）、写闸门三样一律由人改，agent 不改
+- 状态图随芯片变化：有哪些 scope（单比特 / 双比特 CZ / 脉冲质量 / 频率空间）由 `server/config/device_capabilities.json`
+  的能力标签推导，前端只画启用的那几张。判断"某张图该不该在"先查 `GET /qubit/scopes`，别在前端写死。
+  三层配置（base → chip → runtime）与换芯片改法见 `docs/STATE_GRAPH_PROFILES.md`
 
 ## 导师上游融合记录
 
