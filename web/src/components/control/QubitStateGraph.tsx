@@ -8,6 +8,8 @@ import {
   StateMachineEdge,
 } from "@/lib/controlApi";
 
+import { IconStateMachine } from "./icons/ControlIcons";
+
 /**
  * 测控状态转移图（BACKLOG O6）。
  *
@@ -134,6 +136,9 @@ export default function QubitStateGraph({ table, state, qubitName }: Props) {
   if (states.length === 0) {
     return (
       <div className="qm-empty">
+        <span className="qm-empty-icon">
+          <IconStateMachine size={30} />
+        </span>
         <span className="qm-kicker">State table</span>
         状态机表尚未加载（后端 /api/quantum/qubit/state-table 未响应）
       </div>

@@ -10,6 +10,12 @@ import "./control-swiss.css";
 
 import ControlCardFrame from "./ControlCardFrame";
 import {
+  IconLiveLab,
+  IconQwfFlow,
+  IconRunHistory,
+  IconStateMachine,
+} from "./icons/ControlIcons";
+import {
   CONTROL_BREAKPOINTS,
   CONTROL_BREAKPOINT_KEYS,
   CONTROL_CARDS,
@@ -36,6 +42,14 @@ interface Props {
 }
 
 const META = new Map(CONTROL_CARDS.map((c) => [c.id, c]));
+
+/** 卡片 → 图标（与图标卡片组同一套几何语言） */
+const CARD_ICONS: Record<ControlCardId, ReactNode> = {
+  stateGraph: <IconStateMachine size={22} />,
+  qwfFlow: <IconQwfFlow size={22} />,
+  liveExperiment: <IconLiveLab size={22} />,
+  runs: <IconRunHistory size={22} />,
+};
 
 /**
  * /control 的可配置栅格。
@@ -124,6 +138,9 @@ export default function ControlCardGrid({ layout, cards }: Props) {
 
       {!ready ? null : visible.length === 0 ? (
         <div className="qm-empty">
+          <span className="qm-empty-icon">
+            <IconRunHistory size={30} />
+          </span>
           <span className="qm-kicker">No cards</span>
           所有卡片都已隐藏 —— 点「编辑布局」→「＋ …」把它们加回来，或「恢复默认布局」。
         </div>
@@ -153,6 +170,7 @@ export default function ControlCardGrid({ layout, cards }: Props) {
                     title={meta?.title ?? card.id}
                     index={meta?.index}
                     kicker={meta?.kicker}
+                    icon={CARD_ICONS[card.id]}
                     subtitle={card.subtitle}
                     right={card.right}
                     editing={editing}

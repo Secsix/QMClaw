@@ -14,6 +14,8 @@ import "@xyflow/react/dist/style.css";
 
 import { RunNode, WorkflowCanvas, WorkflowRun } from "@/lib/controlApi";
 
+import { IconQwfFlow } from "./icons/ControlIcons";
+
 /**
  * QWF 流程图（只读）。
  *
@@ -168,6 +170,9 @@ export default function QwfFlowPanel({ canvas, run, height = 320 }: Props) {
   if (nodes.length === 0) {
     return (
       <div className="qm-empty" style={{ height }}>
+        <span className="qm-empty-icon">
+          <IconQwfFlow size={30} />
+        </span>
         <span className="qm-kicker">No canvas</span>
         暂无流程图（当前运行没有关联的 QWF 画布，也没有可回退的运行节点）
       </div>

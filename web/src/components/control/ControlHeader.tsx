@@ -1,6 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/components/ThemeToggle";
+import { IconQmclawMark } from "./icons/ControlIcons";
 
 interface Props {
   qubits: string[];
@@ -43,7 +44,7 @@ export default function ControlHeader({
     <header className="qm-control-header">
       <div className="qm-brand">
         <span className="qm-brand-mark" aria-hidden="true">
-          QC
+          <IconQmclawMark size={30} />
         </span>
         <div className="qm-brand-text">
           <span className="qm-kicker">Quantum Measurement &amp; Control</span>

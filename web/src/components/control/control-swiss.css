@@ -146,19 +146,14 @@ html[data-qm-theme="light"] .qm-control-root {
   min-width: 0;
 }
 
-/* 方块标记：瑞士风最常见的品牌落点 */
+/* 方块标记：瑞士风最常见的品牌落点（现在放图标本身，底色让给图形） */
 .qm-brand-mark {
   display: grid;
   place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.3rem;
+  height: 2.3rem;
   flex-shrink: 0;
-  background: var(--qm-accent);
-  color: #fff;
-  font-family: var(--qm-mono);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--qm-text);
 }
 
 .qm-brand-text {
@@ -391,6 +386,28 @@ html[data-qm-theme="light"] .qm-control-root {
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--qm-accent);
+}
+
+/* 卡片图标：与编号并排，accent 部分自己带克莱因蓝 */
+.qm-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--qm-text);
+}
+
+.qm-card-icon svg,
+.qm-empty-icon svg {
+  display: block;
+}
+
+/* 空状态里的图标：压低对比，不抢文案 */
+.qm-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qm-text-mute);
 }
 
 /* 小标签压着标题：两层信息摞成一列 */

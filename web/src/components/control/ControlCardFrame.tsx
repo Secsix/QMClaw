@@ -17,6 +17,8 @@ export interface ControlCardFrameProps {
   index?: string;
   /** 标题上方的小标签（英文大写） */
   kicker?: string;
+  /** 卡片图标（见 icons/ControlIcons.tsx） */
+  icon?: ReactNode;
   subtitle?: ReactNode;
   right?: ReactNode;
   /** 编辑态：显示隐藏按钮、标题栏变成 move 光标 */
@@ -29,6 +31,7 @@ export default function ControlCardFrame({
   title,
   index,
   kicker,
+  icon,
   subtitle,
   right,
   editing = false,
@@ -39,6 +42,7 @@ export default function ControlCardFrame({
     <section className="qm-card-frame">
       <header className="qm-card-head qm-card-handle">
         {index ? <span className="qm-card-index">{index}</span> : null}
+        {icon ? <span className="qm-card-icon">{icon}</span> : null}
         <div className="qm-card-heading">
           {kicker ? <span className="qm-kicker">{kicker}</span> : null}
           <h2 className="qm-card-title">{title}</h2>
