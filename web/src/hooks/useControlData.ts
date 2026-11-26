@@ -8,6 +8,8 @@ import {
   LegacyJob,
   QubitState,
   QubitStateTable,
+  ScopeSummary,
+  ScopesResponse,
   WorkflowCanvas,
   WorkflowRun,
 } from "@/lib/controlApi";
@@ -17,6 +19,12 @@ const POLL_MS = 3000;
 
 export interface ControlData {
   stateTable: QubitStateTable | null;
+  /** 当前芯片启用了哪几张状态图（qubit / pair / pulse / tunable），以及启用依据。 */
+  scopes: ScopeSummary[];
+  scopeInfo: ScopesResponse | null;
+  /** 正在看哪张状态图；默认单比特六态。 */
+  currentScope: string;
+  setCurrentScope: (scope: string) => void;
   qubits: string[];
   selectedQubit: string;
   setSelectedQubit: (name: string) => void;
@@ -36,6 +44,9 @@ export interface ControlData {
 
 export function useControlData(): ControlData {
   const [stateTable, setStateTable] = useState<QubitStateTable | null>(null);
+  const [scopes, setScopes] = useState<ScopeSummary[]>([]);
+  const [scopeInfo, setScopeInfo] = useState<ScopesResponse | null>(null);
+  const [currentScope, setCurrentScope] = useState<string>("qubit");
   const [qubits, setQubits] = useState<string[]>([]);
   const [selectedQubit, setSelectedQubit] = useState<string>("");
   const [qubitState, setQubitState] = useState<QubitState | null>(null);
@@ -64,16 +75,24 @@ export function useControlData(): ControlData {
       // 用 allSettled：单个端点挂掉（例：后端 python 服务没重启导致 state-table 502）
       // 不应该把整页数据清空，只有"全部失败"才算致命错误。
       const results = await Promise.allSettled([
-        controlApi.stateTable(),
+        controlApi.stateTable(currentScope),
         controlApi.qubits(),
         controlApi.quantumJobs(),
         controlApi.legacyJobs(),
         controlApi.workflowRuns(),
+        controlApi.scopes(),
       ]);
 
       if (cancelled) return;
 
-      const labels = ["state-table", "qubits", "quantum-jobs", "legacy-jobs", "workflow-runs"];
+      const labels = [
+        "state-table",
+        "qubits",
+        "quantum-jobs",
+        "legacy-jobs",
+        "workflow-runs",
+        "scopes",
+      ];
       const partial: string[] = [];
       results.forEach((r, i) => {
         if (r.status === "rejected") {
@@ -93,12 +112,15 @@ export function useControlData(): ControlData {
       const qJobs = ok<{ jobs?: QuantumJob[] }>(2, { jobs: [] });
       const lJobs = ok<LegacyJob[]>(3, []);
       const runList = ok<{ runs?: WorkflowRun[] }>(4, { runs: [] });
+      const scopeData = ok<ScopesResponse | null>(5, null);
 
       setStateTable(table);
       setQubits(qubitList?.qubits ?? []);
       setQuantumJobs(qJobs?.jobs ?? []);
       setLegacyJobs(Array.isArray(lJobs) ? lJobs : []);
       setRuns(runList?.runs ?? []);
+      setScopeInfo(scopeData);
+      setScopes(scopeData?.scopes ?? []);
       // 全挂才是致命错误；部分失败降级为提示，页面其余部分照常展示。
       setError(partial.length === results.length ? partial.join("；") : null);
       setPartialErrors(partial.length === results.length ? [] : partial);
@@ -112,7 +134,7 @@ export function useControlData(): ControlData {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [tick]);
+  }, [tick, currentScope]);
 
   // 没选比特时默认取第一个
   useEffect(() => {
@@ -130,7 +152,7 @@ export function useControlData(): ControlData {
     let cancelled = false;
     const load = async () => {
       try {
-        const st = await controlApi.qubitState(selectedQubit);
+        const st = await controlApi.qubitState(selectedQubit, currentScope);
         if (!cancelled) setQubitState(st);
       } catch {
         if (!cancelled) setQubitState(null);
@@ -142,7 +164,7 @@ export function useControlData(): ControlData {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [selectedQubit]);
+  }, [selectedQubit, currentScope]);
 
   /** 当前"活跃"的 run：优先取正在运行的，没有就取最近一次。 */
   const activeRun = useMemo<WorkflowRun | null>(() => {
@@ -209,6 +231,10 @@ export function useControlData(): ControlData {
 
   return {
     stateTable,
+    scopes,
+    scopeInfo,
+    currentScope,
+    setCurrentScope,
     qubits,
     selectedQubit,
     setSelectedQubit,

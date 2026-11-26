@@ -1145,6 +1145,21 @@ class QuantumService(BaseService):
         evidence, sources, conflicts, drill = self._merge_drill(
             str(name), evidence, sources, derived.get("conflicts", [])
         )
+        # 别的 scope（pulse / tunable）在这里分叉：证据同源，判定走声明式 when。
+        scope = str(data.get("scope") or "").strip().lower() or "qubit"
+        if scope != "qubit":
+            scoped = self._scope_state_payload(
+                qubit=str(name),
+                scope=scope,
+                evidence=evidence,
+                sources=sources,
+                conflicts=conflicts,
+                drill=drill,
+                derived=derived,
+                limit=limit,
+            )
+            if scoped is not None:
+                return scoped
         state = derive_state(evidence)
 
         # 状态结论记录（设计稿 §5.2）：结论 = 状态 + 凭据 + 判据版本 + 时效。
@@ -1181,6 +1196,128 @@ class QuantumService(BaseService):
             "validity": validity,
             "edges": edges_for(state["state"]),
             "record": record,
+        }
+
+    def _scope_state_payload(
+        self,
+        qubit: str,
+        scope: str,
+        evidence: Dict[str, Any],
+        sources: Dict[str, Any],
+        conflicts: List[Dict[str, Any]],
+        drill: Dict[str, Any],
+        derived: Dict[str, Any],
+        limit: int,
+    ) -> Optional[Dict[str, Any]]:
+        """非 qubit scope（pulse / tunable）的状态自查（**只读**）。
+
+        证据链路与 `/qubit/state` 完全同源（台账 → 证据 → 演练证据合流），
+        只是判定改用 scope 自己声明的 `when` 表达式（state_expr），
+        返回值形状与单比特一致，前端的状态图组件可以原样复用。
+        """
+        from services.common import machine_profile, state_expr
+        from services.common.metrics import load_criteria
+        from services.common.qubit_state import derive_state
+        from services.common.state_machine import (
+            build_state_record,
+            edges_for,
+            record_validity,
+            scope_specs,
+            state_version,
+            ttl_for,
+        )
+
+        try:
+            view = machine_profile.resolve_machine(scope)
+        except ValueError as exc:
+            return {
+                "success": False,
+                **error_envelope("scope_disabled", str(exc)),
+            }
+
+        criteria = load_criteria()
+        spec = (scope_specs(view).get(scope) or {})
+        # 前置：scope 声明里说"必须先到 qubit 的哪一态"，这里用同一份证据求一次。
+        prerequisites: Optional[Dict[str, Any]] = None
+        pre = spec.get("prerequisite")
+        if isinstance(pre, dict) and pre.get("scope") == "qubit" and pre.get("state"):
+            qubit_state = derive_state(evidence, criteria)["state"]
+            prerequisites = {"qubit": qubit_state}
+
+        result = state_expr.derive_state_declarative(
+            view["states"],
+            evidence,
+            criteria,
+            prerequisites=prerequisites,
+            scope=scope,
+            require_when=True,
+        )
+        name = str(result.get("state") or "")
+        definition = (view["states"].get(name) or {})
+        # 缺什么：优先用 scope 声明的 missing_by_state（"到下一态还缺哪些证据"），
+        # 没声明才退回该态自己的 requires。
+        missing_map = view.get("missing_by_state") or {}
+        missing = list(missing_map[name]) if name in missing_map else list(definition.get("requires") or [])
+        state = {
+            "state": name,
+            "state_index": result.get("state_index"),
+            "description": definition.get("description", ""),
+            "reasons": list(result.get("reasons") or []),
+            "missing": missing,
+            "missing_detail": [
+                {"key": key, "produced_by": ((view.get("evidence_sources") or {}).get(key) or {}).get("produced_by") or []}
+                for key in missing
+            ],
+            "next_action": definition.get("next_action", ""),
+            "metrics": {key: evidence.get(key) for key in (view.get("evidence_sources") or {}) if key in evidence},
+            "criteria_version": criteria.get("version"),
+            "scope": scope,
+            "matched": result.get("matched"),
+            "trace": result.get("trace"),
+        }
+
+        record = build_state_record(
+            qubit=qubit,
+            state_result=state,
+            evidence=evidence,
+            sources=sources,
+            conflicts=conflicts,
+            criteria_version=criteria.get("version"),
+            machine=view,
+        )
+        record["scope"] = {"type": scope, "qubits": [qubit], "coupler": None}
+        validity = record_validity(record)
+        ttl = ttl_for(name, view)
+
+        return {
+            "success": True,
+            "name": qubit,
+            "scope": scope,
+            "state": state,
+            "evidence": evidence,
+            "evidence_sources": sources,
+            "conflicts": conflicts,
+            "drill_evidence": drill,
+            "records": {
+                "considered": derived.get("considered", 0),
+                "ignored": derived.get("ignored", 0),
+                "ignored_runs": derived.get("ignored_runs", []),
+                "limit": limit,
+            },
+            "plan": {
+                "state": name,
+                "missing": missing,
+                "next_action": definition.get("next_action", ""),
+                "evidence_sources": view.get("evidence_sources") or {},
+            },
+            "state_version": state_version(view),
+            "ttl_s": ttl,
+            "expires_at": record.get("expires_at"),
+            "valid": validity.get("valid"),
+            "validity": validity,
+            "edges": edges_for(name, view),
+            "record": record,
+            "prerequisite": spec.get("prerequisite"),
         }
 
     # --- pair（双比特 CZ）scope：结构 + 判据可跑，执行层留 HOLD（设计稿 §8 / BACKLOG O5） ---
@@ -1790,7 +1927,16 @@ class QuantumService(BaseService):
         from services.common.state_machine import state_table_extended
 
         # 按芯片能力裁过的结构表（没有 device_capabilities.json 时与裸结构表一致）
-        table = state_table_extended(machine=profile_machine())
+        machine = profile_machine()
+        scope = str(data.get("scope") or "").strip().lower() or "qubit"
+        if scope != "qubit":
+            from services.common.machine_profile import resolve_machine
+
+            try:
+                machine = resolve_machine(scope)
+            except ValueError as exc:
+                return {"success": False, **error_envelope("scope_disabled", str(exc))}
+        table = state_table_extended(machine=machine, scope=scope)
         return {
             "success": True,
             **table,

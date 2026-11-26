@@ -143,7 +143,11 @@ async function proxyToService(
   path: string,
   method: 'GET' | 'POST' | 'DELETE',
   body?: unknown,
-  timeoutMs?: number
+  timeoutMs?: number,
+  // 下发给微服务的查询串（不含 '?'）。传 '?' 或空串都会被忽略。
+  // 之所以显式传：本函数只拼 path，不会自动带上浏览器的 search，
+  // 像 /qubit/state_table?scope=pulse 这种按 scope 取表就会悄悄退化成单比特。
+  query?: string
 ): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   const service = SERVICES[serviceName];
 
@@ -157,7 +161,8 @@ async function proxyToService(
     return { ok: false, error: `Service unavailable: ${reason}` };
   }
 
-  const url = `http://${service.host}:${service.port}${path}`;
+  const search = (query ?? '').replace(/^\?/, '');
+  const url = `http://${service.host}:${service.port}${path}${search ? `?${search}` : ''}`;
   const timeout = timeoutMs ?? service.defaultTimeout ?? 30000;
   const traceId = traceStorage.getStore();
 
@@ -282,8 +287,10 @@ export function createServiceProxy() {
 
   // ── 比特状态机（测控总览页的状态转移图）──────────────────────────────
   // 状态机口径唯一真源在 services/common/qubit_state.py，前端只读不改。
-  proxy.get('/quantum/qubit/state-table', async (_req, res) => {
-    const result = await proxyToService('quantum', '/qubit/state_table', 'GET');
+  // ?scope=qubit|pair|pulse|tunable：状态图有几张随芯片能力变化，前端按 scope 取表。
+  proxy.get('/quantum/qubit/state-table', async (req, res) => {
+    const query = req.originalUrl.split('?')[1] ?? '';
+    const result = await proxyToService('quantum', '/qubit/state_table', 'GET', undefined, undefined, query);
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 

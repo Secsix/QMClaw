@@ -438,6 +438,24 @@ html[data-qm-theme="light"] .qm-control-root {
   gap: 0.4rem;
 }
 
+/* 状态图切换器：图有哪几张由后端 scopes 决定（qubit / pair / pulse / tunable），
+   这里只负责"切到哪一张"，不决定"有没有"。
+   一排小按钮在窄卡片里会挤，所以允许换行。 */
+.qm-scope-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+
+.qm-scope-switch .qm-btn {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .qm-card-body {
   flex: 1;
   min-height: 0;

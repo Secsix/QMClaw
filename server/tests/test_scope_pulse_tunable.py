@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 
 from services.common import machine_profile as mp
@@ -132,6 +133,84 @@ class TestCapabilityGating(unittest.TestCase):
         rows = mp.enabled_scopes(MACHINE, caps)
         self.assertEqual([row["scope"] for row in rows], ["qubit", "pair", "pulse", "tunable"])
         self.assertEqual([row["scope"] for row in rows if row["enabled"]], ["qubit", "pair"])
+
+
+class TestScopeEndpoints(unittest.TestCase):
+    """`/qubit/state` 与 `/qubit/state_table` 的 scope 参数（P4 前端要用）。"""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        from services.quantum_service.server import QuantumService
+        from services.common.evidence_store import EvidenceStore
+        from services.common import runrecord
+
+        self._mock = mock
+        self.svc = object.__new__(QuantumService)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.svc._evidence_store = lambda: EvidenceStore(
+            path=os.path.join(self.tmp.name, "evidence.json")
+        )
+        patcher = mock.patch.object(runrecord.RunRecordWriter, "list_records", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.runrecord = runrecord
+
+    def _state(self, scope, evidence=None):
+        payload = {"name": "q0", "scope": scope}
+        if evidence is not None:
+            payload["evidence"] = evidence
+        return self.svc.handle_request("POST", "/qubit/state", payload, {})
+
+    def test_state_table_scope_param(self):
+        table = self.svc.handle_request("GET", "/qubit/state_table", {}, {"scope": ["pulse"]})
+        self.assertEqual(table["scope"], "pulse")
+        self.assertEqual(list(table["states"]), ["pulse_unknown", "drag_tuned", "fidelity_verified"])
+
+    def test_pulse_state_progresses(self):
+        r = self._state("pulse", {"drag_delta": 0.02})
+        self.assertTrue(r["success"])
+        self.assertEqual(r["scope"], "pulse")
+        self.assertEqual(r["state"]["state"], "drag_tuned")
+        self.assertEqual(r["state"]["missing"], ["single_qubit_fidelity"])
+        self.assertEqual(r["record"]["scope"]["type"], "pulse")
+        self.assertEqual([e["id"] for e in r["edges"]],
+                         ["drag_tuned--self--drag", "drag_tuned->fidelity_verified"])
+
+    def test_pulse_state_full(self):
+        r = self._state("pulse", {"drag_delta": 0.02, "single_qubit_fidelity": 0.9995})
+        self.assertEqual(r["state"]["state"], "fidelity_verified")
+        self.assertEqual(r["state"]["missing"], [])
+        self.assertEqual(r["edges"], [])
+        self.assertTrue(r["valid"])
+
+    def test_tunable_state(self):
+        r = self._state("tunable", {"zpa_curve": 6})
+        self.assertEqual(r["scope"], "tunable")
+        self.assertEqual(r["state"]["state"], "zpa_mapped")
+        self.assertEqual(r["state"]["missing"], ["t1_by_zpa"])
+
+    def test_qubit_scope_keeps_legacy_shape(self):
+        r = self._state("qubit")
+        self.assertEqual(r["state"]["state"], "unknown")
+        self.assertEqual(len(r["edges"]), 1)
+        self.assertNotIn("scope", r)
+
+    def test_disabled_scope_is_refused(self):
+        with self._mock.patch(
+            "services.common.machine_profile.load_capabilities",
+            return_value=({"capabilities": []}, "config/device_capabilities.json"),
+        ):
+            r = self._state("pulse")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error_code"], "scope_disabled")
+
+    def test_unknown_scope_is_refused(self):
+        r = self._state("nope")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["error_code"], "scope_disabled")
 
 
 if __name__ == "__main__":

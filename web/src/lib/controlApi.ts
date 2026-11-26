@@ -306,10 +306,51 @@ export interface SavedWorkflow {
   nodeCount?: number;
 }
 
+// ── scope 摘要（状态图配置化 P1：一个芯片启用哪几张状态图）──────────────────
+
+/**
+ * 后端 `GET /api/quantum/qubit/scopes` 的一行。
+ * `enabled` 决定"要不要画这张图"，`reason` / `source` 说明为什么——
+ * 状态图会随芯片调控难点变化（可调比特才有 tunable，需要 DRAG 才有 pulse），
+ * 所以前端不硬编码有哪几张图，只照着后端启用的画。
+ */
+export interface ScopeSummary {
+  scope: string;
+  label?: string;
+  enabled: boolean;
+  reason?: string;
+  /** structure = 结构表默认；capabilities = 能力标签推导；override = 人工覆盖 */
+  source?: string;
+  enabled_by?: string[];
+  missing?: string[];
+  engine?: string;
+  prerequisite?: { scope?: string; state?: string };
+  states?: string[];
+  edge_count?: number;
+}
+
+export interface ScopesResponse {
+  success?: boolean;
+  structure_version?: string;
+  chip?: string;
+  capabilities?: Record<string, boolean> | string[];
+  capabilities_source?: string;
+  scopes?: ScopeSummary[];
+}
+
 // ── 端点 ────────────────────────────────────────────────────────────────────
 
 export const controlApi = {
-  stateTable: () => getJson<QubitStateTable>("/api/quantum/qubit/state-table"),
+  /** 状态图清单（含每张图是否启用、启用依据）。 */
+  scopes: () => getJson<ScopesResponse>("/api/quantum/qubit/scopes"),
+
+  /** 某张状态图的全表；不传 scope 就是单比特六态（老行为不变）。 */
+  stateTable: (scope?: string) =>
+    getJson<QubitStateTable>(
+      scope && scope !== "qubit"
+        ? `/api/quantum/qubit/state-table?scope=${encodeURIComponent(scope)}`
+        : "/api/quantum/qubit/state-table"
+    ),
 
   /**
    * 后端返回的是对象数组（{ name, f10, fread, bias_z } …），
@@ -331,8 +372,11 @@ export const controlApi = {
     };
   },
 
-  qubitState: (name: string) =>
-    postJson<QubitState>("/api/quantum/qubit/state", { name }),
+  qubitState: (name: string, scope?: string) =>
+    postJson<QubitState>(
+      "/api/quantum/qubit/state",
+      scope && scope !== "qubit" ? { name, scope } : { name }
+    ),
 
   quantumJobs: () => getJson<{ jobs?: QuantumJob[] }>("/api/quantum/jobs"),
 

@@ -123,6 +123,13 @@ ERROR_CODES: Dict[str, Dict[str, Any]] = {
         "retryable": False,
         "hint": "请求参数不合法",
     },
+    "scope_disabled": {
+        "status": "failed",
+        "legacy_status": "read_only",
+        "http": 400,
+        "retryable": False,
+        "hint": "该 scope 在当前芯片能力下未启用（看 device_capabilities.json 的 capabilities / scopes）",
+    },
     "not_found": {
         "status": "failed",
         "legacy_status": "not_found",
