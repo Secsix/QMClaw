@@ -1,0 +1,19 @@
+{
+  "_doc": "芯片能力档案：决定状态图里哪些 scope 启用、哪些边存在。没有这个文件时全部 scope 按结构表启用（老部署行为不变）。capabilities 是能力标签，scopes 里的 enabled 是人工覆盖（优先于能力推导），edge_overrides 用来对单条边裁掉或打补丁。",
+  "version": 1,
+  "updated": "2026-11-26",
+  "chip": {
+    "name": "LQHL-20251103_LD_SQ",
+    "qubits": 12,
+    "note": "12 比特超导芯片，每个比特都有 xy_dac + z_dac（频率可调）；pi_gate_alpha 已存在但需标定 → 需要 DRAG；双比特走 DCZTuner，需要耦合器。"
+  },
+  "capabilities": [
+    "tunable",
+    "drag_required",
+    "coupler",
+    "readout"
+  ],
+  "scopes": {},
+  "edge_overrides": {},
+  "criteria_overrides": {}
+}

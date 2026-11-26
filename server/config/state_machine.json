@@ -31,6 +31,7 @@
       "description": "还没有任何可信证据（频率/幅度/对比度都没有确认过）",
       "ttl_s": null,
       "requires": [],
+      "when": {"all_of": []},
       "note": "初始态；没有结论可言，故不过期"
     },
     "freq_locked": {
@@ -38,6 +39,7 @@
       "description": "比特频率已确认并锁定（f10 稳定、spectroscopy/pidf 有峰）",
       "ttl_s": 86400,
       "requires": ["freq_locked"],
+      "when": {"flag": "freq_locked"},
       "note": "频率最易被静默回写，TTL 取 1 天"
     },
     "amp_calibrated": {
@@ -45,6 +47,7 @@
       "description": "π 脉冲幅度已标定（幅度扫描找到最优，回到基态的幅度已知）",
       "ttl_s": 259200,
       "requires": ["amp_calibrated"],
+      "when": {"any_of": [{"flag": "amp_calibrated"}, {"evidence": "contrast", "verdict_not_in": ["unusable"]}]},
       "note": "幅度随温度/功率漂移，TTL 取 3 天"
     },
     "state_discriminated": {
@@ -52,6 +55,7 @@
       "description": "态区分度达标（contrast ≥ unusable 门槛，可读出 0/1）",
       "ttl_s": 259200,
       "requires": ["contrast"],
+      "when": {"evidence": "contrast", "ok": true},
       "note": "读出链慢漂，TTL 取 3 天"
     },
     "coherence_measured": {
@@ -59,6 +63,7 @@
       "description": "相干时间已测出且达标（T1、T2* 均过门槛）",
       "ttl_s": 1209600,
       "requires": ["t1_us", "t2_star_us"],
+      "when": {"all_of": [{"evidence": "t1_us", "ok": true}, {"evidence": "t2_star_us", "ok": true}]},
       "note": "T1/T2 变化慢但仍需定期复核，TTL 取 14 天"
     },
     "characterized": {
@@ -66,6 +71,7 @@
       "description": "表征完成（含 XEB 门保真度）",
       "ttl_s": 2592000,
       "requires": ["xeb_p", "xeb_gate_fidelity"],
+      "when": {"all_of": [{"evidence": "t1_us", "ok": true}, {"evidence": "t2_star_us", "ok": true}, {"evidence": "xeb_gate_fidelity", "ok": true}]},
       "note": "仍需定期复核（读出慢漂），TTL 取 30 天"
     }
   },

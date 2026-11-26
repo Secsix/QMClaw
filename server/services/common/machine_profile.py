@@ -61,11 +61,20 @@ def load_capabilities(
 
 
 def capability_tags(caps: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """能力标签（``tunable`` / ``coupler`` / ``drag_required`` …）。"""
+    """能力标签（``tunable`` / ``coupler`` / ``drag_required`` …）。
+
+    两种写法都收：``{"capabilities": {"coupler": true}}`` 与
+    ``{"capabilities": ["tunable", "coupler"]}``（列表写法等价于全部 true，
+    手写档案时更省事）。
+    """
     if caps is None:
         caps, _ = load_capabilities()
     tags = caps.get("capabilities") if isinstance(caps, dict) else None
-    return dict(tags) if isinstance(tags, dict) else {}
+    if isinstance(tags, dict):
+        return {str(k): v for k, v in tags.items()}
+    if isinstance(tags, (list, tuple)):
+        return {str(tag): True for tag in tags if str(tag).strip()}
+    return {}
 
 
 def _scope_override(caps: Optional[Dict[str, Any]], scope: str) -> Dict[str, Any]:
