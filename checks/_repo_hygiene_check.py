@@ -140,11 +140,8 @@ LAB_SCAN_DIRS = (
     "checks", "docs", "experiments", "memory",
     "qwf_examples", "qwf_scripts", "tools", "web/src",
 )
-# 这两包在 P2 整包出库前先豁免；出库后删掉这两行
-LAB_SCAN_SKIP = (
-    "experiments/自动化单比特标定/",
-    "tools/single_qubit_auto_calibration/",
-)
+# 单比特标定两包已整包出库到本机历史归档，不再豁免
+LAB_SCAN_SKIP = ()
 # 根级公开脚本 / 文档也一起扫
 LAB_SCAN_ROOT_FILES = (
     "README.md", "install.md",

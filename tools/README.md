@@ -17,7 +17,10 @@
 | `iqraw_contrast_tune.py` | 读出对比度迭代调参（iqraw→piamp→pidf 循环） | 走 `POST :3003/execute`；技能 `skills/qubit-contrast-tuning/` 指向它 |
 | `qubit_health_report/` | 比特健康报告生成 | 见其 `README.md` |
 | `s21_photo_reader/` | S21 照片读取（实验辅助） | 见其 `README.md` |
-| `single_qubit_auto_calibration/` | 单比特自动标定 | 见其 `README.md` |
+
+单比特自动标定（`tools/single_qubit_auto_calibration/`）已出库到本机历史归档，
+指标与门限口径留在服务端 `server/services/analysis_service/calibration_metrics.py`，
+门限真源 `server/config/lab_criteria.json` 的 `calibration_gates` 段。
 
 ## QWF 薄壳：仓根三个入口
 

@@ -11,9 +11,9 @@
 | `server/tests/` | 全部 pytest 测试 | 原根级 `tests/` 已迁入此处（B6） |
 | `web/` | 前端：Next.js :8081 | 服务启停由人控制（约定 3） |
 | `checks/` | 全部自检脚本 + `run_all_checks.py` | 脚本内 `ROOT = Path(__file__).resolve().parent.parent` 指向仓库根 |
-| `experiments/` | 实验脚本、数据与产物 | `自动化单比特标定/`、`s21_image/`、`reports/`、`t1_fit.py` |
+| `experiments/` | 实验产物（本机为主） | `s21_image/`、`reports/` 等；入库内容已迁出，脚本请放 `qwf_scripts/` 或 `tools/` |
 | `docs/` | 设计/运维文档 | 清单与 runner 一致性由 `checks/_docs_paths_check.py` 校验 |
-| `tools/` | 运维脚本与工具子目录 | OpenQWF 同步与漂移、比特体检、照片读取、单比特自动标定 |
+| `tools/` | 运维脚本与工具子目录 | OpenQWF 同步与漂移、对比度调参、比特体检客户端、照片读取 |
 | `skills/` | Agent 技能（SKILL.md） | |
 | `qwf_scripts/` | QWF DSL 脚本与工作流 | 被测试与文档直接引用，**留在根目录**（见下） |
 | `qwf_examples/` | QWF DSL 示例 | |

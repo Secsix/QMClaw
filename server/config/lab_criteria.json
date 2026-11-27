@@ -1,7 +1,7 @@
 {
   "_doc": "指标与判据唯一真源（QMClaw Architecture Roadmap §2.5）。指标定义 = 标准算法 + 参数 + 阈值 + 置信度 + 数据列口径。goal / 脚本 / skill 一律引用这里的指标名与阈值，不在别处写死数值。改动请同时更新 .Codex/progress.md。",
-  "version": "1.2.0",
-  "updated": "2026-11-26",
+  "version": "1.3.0",
+  "updated": "2026-11-27",
   "authority": {
     "note": "同一指标出现多个阈值时，以本文件的 thresholds 为准；历史值仅作溯源。",
     "contrast_thresholds_history": {
@@ -173,6 +173,30 @@
       "threshold_semantics": { "min_points": "下界；点数不足无法看出 T1 在频率空间的地形" },
       "calibration": "TODO: calibrate —— 5 点占位",
       "note": "可用「固定弛豫时间后的剩余 1 态布居」替代单点 T1 作为同义证据"
+    }
+  },
+
+  "calibration_gates": {
+    "_doc": "单比特标定的门限（原口径来自 tools/single_qubit_auto_calibration，已出库到本机历史归档；现在以本段为唯一真源）。实现见 server/services/analysis_service/calibration_metrics.py。",
+    "thresholds": {
+      "fast_visibility_min": 0.05,
+      "iq_snr_min": 0.1,
+      "iq_norm_min": 0.1,
+      "min_readout_fidelity": 0.8,
+      "rabi_swing_min": 0.15,
+      "rabi_sigma_k": 4.0,
+      "max_detune_mhz": 0.1,
+      "min_t1_us": 20.0
+    },
+    "threshold_semantics": {
+      "fast_visibility_min": "快速门限：IQ 可见度高于此值就先往下走，不纠缠细调",
+      "iq_snr_min": "终判：IQ 两簇的 SNR 下界",
+      "iq_norm_min": "终判：IQ 归一化分离度下界",
+      "min_readout_fidelity": "终判：读出保真度下界",
+      "rabi_swing_min": "Rabi 摆幅下界",
+      "rabi_sigma_k": "Rabi 摆幅 / 噪声 sigma 的信噪倍数下界",
+      "max_detune_mhz": "Ramsey 失谐绝对值上界（MHz）",
+      "min_t1_us": "T1 下界（微秒）"
     }
   },
 

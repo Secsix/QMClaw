@@ -251,16 +251,6 @@ tools/s21_photo_reader/_tmp_test/
 /q7ld3_*
 /自动化单比特标定/out/
 /自动化单比特标定/model.json
-# 单比特标定流水线的运行产物（离线计划 / 干跑 .qwf / 结果与事件）
-/自动化单比特标定/zpa_pipeline_*output*/
-/自动化单比特标定/zpa_pipeline_dry_manifest.json
-# ↑ 上面 4 条是**根锚定**的，只对仓库根下的同名目录生效；
-# 实际数据目录在 experiments/ 下，所以下面补上正确路径（2026-11-24 修正：
-# 原来只写根锚定版本，对 experiments/ 下的文件完全无效）。
-/experiments/自动化单比特标定/out/
-/experiments/自动化单比特标定/model.json
-/experiments/自动化单比特标定/zpa_pipeline_*output*/
-/experiments/自动化单比特标定/zpa_pipeline_dry_manifest.json
 /wfstatus.json
 /_task_data/
 /_progress_append.md
@@ -331,7 +321,6 @@ tools/s21_photo_reader/_tmp_test/
 /experiments/s21_image/*.csv
 /experiments/s21_image/*.md
 /experiments/t1_fit_*.png
-/experiments/自动化单比特标定/zpa_v2/predictions/
 # qca_service 运行期索引库（可再生）
 /server/services/qca_service/data/
 # 本机启动备忘（内含本机绝对路径，与 start-qmclaw.cmd 重复）
@@ -342,15 +331,6 @@ tools/s21_photo_reader/_tmp_test/
 /be2_results/
 /be2_work/
 
-# --- 真机实测数据与训练产物（2026-11-24 出库）---
-# experiments/自动化单比特标定/ 下：原始 S21 测量文件、人工标注、训练出的模型。
-# 这些是现场实测数据（含真实比特 ID 与 DataVault 路径），只留在本机；
-# 代码与流程脚本保留在版本库里。
-/experiments/自动化单比特标定/*.hdf5
-/experiments/自动化单比特标定/actual_manifest_*.json
-/experiments/自动化单比特标定/zpa_interval_labels.json
-/experiments/自动化单比特标定/zpa_interval_model.json
-/experiments/自动化单比特标定/zpa_v2/model.json
 
 # --- 本机部署记录（含本机绝对路径、conda 环境清单、权限排障；仅本地）---
 /docs/DEPLOY_LOCAL.md
@@ -471,3 +451,10 @@ Thumbs.db
 # DSH 项目级技能目录：里面是指向 skills/ 的联接（junction/symlink），
 # 属于本机路径，不入库；技能本体在 skills/ 下
 /.dsh/
+
+# --- 单比特自动标定：整包出库到本机历史归档（2026-11-27）---
+# 流程脚本与现场数据只留在本机 _local/legacy/；口径已下沉到服务端
+# server/services/analysis_service/calibration_metrics.py，门限真源是
+# server/config/lab_criteria.json 的 calibration_gates 段。
+/tools/single_qubit_auto_calibration/
+/experiments/自动化单比特标定/
