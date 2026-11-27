@@ -18,7 +18,7 @@
 | `qwf_scripts/` | QWF DSL 脚本与工作流 | 被测试与文档直接引用，**留在根目录**（见下） |
 | `qwf_scripts/examples/` | QWF DSL 示例 | |
 | `vendor/` | 上游仓 **submodule**（只存指针） | `vendor/OpenQWF` 等，见 `docs/OPENQWF_SYNC.md` |
-| `memory/` | 静态说明文件（`MEMORY.md`） | 运行期记忆在 `server/config/memory/`，**不入库** |
+| `memory/` | 静态说明文件（`MEMORY.md`，随仓分发） | 运行期记忆在 `server/config/memory/`，**不入库** |
 | `qwf_gen.py` / `qwf_run.py` / `qwf_lint.py` | QWF DSL CLI | 薄壳，委派上游 `vendor/OpenQWF/tools/`，见 `tools/README.md` |
 | `reg_snapshot.py` | 寄存器快照脚本 | 被自检硬引用，**留在根目录**（见下） |
 | `AGENTS.md` | 开发约定（本仓唯一约定文件） | 进展记录写 `.Codex/progress.md`（不入库） |
@@ -40,17 +40,21 @@
   由 `checks/_gen_device_profile.py` 在本机生成）
 - `.Codex/`（开发进展与临时脚本）
 - `cache/`、`logs/`、`__pycache__/`、`.pytest_cache/`、`.tmp_state_pptx/` 等构建与运行产物
-- 运行时状态：`state.db`（+ `-shm` / `-wal`）、`sessions/`、`memories/`、`memory/`、`models/`、
+- 运行时状态：`state.db`（+ `-shm` / `-wal`）、`sessions/`、`memories/`、`models/`、
   `images/`、`hooks/`、`cron/`、`pairing/`、`audio_cache/`、`image_cache/`、`.memsearch/`、
   `.dsh-orders/`、`SOUL.md`、`auth.lock`（Hermes 的 `HERMES_HOME` = 仓库根，这些留在仓根，
   不要搬进 `_local/`）
+
+> 说明：仓根的 `memory/` 里只有静态说明文件 `MEMORY.md`（随仓分发）；
+> 运行期的对话记忆在 `server/config/memory/`（不入库，见 AGENTS.md「记忆数据」）。
 
 ## 新增文件放哪里
 
 - **自检脚本** → `checks/`；同时登记进 `checks/run_all_checks.py` 的 `OFFLINE`/`ONLINE`
   清单，并在 `docs/OPERATIONS.md` §4 表格补一行（否则 `_docs_paths_check` 报 FAIL）。
 - **测试** → `server/tests/`（pytest）。
-- **实验/标定脚本与产物** → `experiments/`。
+- **实验/标定脚本与产物** → 脚本走 `qwf_scripts/`（QWF）或 `tools/`（HTTP 客户端薄壳），
+  产物落 `experiments/`（本机为主，不入库）。
 - **运维工具** → `tools/`（`tools/` 下每个子目录一个工具）。
 - **文档** → `docs/`；只有经用户确认的约定才写进 `AGENTS.md`。
 - **一次性排查脚本**：确认没价值就删，不要长期堆在根目录或 `checks/`。

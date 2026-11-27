@@ -968,9 +968,9 @@ curl -s -X POST http://127.0.0.1:3004/health/report `
 | `_p1_goal_dsl_check.py` | goal 块 + 全目录 `.qwf` lint 回归 | FAIL 0 |
 | `_p1_manifest_check.py` | 写清单哈希一致性 | FAIL 0 |
 | `_qwf_gen_goal_check.py` | `qwf_gen.py` 的 goal 块生成：native / expanded 两种写法往返一致、lowering 出同样三件套 | 24 OK / 0 FAIL |
-| `_p2_ask_choice_check.py` | ask/choice 契约 | PASS=58 FAIL=0 |
+| `_p2_ask_choice_check.py` | ask/choice 契约 | PASS=43 FAIL=0 |
 | `_p2_flow_check.py` | 流程分支 | PASS=14 FAIL=0 |
-| `_p2_llm_check.py` | decide 契约 | PASS=19 FAIL=0 |
+| `_p2_llm_check.py` | decide 契约 | PASS=18 FAIL=0 |
 | `_p2_outcome_check.py` | outcome 契约 | PASS=13 FAIL=0 |
 | `_p3_check.py` | 账本/授权/额度/退款/落档（离线） | PASS=60 FAIL=0 |
 | `_p3_e2e.py` | 同上（HTTP，默认打正式 :3008/:3009） | PASS=36 FAIL=0 |
@@ -979,7 +979,7 @@ curl -s -X POST http://127.0.0.1:3004/health/report `
 | `_autorevert_exec_check.py` | 自愈接入执行器 | PASS=7 FAIL=0 |
 | `_registry_ep_check.py` | `:3003 /qubit/registry` 端点 + reg_snapshot 走 HTTP | PASS=14 FAIL=0（服务已重启时 WARN=0） |
 | `_apply_dataset_ep_check.py` | `:3003 /qubit/apply_dataset` 端点（数据集参数快照写回） | 静态 PASS=5；HTTP 段需服务重启后才有意义 |
-| `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=23 FAIL=0 |
+| `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=15 FAIL=0 |
 | `_contrast_ep_check.py` | `:3003 /qubit/contrast` 端点（只读对比度分析，处理器级 + 桩，**不连真机**）：路由/handler 存在、口径来自上游门面（不许本地复刻算法）、走 busy 串行通道、参数校验（缺 name / 非法 name / 非法 dataset_id / 非法 threshold） | PASS=15 FAIL=0 |
 | `_analysis_health_ep_check.py` | `:3004 /health/report` 端点（单比特体检，处理器级 + 桩，**不连真机**）：路由/handler 存在、离线只读（不要求 LabRAD 连接）、参数校验（缺 vault_dir / 目录不存在 / start 非整数）、体检实现已下沉服务端（tools 只剩 HTTP 薄壳）、前端代理与文档已登记 | PASS=24 FAIL=0 |
 | `_repo_boundary_check.py` | 仓库边界（公共目录不许漏出真机后端细节）：厂商库 import、真机标识（比特/会话编号、机房代号、真机环境目录）；可执行文件里禁厂商调用片段（`sq.<fn>(`）、禁把厂商调用当命令写（`qter.fitData`/`QubitUpdater`/`labrad_connect`）、禁自开厂商数据文件（`h5py`）；文档字符串/引号样例、政策句、三份边界文档豁免 | PASS=101 FAIL=0 |
@@ -988,8 +988,8 @@ curl -s -X POST http://127.0.0.1:3004/health/report `
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
 | `_skills_boundary_check.py` | 阶段 3（服务边界）：`skills/**/{SKILL,README}.md` 里不许出现厂商库 import、`qter.fitData` 这类调用、数据格式（hdf5/.pyd）、本机绝对路径、直连设备客户端；政策句（「由服务处理」「不要直连」）豁免 | PASS=20 FAIL=0 |
 | `_skills_endpoints_check.py` | 阶段 3（服务边界）：`skills/qmclaw-service-endpoints/SKILL.md` 必须与路由表一致（`gen_service_endpoints.py --check` 的 CI 包装，防手改/过期） | PASS=1 FAIL=0 |
-| `_repo_hygiene_check.py` | 仓库卫生：tracked 里没有临时/备份/日志/字节码产物、没有 >1 MiB 大文件、`docs/` 下没有私设计/计划/进度类文档、关键目录都有 README、仓库根 `.py` 只留白名单、`.gitignore` 关键规则齐全、tracked 文件里没有个人机器绝对路径 | PASS=7 FAIL=0 |
-| `_syntax_check.py` | 全仓 Python 语法（`ast.parse` 全仓 `.py`，跳过 `vendor/`、`_local/` 与构建目录）—— 抓"从来没能 import"的角落文件 | 动态（当前 314）FAIL=0 |
+| `_repo_hygiene_check.py` | 仓库卫生：tracked 里没有临时/备份/日志/字节码产物、没有 >1 MiB 大文件、`docs/` 下没有私设计/计划/进度类文档、关键目录都有 README、仓库根 `.py` 只留白名单、`.gitignore` 关键规则齐全、tracked 文件里没有个人机器绝对路径、真机标识不出现在公共目录 | PASS=11 FAIL=0 |
+| `_syntax_check.py` | 全仓 Python 语法（`ast.parse` 全仓 `.py`，跳过 `vendor/`、`_local/` 与构建目录）—— 抓"从来没能 import"的角落文件 | 动态（当前 285）FAIL=0 |
 
 运行方式（**必须带环境变量**，否则中文输出会炸）：
 

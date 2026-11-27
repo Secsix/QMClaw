@@ -207,7 +207,7 @@ GitHub 上只保留**精简版**：可复用的代码、对外可用/运维类�
 | `_local/startup/` | 本机启动/部署脚本（`start-qmclaw.*`、`deploy-local.*`、`启动命令.txt`） | 否 |
 
 **留在仓库根、不许移动**的运行时目录：`state.db`（+ `-shm`/`-wal`）、
-`sessions/`、`memories/`、`memory/`、`models/`、`logs/`、`images/`、`hooks/`、`cron/`、
+`sessions/`、`memories/`、`models/`、`logs/`、`images/`、`hooks/`、`cron/`、
 `config/`、`pairing/`、`audio_cache/`、`image_cache/`、`cache/`、`.memsearch/`、`.dsh-orders/`、
 `__pycache__/`、`.pytest_cache/`、`.tmp_state_pptx/`、`SOUL.md`、`auth.lock`
 （Hermes 的 `HERMES_HOME` = 仓库根，移走会坏 agent）。

@@ -29,6 +29,12 @@
 | 指标 → 状态机证据的换算口径 | `POST /api/analysis/metrics/convert`、`GET /api/analysis/metrics/schema` | 技能、脚本 |
 | 离线数据集列举 / 复现出图 | `GET /api/analysis/replay/datasets`、`POST /api/analysis/replay/plot` | 离线复现技能 |
 | 采集作业与台账 | `POST /api/quantum/execute`（排障入口）、`GET /api/quantum/qubit/runs` | 运维 |
+| 读某个比特的寄存器快照（只读） | `POST /api/quantum/qubit/registry` | 工具、运维 |
+| 读一次对比度（IQraw 判据，只读） | `POST /api/quantum/qubit/contrast` | 工具、标定脚本 |
+| 写回比特参数（受写闸门约束） | `POST /api/quantum/qubit/set_params` | 工具（如 S21 读数写回） |
+| 单比特体检（离线 HDF5 → CSV/MD） | `POST /api/analysis/health/report` | 运维、体检脚本 |
+| 标定口径（IQ / Rabi / S21 / Ramsey 指标与下一步策略） | `server/services/analysis_service/calibration_metrics.py`（纯计算模块，不连设备） | 服务、脚本 |
+| 门限真源（判据阈值一律由人改） | `server/config/lab_criteria.json` | 人改 |
 
 端点清单有自动生成的一份：`skills/qmclaw-service-endpoints/SKILL.md`（`python server/tools/gen_service_endpoints.py`），
 所以技能里**不手抄端点表**，只说明「什么时候调哪一条」。
@@ -58,7 +64,8 @@
 ```bash
 python checks/_skills_boundary_check.py      # 技能边界（禁词 + 政策句白名单）
 python checks/_skills_endpoints_check.py     # 端点技能是否与代码同步
-python checks/run_all_checks.py              # 全仓 20 套
+python checks/_repo_boundary_check.py        # 公共目录边界（禁厂商库调用、真机标识）
+python checks/run_all_checks.py              # 全仓 23 套
 ```
 
 前两个已接进 `checks/run_all_checks.py` 与 CI（`.github/workflows/checks.yml`）。
@@ -72,6 +79,7 @@ python checks/run_all_checks.py              # 全仓 20 套
 | 一个新的拟合口径 | `server/services/analysis_service/fitting.py`（`FITTERS`） |
 | 一个新的证据键 / 换算 | `server/services/common/metric_convert.py` |
 | 一个新的状态或边 | `server/config/state_machine.json`（结构）；阈值进 `server/config/lab_criteria.json` |
+| 一个新的标定判据口径 | `server/services/analysis_service/calibration_metrics.py`（指标与策略）；阈值进 `server/config/lab_criteria.json` |
 | 一个新的判断经验 | 对应技能（只写判断与门限） |
 
 ## 6. 红线
@@ -80,3 +88,4 @@ python checks/run_all_checks.py              # 全仓 20 套
 - 端点表不手写（自动生成，CI 校验同步）
 - 拟合口径只有一份（`fitting.py`），技能与脚本都调服务
 - 离线复现的结论不能当作现场实测（技能里必须标 `[离线复现]`）
+- 公共目录（`checks/` `docs/` `experiments/` `memory/` `qwf_scripts/` `tools/`）里不出现厂商库调用、真机比特标识与本机绝对路径（`checks/_repo_boundary_check.py` 与 `checks/_repo_hygiene_check.py` 会拦）
