@@ -38,7 +38,7 @@ author: qmclaw
 | 服务 | 端口 | 网关前缀 | 端点数量 |
 | --- | --- | --- | --- |
 | agent | 3005 | `/api/agent` | 7 |
-| analysis | 3004 | `/api/analysis` | 26 |
+| analysis | 3004 | `/api/analysis` | 27 |
 | hermes | 3012 | `/api/hermes` | 11 |
 | image | 3007 | `/api/image` | 6 |
 | llm | 3006 | `/api/llm` | 3 |
@@ -85,6 +85,7 @@ author: qmclaw
 - `/fit/kinds`
 - `/metrics/convert`
 - `/metrics/schema`
+- `/health/report`
 - `/replay/datasets`
 - `/replay/plot`
 - `/variants/types`

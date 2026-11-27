@@ -45,6 +45,27 @@ def _log(msg: str):
     _safe_print(f"[analysis_service] {msg}")
 
 
+def _json_safe(obj: Any) -> Any:
+    """把 numpy 类型递归转成可 JSON 序列化的原生类型。
+
+    体检结果里混着 np.float64 / np.bool_，直接 json.dumps 会 500；
+    防御性地转一层，别让错误信息本身也变成错误。
+    """
+    try:
+        import numpy as _np
+    except ImportError:
+        return obj
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, _np.ndarray):
+        return obj.ravel().tolist()
+    if isinstance(obj, _np.generic):
+        return obj.item()
+    return obj
+
+
 # 图表保存目录 - web 在 server 同级目录下
 _qmclaw_server_dir = Path(__file__).parent.parent.parent  # .../server
 PLOTS_DIR = _qmclaw_server_dir.parent / "web" / "public" / "plots"
@@ -462,6 +483,8 @@ class AnalysisService(BaseService):
             return self._handle_metrics_convert(data)
         elif path == "/metrics/schema":
             return {"success": True, **describe_conversion()}
+        elif path == "/health/report":
+            return self._handle_health_report(data)
         elif path == "/replay/datasets":
             return self._handle_datasets_offline(query)
         elif path == "/replay/plot":
@@ -684,6 +707,52 @@ class AnalysisService(BaseService):
             "engines": {"scipy": True, "lqcs": _lqcs_available()},
             "r2_warn_threshold": fitting.R2_WARN_THRESHOLD,
             "note": "kind 只是物理口径；具体实验支持哪些 kind 见 quantum_service 的 GET /experiments/catalog",
+        }
+
+    def _handle_health_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """DataVault 单比特体检：离线读 HDF5，按比特汇总性质并判活。
+
+        body: {vault_dir, start?, end?}
+        返回: {success, count, alive, vault, start, end, rows, csv, markdown}
+
+        这是**只读离线**计算：不连 LabRAD、不下发任何代码，因此不受写闸门约束
+        （与 quantum_service 的只读端点同一口径）。
+        """
+        vault = str(data.get("vault_dir") or data.get("vault") or "").strip()
+        if not vault:
+            return error_envelope("validation_error", "vault_dir 必填（DataVault 会话目录）")
+        vault_path = Path(vault)
+        if not vault_path.exists():
+            return error_envelope("validation_error", f"目录不存在: {vault}")
+        try:
+            start = int(data["start"]) if data.get("start") is not None else None
+            end = int(data["end"]) if data.get("end") is not None else None
+        except (TypeError, ValueError):
+            return error_envelope("validation_error", "start/end 必须是整数")
+        try:
+            from .health_report import analyze, build_csv, build_markdown
+        except Exception as exc:  # noqa: BLE001
+            return error_envelope(
+                "backend_unavailable",
+                f"体检模块不可用（缺 h5py/scipy？）: {type(exc).__name__}: {exc}",
+            )
+        try:
+            rows = analyze(str(vault_path), start, end)
+        except Exception as exc:  # noqa: BLE001
+            return error_envelope(
+                "internal_error", f"体检失败: {type(exc).__name__}: {exc}"
+            )
+        alive = [r for r in rows if r.get("alive")]
+        return {
+            "success": True,
+            "count": len(rows),
+            "alive": len(alive),
+            "vault": str(vault_path),
+            "start": start,
+            "end": end,
+            "rows": _json_safe(rows),
+            "csv": build_csv(rows),
+            "markdown": build_markdown(rows, str(vault_path), start, end),
         }
 
     def _handle_metrics_convert(self, data: Dict[str, Any]) -> Dict[str, Any]:

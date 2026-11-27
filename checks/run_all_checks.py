@@ -54,6 +54,7 @@ OFFLINE = [
     "_autorevert_check.py",
     "_autorevert_exec_check.py",
     "_contrast_ep_check.py",
+    "_analysis_health_ep_check.py",
     "_d2_registry_offline_check.py",
     "_service_groups_check.py",
     "_web_proxy_check.py",

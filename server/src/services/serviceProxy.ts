@@ -513,6 +513,12 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  /** 只读：单比特体检（离线读 DataVault 实测数据）。口径在 analysis_service 内部。 */
+  proxy.post('/analysis/health/report', async (req, res) => {
+    const result = await proxyToService('analysis', '/health/report', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   // ── 离线数据绘图 (新版 - 支持 qter.fitData 风格) ───────────────────────────
 
   proxy.post('/analysis/plot/offline/v2', async (req, res) => {

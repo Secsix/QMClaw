@@ -1,20 +1,34 @@
-"""qubit_health_report 自检：验证解码与指标函数的行为。
+"""DataVault 离线读取与指标计算的单测（体检模块下沉到分析服务后随迁）。
 
-    python test_health_report.py
+    python -m pytest server/tests/test_vault_metrics.py -q
+
+守住两件事：
+1. LabRAD tagged data 解码（float64 大端 + 偏移 11 字节）不能错；
+2. IQraw / Rabi / Ramsey 的指标口径不能漂（判活靠它们）。
 """
 from __future__ import annotations
 
 import base64
+import pathlib
 import struct
 import sys
 import unittest
 
 import numpy as np
 
-sys.path.insert(0, __file__.rsplit("\\", 1)[0].rsplit("/", 1)[0])
+SERVER_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
 
-from dvread import decode_labrad_value, parse_name  # noqa: E402
-from metrics import iqraw_metrics, rabi_fit, ramsey_fit  # noqa: E402
+from services.analysis_service.datavault import (  # noqa: E402
+    decode_labrad_value,
+    parse_name,
+)
+from services.analysis_service.vault_metrics import (  # noqa: E402
+    iqraw_metrics,
+    rabi_fit,
+    ramsey_fit,
+)
 
 
 def _float_param(v: float) -> str:
@@ -32,6 +46,7 @@ class TestDecode(unittest.TestCase):
 
     def test_parse_name(self):
         from pathlib import Path
+
         idx, qubit, exp = parse_name(Path("03649 - q21_5%c IQraw.hdf5"))
         self.assertEqual((idx, qubit, exp), (3649, "q21_5", "IQraw"))
 
@@ -62,7 +77,7 @@ class TestIQLraw(unittest.TestCase):
 class TestRabi(unittest.TestCase):
     def test_real_oscillation(self):
         amp = np.arange(0, 3.01, 0.2)
-        p1 = 0.5 - 0.45 * np.cos(2 * np.pi * amp / 2.0)   # 周期 2.0，峰在 amp=1.0
+        p1 = 0.5 - 0.45 * np.cos(2 * np.pi * amp / 2.0)  # 周期 2.0，峰在 amp=1.0
         m = rabi_fit({"piAmp": amp, "P1": p1})
         self.assertTrue(m["ok"])
         self.assertGreater(m["swing"], 0.3)

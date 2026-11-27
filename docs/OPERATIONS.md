@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 3002 | Express (server) | `/sessions/plot` 等 | **不透传 `dataset_index`**，只能画"最新"数据集；要画指定数据集直连 3004 |
 | 3003 | quantum_service | `/execute` `/health` `/qubit/params` `/qubit/registry` `/qubit/set_params` `/qubit/apply_dataset` `/qubit/contrast` `/qubit/capabilities` `/qubit/probe_transition` `/qubit/runs` `/qubit/assess` `/qubit/writer` `/qubit/profile` `/qubit/replay` | 真机执行；实验**必须** `do_plot=False` |
-| 3004 | analysis_service | `/connect` `/plot` `/plot/online/v2` | 绘图与拟合都归它 |
+| 3004 | analysis_service | `/connect` `/plot` `/plot/online/v2` `/health/report` | 绘图与拟合都归它；单比特体检（离线读 DataVault 实测数据）也在它 |
 | 3008 | workflow_service | `/workflows/parse_qwf` `/workflows/validate` `/workflows/lint` `/workflows/manifest` | DSL 执行主体 |
 | 3009 | task_queue | `/task*`（额度、清单、票据、审计报表） | P3 治理层 |
 
@@ -930,6 +930,34 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
   摊平字段与后端契约对齐 / Express 两条代理（含 `encodeURIComponent`） / 页面进度提示 /
   防回退扫描（不再声称同步） / 桩作业序列终止条件 / 文档在位。
 
+### 3.23 单比特体检：离线读实测数据（`/health/report`）
+
+**这是只读离线端点**：直接读 DataVault 里实测 HDF5 数据集，按比特聚合出「判活结论 / 活比特参数明细 /
+单比特性质汇总 / 可写入的寄存器参数」，返回 CSV 与 Markdown 两种形态。
+
+- **不连 LabRAD**，因此不受写闸门约束，也没有 busy 串行问题；
+- **指标口径在 `analysis_service` 内部**（`services/analysis_service/health_report.py` +
+  `datavault.py` + `vault_metrics.py`），工具层只留 HTTP 客户端薄壳。
+
+```powershell
+# 体检最近 200 个数据集
+curl -s -X POST http://127.0.0.1:3004/health/report `
+     -H "Content-Type: application/json" `
+     -d '{"vault_dir":"D:/DataVault","start":0,"end":200}'
+```
+
+请求体：`vault_dir`（DataVault 目录，必填）、`start` / `end`（数据集编号区间，可省）。
+
+返回：`count`（比特数）/ `alive`（判活数）/ `rows`（逐比特明细）/ `csv` / `markdown`。
+
+说明：
+
+- **为什么不用 `:3003/datasets`**：那个端点给的是离线模拟数据集索引，不含实测 HDF5 的列与参数；
+  体检要的是实测数据，所以实现放在能读 DataVault 的分析服务里。
+- **为什么工具层不能自己算**：LabRAD tagged data 的解码、`Param.*` / `regs.*` 命名与指标口径
+  属于服务内部知识，复制到工具层会出现两份口径漂移（见 `docs/SERVICE_BOUNDARY.md`）。
+- 工具侧用法：`python tools/qubit_health_report/health_report.py --vault <目录> -o out/`。
+
 ---
 
 ## 4. 自检脚本清单（都在 `checks/`）
@@ -953,6 +981,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 | `_apply_dataset_ep_check.py` | `:3003 /qubit/apply_dataset` 端点（数据集参数快照写回） | 静态 PASS=5；HTTP 段需服务重启后才有意义 |
 | `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=23 FAIL=0 |
 | `_contrast_ep_check.py` | `:3003 /qubit/contrast` 端点（只读对比度分析，处理器级 + 桩，**不连真机**）：路由/handler 存在、口径来自上游门面（不许本地复刻算法）、走 busy 串行通道、参数校验（缺 name / 非法 name / 非法 dataset_id / 非法 threshold） | PASS=15 FAIL=0 |
+| `_analysis_health_ep_check.py` | `:3004 /health/report` 端点（单比特体检，处理器级 + 桩，**不连真机**）：路由/handler 存在、离线只读（不要求 LabRAD 连接）、参数校验（缺 vault_dir / 目录不存在 / start 非整数）、体检实现已下沉服务端（tools 只剩 HTTP 薄壳）、前端代理与文档已登记 | PASS=24 FAIL=0 |
 | `_service_groups_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
 | `_web_proxy_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
@@ -971,7 +1000,7 @@ python checks\_p3_check.py
 ### 一次跑完并落盘（推荐）
 
 ```powershell
-python checks\run_all_checks.py          # 21 套离线自检
+python checks\run_all_checks.py          # 22 套离线自检
 python checks\run_all_checks.py --e2e   # 再加 3 套在线自检（需服务在跑）
 python checks\run_all_checks.py --only _p3_check
 ```
