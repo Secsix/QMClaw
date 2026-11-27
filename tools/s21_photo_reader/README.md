@@ -38,38 +38,36 @@ Windows 控制台中文乱码时先执行 `chcp 65001`，或直接看生成的 `
 
 ---
 
-## 2. 写回 LabRAD（regs.fread 赋值）
+## 2. 写回比特频率参数（fread）
 
-照片读数要落到 LabRAD 里的比特对象上（`q21_5.regs.fread = 6.556`）。比特对象只存在于
-LabRAD 进程内，所以赋值必须**在 LabRAD 里执行**；工具负责把读数备好。
+照片读数要落到比特的 `fread` 参数上（如 `q21_5.fread = 6.556`）。**写入统一走量子服务**
+（`quantum_service`，默认 `http://127.0.0.1:3003`）的 `POST /qubit/set_params`：
+写闸门、串行锁、审计链都在服务端，工具不再直连 LabRAD、不碰厂商对象。
 
-### 2.1 自动生成"粘贴即用"的赋值脚本
+### 2.1 识别后自动产出"写参请求清单"
 
-跑完照片识别后，工具会同时产出 `<名字>_labrad_assign.py`，内容形如：
+跑完照片识别后，工具会同时产出 `<名字>_set_params.json`，内容形如：
 
-```python
-_fread_updates = {
-    'q15_11': 6.2835,   # 单位 GHz
-    'q21_5': 6.556,   # 单位 GHz
-    ...
-}
-# 逐条写入 + 回读校验 + 失败单列
+```json
+[
+  {"name": "q15_11", "params": {"fread": 6.2835}},
+  {"name": "q21_5", "params": {"fread": 6.556}}
+]
 ```
 
-在 LabRAD 笔记里**粘贴并执行**即可（`globals()[_q]` 就是 LabRAD 里的比特设备）。
+这是 `/qubit/set_params` 的请求体清单：人工核对用，或交给服务批量执行。
 
-### 2.2 从 CSV 批量赋值（读数更新后不必重新生成脚本）
+### 2.2 从 CSV 批量写参
 
-在 LabRAD 里执行：
+命令行（量子服务在跑的前提下）：
 
-```python
-exec(open(r"<仓库根>\tools\s21_photo_reader\labrad_assign_fread.py").read())
+```powershell
+python tools\s21_photo_reader\assign_fread.py "s21_image\读取线6上的待测比特.csv"
+python tools\s21_photo_reader\assign_fread.py --base-url http://127.0.0.1:3003 --dry-run
 ```
 
-脚本会读仓库根下 `s21_image/` 里最新的结果 CSV（可用环境变量 `S21PR_RESULT_CSV` 指定），
-然后逐条写入 `regs.fread` 并回读校验。
-
-也可以在 LabRAD 笔记里直接调用核心函数：
+省略 CSV 路径时自动取仓库根 `s21_image/` 里最新的结果 CSV。
+也可以在自己的脚本里调用核心函数：
 
 ```python
 import sys
@@ -77,16 +75,16 @@ sys.path.insert(0, r"<仓库根>\tools\s21_photo_reader")
 from s21pr.assign import parse_assignments, apply_fread, format_report
 
 rows = parse_assignments(r"<仓库根>\s21_image\读取线6上的待测比特.csv")
-print(format_report(apply_fread(rows)))
+print(format_report(apply_fread(rows, base_url="http://127.0.0.1:3003")))
 ```
 
 ### 2.3 行为约定
 
-- **只写 `regs.fread`**，不动 `f10` / `bias_z` / `fc` 等其它寄存器；
+- **只写 `fread`**，不动 `f10` / `bias_z` / `fc` 等其它参数；
 - 每条写完**立即回读**校验（容差 1e-6），不一致的单列进"失败"清单；
-- 单条失败**不中断**其它比特（LabRAD 里一个设备不在命名空间很常见）；
-- 命名空间里找不到的比特会明确报"找不到比特对象 qXX_X"，而不是静默跳过；
-- 支持 `dry_run=True` 只打印计划不写硬件；
+- 单条失败**不中断**其它比特；
+- 服务端找不到的比特会明确报"写入失败: ..."，而不是静默跳过；
+- 支持 `dry_run=True` 只打印计划，不写硬件；
 - 也支持直接解析粘贴的文本：`q21_5.regs.fread = 6.556` / `q21_5 6.556` / `q21_5,6.556`。
 
 ---
@@ -122,7 +120,7 @@ print(format_report(apply_fread(rows)))
 tools/s21_photo_reader/
 ├── README.md
 ├── run.ps1                 # 一键运行（自动找 Python、设 UTF-8）
-├── labrad_assign_fread.py  # 在 LabRAD 里执行：CSV → regs.fread
+├── assign_fread.py       # 命令行：CSV → 服务 /qubit/set_params
 ├── s21pr/
 │   ├── ocr.py              # OCR 封装
 │   ├── plot.py             # 图框/坐标轴标定/文本分类
@@ -130,13 +128,13 @@ tools/s21_photo_reader/
 │   ├── recovery.py         # 局部放大二次识别（救回漏识别的比特标签）
 │   ├── pairing.py          # 比特 ↔ 波谷 单调 DP 配对
 │   ├── pipeline.py         # 端到端流程
-│   ├── assign.py           # 读数 → LabRAD regs.fread（纯标准库）
+│   ├── assign.py           # 读数 → 服务写参请求（纯标准库，只用 urllib）
 │   ├── report.py           # CSV / MD / 标注图输出
 │   └── cli.py              # 命令行入口
 └── tests/
     ├── make_synthetic.py   # 生成合成图（风格与真实截图不同）
     ├── test_tool.py        # 回归测试：合成图 → 真值比对
-    └── test_assign.py      # 回归测试：读数 → fread 赋值（mock 设备）
+    └── test_assign.py      # 回归测试：读数 → fread 写参（mock 服务）
 ```
 
 ---
@@ -150,7 +148,7 @@ tools/s21_photo_reader/
 > 没有独立虚拟环境时，可用 DSH 自带运行时里的 Python（路径随 DSH 安装位置变化，用 `where python` 或 DSH 的依赖面板确认）。
 > AGENTS.md 约定 10 里写的实验室机解释器路径（3.11）在本机不存在；
 > 若改用它，需要把 onnxruntime/rapidocr 换成 cp311 轮子。
-> **赋值部分（`s21pr/assign.py`）是纯标准库**，任何 Python 3 都能跑，也能在 LabRAD 内嵌 Python 里跑。
+> **写参部分（`s21pr/assign.py`）是纯标准库**，任何 Python 3 都能跑（只用 urllib 发 HTTP 请求）。
 
 换机器重装（本机 pip 无法写 `.whl` 时用下载 + 解压的方式）：
 
@@ -166,19 +164,20 @@ $py = "python"
 ```powershell
 cd tools\s21_photo_reader\tests
 python test_tool.py      # 合成图 → 真值比对
-python test_assign.py   # 读数 → regs.fread 赋值（mock 设备）
+python test_assign.py   # 读数 → fread 写参（mock 服务）
 ```
 
 会生成一张**合成**的 S21 图（不同频率范围、不同比特名、不同排布），
 跑一遍工具并与真值比对。当前状态：**PASS**（5/5 比特名与波谷值全部还原）。
-赋值测试用 mock 比特对象代替真设备，覆盖 dry-run、真写入、缺失比特、文本格式、生成脚本五个场景。
+写参测试用假量子服务（mock `/qubit/params` 与 `/qubit/set_params`）代替真设备，覆盖 dry-run、真写入、缺失比特、文本格式、写参清单五个场景。
 
 ---
 
 ## 7. 已知边界
 
-- **写入 `regs.fread` 是真机写操作**：本工具只负责生成脚本/读数，实际写入由人在 LabRAD 里执行，
-  不经过 QMC 服务端的写闸门（`fallback_config.json` 的 `actuation`）。
+- **写入 `fread` 是真机写操作**：必须由人确认读数后再执行，并且受 QMC 服务端写闸门约束
+  （`fallback_config.json` 的 `actuation.allow_set_params`，默认关闭；闸门未开时服务端会明确拒绝）。
+- **量子服务必须在跑**：`assign_fread.py` 只发 HTTP 请求，服务没起来时逐条报「写入失败: … 连不上 …」。
 - 图中若**没有**波谷数值标注、也没有图底列表，工具仍能给出比特列表，
   但波谷频率需靠几何反算，精度取决于 X 轴标定。
 - 波谷幅值是从**栅格截图**读出来的（±5~10%），不能替代原始数据；

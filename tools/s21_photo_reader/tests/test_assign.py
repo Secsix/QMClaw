@@ -1,9 +1,8 @@
-"""LabRAD fread 赋值逻辑的回归测试（用 mock 比特对象代替真设备）。
+"""写参逻辑的回归测试（用假量子服务代替真设备与真 HTTP）。
 
 用法: python tests/test_assign.py
 """
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -12,30 +11,43 @@ sys.path.insert(0, str(ROOT))
 from s21pr import assign            # noqa: E402
 
 
-class FakeRegs:
-    """模拟 LabRAD 的寄存器容器：setattr 立即生效，可读回。"""
+class FakeService:
+    """假量子服务：只实现 /qubit/params 与 /qubit/set_params 两个端点。"""
 
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
+    def __init__(self, initial):
+        self.params = {q: {"fread": v} for q, v in initial.items()}
+        self.calls = []
+
+    def __call__(self, base_url, path, payload, timeout=30.0):
+        self.calls.append((path, payload))
+        if path == "/qubit/params":
+            name = payload["name"]
+            if name not in self.params:
+                return {"error": f"Qubit {name} not found"}
+            return {"name": name, "params": dict(self.params[name])}
+        if path == "/qubit/set_params":
+            name = payload["name"]
+            if name not in self.params:
+                return {"error": f"Qubit {name} not found"}
+            self.params[name].update(payload["params"])
+            return {"success": True, "name": name, "updated": list(payload["params"])}
+        raise AssertionError(f"未预期的端点: {path}")
+
+    def writes(self):
+        return [c for c in self.calls if c[0] == "/qubit/set_params"]
 
 
-class FakeQubit:
-    def __init__(self, **regs):
-        self.regs = FakeRegs(**regs)
-
-
-def make_namespace():
-    return {
-        "q21_5": FakeQubit(fread=6.40),
-        "q19_7": FakeQubit(fread=6.45),
-        "q17_9": FakeQubit(fread=6.39),
-        "q15_11": FakeQubit(fread=6.28),
-        "q13_13": FakeQubit(fread=6.35),
-        "q11_15": FakeQubit(fread=6.44),
-        "q9_17": FakeQubit(fread=6.50),
-        "q7_19": FakeQubit(fread=6.62),
-        "q5_21": FakeQubit(fread=6.54),
-    }
+INITIAL = {
+    "q21_5": 6.40,
+    "q19_7": 6.45,
+    "q17_9": 6.39,
+    "q15_11": 6.28,
+    "q13_13": 6.35,
+    "q11_15": 6.44,
+    "q9_17": 6.50,
+    "q7_19": 6.62,
+    "q5_21": 6.54,
+}
 
 
 def main():
@@ -56,68 +68,69 @@ def main():
         encoding="utf-8")
 
     ok = True
+    svc = FakeService(INITIAL)
+    orig_post = assign._post
+    assign._post = svc                      # 假服务接管 HTTP 层
 
-    # 1) 解析 CSV
-    rows = assign.parse_assignments(csv_path)
-    print(f"[1] 解析到 {len(rows)} 条: " +
-          ", ".join(f"{r.qubit}={r.value}" for r in rows))
-    if len(rows) != 9:
-        print("[FAIL] 应为 9 条"); ok = False
-    if abs(rows[0].value - 6.556) > 1e-9:
-        print("[FAIL] 首条数值不对"); ok = False
+    try:
+        # 1) 解析 CSV
+        rows = assign.parse_assignments(csv_path)
+        print(f"[1] 解析到 {len(rows)} 条: " +
+              ", ".join(f"{r.qubit}={r.value}" for r in rows))
+        if len(rows) != 9:
+            print("[FAIL] 应为 9 条"); ok = False
+        if abs(rows[0].value - 6.556) > 1e-9:
+            print("[FAIL] 首条数值不对"); ok = False
 
-    # 2) dry-run 不写硬件
-    ns = make_namespace()
-    res = assign.apply_fread(rows, namespace=ns, dry_run=True)
-    if ns["q21_5"].regs.fread != 6.40:
-        print("[FAIL] dry-run 却改了寄存器"); ok = False
-    print(f"[2] dry-run: {sum(1 for r in res if r.ok)}/{len(res)} 预览，寄存器未变 ✓")
+        # 2) dry-run 不写硬件
+        res = assign.apply_fread(rows, dry_run=True)
+        if svc.writes():
+            print("[FAIL] dry-run 却发了写请求"); ok = False
+        if svc.params["q21_5"]["fread"] != 6.40:
+            print("[FAIL] dry-run 却改了参数"); ok = False
+        print(f"[2] dry-run: {sum(1 for r in res if r.ok)}/{len(res)} 预览，未发写请求 OK")
 
-    # 3) 真实写入 + 回读
-    res = assign.apply_fread(rows, namespace=ns)
-    good = sum(1 for r in res if r.ok)
-    print(f"[3] 写入: {good}/{len(res)} 成功")
-    if good != 9:
-        print("[FAIL] 写入未全部成功")
-        print(assign.format_report(res))
-        ok = False
-    if abs(ns["q21_5"].regs.fread - 6.556) > 1e-12:
-        print("[FAIL] q21_5.fread 未更新"); ok = False
-    if abs(ns["q5_21"].regs.fread - 6.5465) > 1e-12:
-        print("[FAIL] q5_21.fread 未更新"); ok = False
+        # 3) 真实写入 + 回读
+        res = assign.apply_fread(rows)
+        good = sum(1 for r in res if r.ok)
+        print(f"[3] 写入: {good}/{len(res)} 成功")
+        if good != 9:
+            print("[FAIL] 写入未全部成功")
+            print(assign.format_report(res))
+            ok = False
+        if abs(svc.params["q21_5"]["fread"] - 6.556) > 1e-12:
+            print("[FAIL] q21_5.fread 未更新"); ok = False
+        if abs(svc.params["q5_21"]["fread"] - 6.5465) > 1e-12:
+            print("[FAIL] q5_21.fread 未更新"); ok = False
 
-    # 4) 不存在的比特要报错但不影响其它
-    rows2 = assign.Assignment(qubit="q99_99", value=6.0), *rows
-    res2 = assign.apply_fread(rows2, namespace=ns)
-    bad = [r for r in res2 if not r.ok]
-    print(f"[4] 缺失比特处理: {len(bad)} 条失败（应为 1），其余 {len(res2)-len(bad)} 条成功")
-    if len(bad) != 1 or "q99_99" not in bad[0].error:
-        print("[FAIL] 缺失比特处理异常"); ok = False
+        # 4) 不存在的比特要报错但不影响其它
+        rows2 = assign.Assignment(qubit="q99_99", value=6.0), *rows
+        res2 = assign.apply_fread(rows2)
+        bad = [r for r in res2 if not r.ok]
+        print(f"[4] 缺失比特处理: {len(bad)} 条失败（应为 1），其余 {len(res2)-len(bad)} 条成功")
+        if len(bad) != 1 or "q99_99" not in bad[0].error:
+            print("[FAIL] 缺失比特处理异常"); ok = False
 
-    # 5) 文本格式（用户粘贴的赋值行）
-    txt = tmp / "paste.txt"
-    txt.write_text("q21_5.regs.fread = 6.556\nq19_7 6.469\nq17_9,6.393\n",
-                   encoding="utf-8")
-    rows3 = assign.parse_assignments(txt)
-    print(f"[5] 文本解析: " + ", ".join(f"{r.qubit}={r.value}" for r in rows3))
-    if len(rows3) != 3:
-        print("[FAIL] 文本解析条数不对"); ok = False
+        # 5) 文本格式（用户粘贴的赋值行）
+        txt = tmp / "paste.txt"
+        txt.write_text("q21_5.regs.fread = 6.556\nq19_7 6.469\nq17_9,6.393\n",
+                       encoding="utf-8")
+        rows3 = assign.parse_assignments(txt)
+        print("[5] 文本解析: " + ", ".join(f"{r.qubit}={r.value}" for r in rows3))
+        if len(rows3) != 3:
+            print("[FAIL] 文本解析条数不对"); ok = False
 
-    # 6) 生成 LabRAD 脚本，并在 mock 设备命名空间里执行
-    script = assign.build_labrad_script(rows, source=str(csv_path))
-    (tmp / "generated_labrad.py").write_text(script, encoding="utf-8")
-    ns2 = dict(make_namespace())
-    ns2["__builtins__"] = __builtins__
-    exec(compile(script, "generated_labrad.py", "exec"), ns2)
-    got = ns2["_fread_updates"]["q21_5"]
-    n_ok = len(ns2.get("_ok", []))
-    print(f"[6] 生成脚本在 mock 设备上执行: 写入成功 {n_ok}/{len(rows)}，q21_5={got}")
-    if abs(got - 6.556) > 1e-12:
-        print("[FAIL] 生成脚本内容不对"); ok = False
-    if n_ok != 9:
-        print("[FAIL] 生成脚本未能全部写入"); ok = False
-    if abs(ns2["q7_19"].regs.fread - 6.6215) > 1e-12:
-        print("[FAIL] 生成脚本未更新 q7_19"); ok = False
+        # 6) 生成服务写参请求清单
+        payloads = assign.build_service_payloads(rows)
+        print(f"[6] 写参请求清单: {len(payloads)} 条，首条 {payloads[0]}")
+        if len(payloads) != 9:
+            print("[FAIL] 请求清单条数不对"); ok = False
+        if payloads[0]["name"] != "q21_5" or abs(payloads[0]["params"]["fread"] - 6.556) > 1e-12:
+            print("[FAIL] 请求清单内容不对"); ok = False
+        if abs(payloads[7]["params"]["fread"] - 6.6215) > 1e-12:
+            print("[FAIL] 请求清单 q7_19 不对"); ok = False
+    finally:
+        assign._post = orig_post
 
     print("\n测试结果:", "PASS" if ok else "FAIL")
     return 0 if ok else 1

@@ -62,7 +62,9 @@ _KIND_PARAMS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "piamp": {"amp_range": {"type": "range", "default": None, "note": "脉幅扫描范围"}},
     "time_rabi": {"amp_range": {"type": "range", "default": None, "note": "脉幅扫描范围"}},
     "rabi": {"amp_range": {"type": "range", "default": None, "note": "脉幅扫描范围"}},
-    "pidf": {"detuning_range": {"type": "range", "default": None, "note": "失谐扫描范围"}},
+    # vendor 的 sq.pidf 只认 df（标量半宽，GHz），给数组/换名字会扫空；
+    # 上游 lint 对 |df| < 0.05 报 W_PIDF_DF_SMALL，所以默认给 0.05。
+    "pidf": {"df": {"type": "float", "default": 0.05, "note": "失谐扫描半宽（GHz），太小会扫空"}},
     "xeb": {"depth": {"type": "int", "default": None, "note": "随机化深度（层数）"}},
     "drag_calibrate": {"drag_range": {"type": "range", "default": None, "note": "DRAG 系数扫描范围"}},
     "cz.dcz": {"coupler": {"type": "str", "default": None, "required": True,

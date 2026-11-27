@@ -1,24 +1,28 @@
-"""Iterative readout-contrast tuning: iqraw -> piamp -> iqraw -> pidf -> iqraw -> piamp.
+"""Readout-contrast tuning loop, driven entirely through the quantum microservice.
 
 Why
 ---
-`q1` currently shows only ~0.22 contrast (P(1|prep X) - P(1|prep I)), which is above
-the 0.2 "good enough to start from" line but far below the lab's 0.4 threshold.  The
-recipe is to alternate:
+A qubit whose readout is barely separable (``P(1|prep X) - P(1|prep I)`` small)
+cannot be tuned blindly: the pi-pulse amplitude, the drive frequency and the
+discriminator all interact.  The recipe is to alternate three semantic
+experiment kinds and re-score the readout after every round:
 
-* `sq.piamp`  - re-optimise the pi-pulse amplitude against the current readout
-* `sq.iqraw`  - re-measure the IQ clouds and let it refresh the discriminator
-* `sq.pidf`   - small frequency-offset scan (df), pick the drive frequency with the
-                largest contrast -> this is what actually re-centres `f10`
+* ``iqraw`` - take IQ clouds and refresh the discriminator
+* ``piamp`` - re-optimise the pi-pulse amplitude against the current readout
+* ``pidf``  - small frequency-offset scan, pick the drive frequency that gives
+  the largest contrast (this is what actually re-centres ``f10``)
 
-Every `iqraw` run is scored here the same way the lab's `qubit_sensing/tools/calibrate.py
-stage_check` does it: project the shots onto the discriminator axis, threshold at the
-mid-point of center0/center1, then report P(1|prep I), P(1|prep X) and their difference.
+This script owns **no** lab knowledge: it never talks to LabRAD, never opens a
+DataVault, and never re-implements the contrast formula.  Everything goes
+through the service HTTP API:
 
-Everything is executed *through the quantum microservice* (`POST :3003/execute`) so the
-service's own LabRAD lock is respected; the datasets are read back over a separate
-LabRAD connection.  `do_plot=False` everywhere - the service runs without a display and
-a GUI backend would wedge it.
+* ``POST :3003/experiments/run`` - run one semantic experiment kind
+* ``POST :3003/qubit/contrast``   - read back the readout contrast (server-side
+  scoring, threshold and verdict come from ``server/config/lab_criteria.json``)
+* ``POST :3003/qubit/registry``   - read the qubit's register tree
+
+The service's own execution lane is used, so its serial lock, watchdog and
+write gate apply as usual (``quantum_service.actuation.allow_execute``).
 
 Usage
 -----
@@ -28,227 +32,165 @@ Usage
 
 Options
 -------
---df      half-width of the `pidf` frequency scan, in GHz (default 0.03 -> +/-30 MHz)
---timeout per-step HTTP timeout in seconds (default 900)
---rounds  how many times to replay the whole 6-step sequence (default 1)
+--base-url  quantum service base URL (default http://127.0.0.1:3003)
+--df        half-width of the ``pidf`` frequency scan, in GHz (default 0.05)
+--timeout   per-step HTTP timeout in seconds (default 900)
+--rounds    how many times to replay the whole step sequence (default 1)
+--dry-run   print the plan and exit without touching the hardware
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
 import sys
-import time
+import urllib.error
 import urllib.request
 
-import numpy as np
+DEFAULT_BASE_URL = "http://127.0.0.1:3003"
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-# 本文件在 <repo>/tools/ 下 => 仓库根 = tools/ 的上一级
-SERVER_DIR = os.path.abspath(os.path.join(HERE, "..", "server"))
-sys.path.insert(0, SERVER_DIR)
+#: 语义步骤：kind → params。vendor 的函数名/参数口径在服务端，这里只说"做什么"。
+STEP_SEQUENCE = ("iqraw", "piamp", "iqraw", "pidf", "iqraw", "piamp")
 
-QUANTUM_URL = "http://127.0.0.1:3003"
-SESSION = ["", "demo", "test", "demo_session"]
+#: 只打印这几个寄存器，不把整棵 registry 倒出来
+REGISTER_KEYS = ("f10", "f21", "PiGate.amp", "PiGate.length")
 
 
 # --------------------------------------------------------------------------- HTTP
-def execute(code: str, timeout: int) -> dict:
-    """POST /execute on the quantum service and return the decoded JSON."""
-    payload = json.dumps({"code": code, "timeout": timeout}).encode()
+def _post(base_url: str, path: str, payload: dict, timeout: int) -> dict:
+    """POST JSON to the quantum service and return the decoded JSON body."""
+    body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        QUANTUM_URL + "/execute", data=payload,
-        headers={"Content-Type": "application/json"}, method="POST",
+        base_url.rstrip("/") + path,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout + 30) as resp:
-        return json.loads(resp.read().decode(errors="replace"))
-
-
-def dataset_from(stdout: str):
-    m = re.search(r"dataset:\s*(\d+)", stdout or "")
-    return int(m.group(1)) if m else None
-
-
-def latest_dataset(cxn, kind: str = "IQraw"):
-    """Highest-numbered dataset whose name contains `kind` (e.g. 'IQraw').
-
-    `sq.iqraw` does not print "dataset: N" (only the tuning experiments such as
-    spectroscopy do), so the number has to be read back from the DataVault listing.
-    """
-    best = None
-    cxn.data_vault.cd(SESSION)            # the raw connection starts at ['', <device-dir>']
-    _dirs, files = cxn.data_vault.dir()   # (subdirectories, dataset files)
-    for entry in files:
-        entry = str(entry)
-        m = re.match(r"(\d+)\s*-\s*(.+)$", entry)
-        if not m:
-            continue
-        num, name = int(m.group(1)), m.group(2)
-        if kind.lower() in name.lower() and (best is None or num > best[0]):
-            best = (num, name)
-    return best
-
-
-# ------------------------------------------------------------------- LabRAD reads
-def _connect():
-    from services.common.config import labrad_connect
-
-    return labrad_connect()
-
-
-def read_regs(cxn, qubit: str) -> dict:
-    r = cxn.registry
-    base = SESSION + [qubit]
-    out = {}
-
-    def _get(path, key):
+    try:
+        with urllib.request.urlopen(req, timeout=timeout + 30) as resp:
+            return json.loads(resp.read().decode(errors="replace"))
+    except urllib.error.HTTPError as exc:  # 服务端返回了错误信封
+        raw = exc.read().decode(errors="replace")
         try:
-            r.cd(path)
-            return r.get(key)
+            return json.loads(raw)
         except Exception:
-            return None
+            return {"error": raw or f"HTTP {exc.code}"}
 
-    out["f10"] = _get(base, "f10")
-    out["f21"] = _get(base, "f21")
-    out["pi_amp"] = _get(base + ["PiGate"], "amp")
-    out["pi_len"] = _get(base + ["PiGate"], "length")
-    c0 = _get(base + ["discriminator"], "center0")
-    c1 = _get(base + ["discriminator"], "center1")
-    if c0 is not None and c1 is not None:
-        out["center0"] = np.asarray(c0, dtype=float)
-        out["center1"] = np.asarray(c1, dtype=float)
+
+# ------------------------------------------------------------------------ helpers
+def _flatten(node, prefix: str = "") -> dict:
+    """Flatten the nested registry tree into ``{"PiGate.amp": 0.4, ...}``."""
+    out = {}
+    if isinstance(node, dict):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if isinstance(value, dict):
+                out.update(_flatten(value, path))
+            else:
+                out[path] = value
     return out
 
 
-def load_shots(cxn, num: int) -> np.ndarray:
-    from lqms.data_process import dataAnalysisCore as dc
-
-    data = dc.DataLab(SESSION, cxn.data_vault, dv_type="data_vault")
-    data.loadDataset(num)
-    return np.asarray(data.data)
-
-
-def score(a: np.ndarray, c0: np.ndarray, c1: np.ndarray) -> dict:
-    """Contrast on the discriminator axis + the raw cloud separation."""
-    br_i = a[:, [1, 2]]   # Is|I, Qs|I  (prepare ground state)
-    br_x = a[:, [3, 4]]   # Is|X, Qs|X  (prepare excited state)
-
-    u = (c1 - c0) / np.linalg.norm(c1 - c0)
-    thr = 0.5 * ((c0 + c1) @ u)
-    p1_i = float(np.mean(br_i @ u > thr))
-    p1_x = float(np.mean(br_x @ u > thr))
-
-    sep = float(np.linalg.norm(br_x.mean(0) - br_i.mean(0)))
-    sig = float(np.sqrt((br_i.std(0) ** 2 + br_x.std(0) ** 2) / 2).mean())
-    return {
-        "p1_i": p1_i,
-        "p1_x": p1_x,
-        "contrast": abs(p1_x - p1_i),
-        "sep": sep,
-        "sigma": sig,
-        "snr": sep / sig if sig else 0.0,
-        "shots": int(len(a)),
-    }
+def read_registers(base_url: str, qubit: str, timeout: int) -> dict:
+    """Read the qubit's register tree through the service (read-only)."""
+    payload = _post(base_url, "/qubit/registry", {"name": qubit}, timeout)
+    if payload.get("error") or not payload.get("success", True):
+        return {"_error": payload.get("error") or "registry 读取失败"}
+    flat = _flatten(payload.get("registry") or {})
+    out = {}
+    for key in REGISTER_KEYS:
+        for candidate in (key, key.split(".")[-1]):
+            if candidate in flat:
+                out[key] = flat[candidate]
+                break
+    return out
 
 
-def measure(cxn, qubit: str, num: int) -> dict:
-    regs = read_regs(cxn, qubit)
-    a = load_shots(cxn, num)
-    if "center0" not in regs:
-        raise RuntimeError("discriminator centers missing from registry")
-    s = score(a, regs["center0"], regs["center1"])
-    s.update({"f10": regs.get("f10"), "pi_amp": regs.get("pi_amp"), "dataset": num})
-    return s
+def run_experiment(base_url: str, kind: str, qubit: str, params: dict, timeout: int) -> dict:
+    """Run one semantic experiment kind through the service."""
+    payload = _post(
+        base_url,
+        "/experiments/run",
+        {
+            "kind": kind,
+            "qubit": qubit,
+            "params": params,
+            "do_plot": False,
+            "timeout": timeout,
+        },
+        timeout,
+    )
+    return payload
+
+
+def read_contrast(base_url: str, qubit: str, timeout: int) -> dict:
+    """Ask the service to score the latest readout dataset."""
+    return _post(base_url, "/qubit/contrast", {"name": qubit, "kind": "IQraw"}, timeout)
+
+
+def _fmt_registers(regs: dict) -> str:
+    if regs.get("_error"):
+        return f"registry 读取失败：{regs['_error']}"
+    if not regs:
+        return "registry 里没找到关心的键"
+    return "  ".join(f"{k}={regs[k]}" for k in REGISTER_KEYS if k in regs)
+
+
+def _fmt_contrast(payload: dict) -> str:
+    if payload.get("error"):
+        return f"contrast 读取失败：{payload.get('error')}"
+    metrics = payload.get("metrics") or {}
+    verdict = payload.get("verdict") or {}
+    v = verdict.get("verdict") if isinstance(verdict, dict) else verdict
+    return (
+        f"contrast={payload.get('contrast')} "
+        f"(p1_i={metrics.get('p1_i')} p1_x={metrics.get('p1_x')} "
+        f"snr={metrics.get('snr')} shots={metrics.get('shots')}) "
+        f"passed={payload.get('passed')} threshold={payload.get('threshold')} "
+        f"verdict={v}"
+    )
+
+
+def steps_for(df: float) -> list[tuple[str, dict]]:
+    """Build the semantic step sequence (kind, params)."""
+    steps = []
+    for kind in STEP_SEQUENCE:
+        params = {"df": df} if kind == "pidf" else {}
+        steps.append((kind, params))
+    return steps
 
 
 # ------------------------------------------------------------------------ driver
-def steps_for(qubit: str, df: float) -> list[tuple[str, str]]:
-    q = qubit
-    return [
-        ("iqraw", f"sq.iqraw({q}, do_plot=False)"),
-        ("piamp", f"sq.piamp({q}, do_plot=False)"),
-        ("iqraw", f"sq.iqraw({q}, do_plot=False)"),
-        ("pidf", f"sq.pidf({q}, df={df}, do_plot=False)"),
-        ("iqraw", f"sq.iqraw({q}, do_plot=False)"),
-        ("piamp", f"sq.piamp({q}, do_plot=False)"),
-    ]
-
-
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--qubit", default="q1")
-    ap.add_argument("--df", type=float, default=0.03, help="pidf half-width, GHz")
-    ap.add_argument("--timeout", type=int, default=900)
-    ap.add_argument("--rounds", type=int, default=1)
-    ap.add_argument("--dry-run", action="store_true")
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--qubit", default="q1", help="要调的比特名")
+    ap.add_argument("--base-url", default=DEFAULT_BASE_URL, help="量子服务地址")
+    ap.add_argument("--df", type=float, default=0.05, help="pidf 扫描半宽，GHz")
+    ap.add_argument("--timeout", type=int, default=900, help="每步 HTTP 超时（秒）")
+    ap.add_argument("--rounds", type=int, default=1, help="整个序列重复几轮")
+    ap.add_argument("--dry-run", action="store_true", help="只打印计划，不连服务")
     args = ap.parse_args()
 
-    steps = steps_for(args.qubit, args.df)
+    steps = steps_for(args.df)
     if args.dry_run:
-        for i, (name, code) in enumerate(steps, 1):
-            print(f"{i}. {name:6s} {code}")
+        for i, (kind, params) in enumerate(steps, 1):
+            print(f"{i}. kind={kind} params={json.dumps(params, ensure_ascii=False)}")
         return 0
 
-    cxn = _connect()
-    history = []
-    try:
-        print(f"== baseline registers ({args.qubit}) ==")
-        regs = read_regs(cxn, args.qubit)
-        print("   f10=%.9f  pi_amp=%.6f  pi_len=%s" % (regs["f10"], regs["pi_amp"], regs.get("pi_len")))
+    print(f"== 寄存器基线（{args.qubit}）==")
+    print("   " + _fmt_registers(read_registers(args.base_url, args.qubit, args.timeout)))
 
-        for rnd in range(1, args.rounds + 1):
-            print(f"\n===== round {rnd}/{args.rounds} =====")
-            for idx, (name, code) in enumerate(steps, 1):
-                t0 = time.time()
-                print(f"[{idx}/{len(steps)}] {name}: {code}", flush=True)
-                try:
-                    resp = execute(code, args.timeout)
-                except Exception as exc:
-                    print(f"    !! request failed: {type(exc).__name__}: {exc}")
-                    return 2
-                dt = time.time() - t0
-                status = resp.get("status")
-                err = (resp.get("error") or "").strip()
-                print(f"    -> {status} in {dt:.1f}s" + (f" | error: {err[:300]}" if err else ""))
-                if status != "success":
-                    tail = (resp.get("stderr") or "")[-600:]
-                    print(f"    stderr tail: {tail}")
-                    return 2
+    for round_index in range(1, max(1, args.rounds) + 1):
+        print(f"\n== 第 {round_index} 轮 ==")
+        for step_index, (kind, params) in enumerate(steps, 1):
+            print(f"-- 步骤 {step_index}/{len(steps)}：{kind}")
+            result = run_experiment(args.base_url, kind, args.qubit, params, args.timeout)
+            if not result.get("success", False):
+                print(f"   实验失败：{result.get('error') or result.get('error_code')}")
+                continue
+            print(f"   {kind} 完成（backend={result.get('backend')}）")
+            print("   " + _fmt_contrast(read_contrast(args.base_url, args.qubit, args.timeout)))
 
-                if name == "iqraw":
-                    found = latest_dataset(cxn, "IQraw")
-                    num = dataset_from(resp.get("stdout", "")) or (found[0] if found else None)
-                    if num is None:
-                        print("    !! could not determine dataset number")
-                        continue
-                    m = measure(cxn, args.qubit, num)
-                    history.append(m)
-                    print(
-                        "    %s  contrast=%.3f  P1(I)=%.3f  P1(X)=%.3f  SNR=%.2f  f10=%.9f  pi_amp=%.6f  ds=%d"
-                        % ((found[1] if found and found[0] == num else ""),
-                           m["contrast"], m["p1_i"], m["p1_x"], m["snr"],
-                           m["f10"], m["pi_amp"], num)
-                    )
-                else:
-                    regs = read_regs(cxn, args.qubit)
-                    print("    now: f10=%.9f  pi_amp=%.6f" % (regs["f10"], regs["pi_amp"]))
-    finally:
-        try:
-            cxn.disconnect()
-        except Exception:
-            pass
-
-    print("\n===== contrast history =====")
-    print(f"{'#':>2} {'dataset':>7} {'contrast':>8} {'p1_I':>6} {'p1_X':>6} {'snr':>5} {'f10':>14} {'pi_amp':>8}")
-    for i, m in enumerate(history, 1):
-        print(f"{i:>2} {m['dataset']:>7} {m['contrast']:>8.3f} {m['p1_i']:>6.3f} {m['p1_x']:>6.3f} "
-              f"{m['snr']:>5.2f} {m['f10']:>14.9f} {m['pi_amp']:>8.5f}")
-    if history:
-        best = max(history, key=lambda m: m["contrast"])
-        print(f"\nbest contrast {best['contrast']:.3f} at dataset {best['dataset']} "
-              f"(f10={best['f10']:.9f}, pi_amp={best['pi_amp']:.6f})")
     return 0
 
 

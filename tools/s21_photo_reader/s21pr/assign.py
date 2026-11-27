@@ -1,9 +1,16 @@
-"""把 S21 读数写入 LabRAD 比特对象的 regs.fread。
+"""把 S21 读数写入比特频率参数（fread）。
 
-纯标准库实现（可放进 LabRAD 内嵌 Python 运行）：
+写入走量子服务（quantum_service）的 HTTP 端点，是本仓唯一的 sanctioned
+写路径 —— 服务端负责写闸门、串行锁与审计链：
+
+    读旧值: POST /qubit/params     {"name": "q21_5"}
+    写参数: POST /qubit/set_params {"name": "q21_5", "params": {"fread": 6.556}}
+
+本模块只做「读数解析 + 发请求 + 回读校验」，不直连 LabRAD、不碰厂商对象。
+纯标准库实现：
     from s21pr.assign import parse_assignments, apply_fread
     rows = parse_assignments(r"<仓库根>\\s21_image\\读取线6上的待测比特.csv")
-    apply_fread(rows)
+    apply_fread(rows, base_url="http://127.0.0.1:3003")
 
 支持的输入格式：
   1. 照片工具输出的 CSV（列 qubit / s21_dip_value，或 qubit / frequency_GHz）
@@ -12,10 +19,17 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+# 量子服务默认地址（与 tools/iqraw_contrast_tune.py 保持一致）
+DEFAULT_BASE_URL = "http://127.0.0.1:3003"
 
 
 # ------------------------------------------------------------------ 数据结构
@@ -27,7 +41,7 @@ class Assignment:
     note: str = ""
 
     def as_line(self, key: str = "fread") -> str:
-        return f"{self.qubit}.regs.{key} = {self.value:g}"
+        return f"{self.qubit}.{key} = {self.value:g}"
 
 
 @dataclass
@@ -136,46 +150,72 @@ def find_result_file(folder, prefer_stem: str | None = None) -> Path | None:
     return max(cands, key=lambda p: p.stat().st_mtime)
 
 
-# ------------------------------------------------------------------ 写入 LabRAD
-def _resolve(namespace, name):
-    """在命名空间里找比特对象（LabRAD 笔记里设备名是全局变量）。"""
-    if namespace is None:
-        namespace = globals()
-    obj = namespace.get(name) if hasattr(namespace, "get") else None
-    if obj is None:
-        try:
-            obj = eval(name, namespace)      # LabRAD: eval("<qname>", ns)
-        except Exception:
-            obj = None
-    return obj
+# ------------------------------------------------------------------ 服务端写参
+class ServiceError(RuntimeError):
+    """服务端拒绝、报错或不可达。"""
 
 
-def apply_fread(assignments, namespace=None, dry_run: bool = False,
-                verify: bool = True, key: str = "fread",
-                tol: float = 1e-6) -> list[Result]:
-    """把每个比特的频率写入 regs.<key>。
+def _post(base_url: str, path: str, payload: dict, timeout: float = 30.0) -> dict:
+    """向量子服务发一个 JSON POST，返回解析后的响应体。"""
+    url = f"{base_url.rstrip('/')}{path}"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", "replace")
+        raise ServiceError(f"{path} HTTP {e.code}: {raw[:400]}") from e
+    except urllib.error.URLError as e:
+        raise ServiceError(f"{path} 连不上 {base_url}: {e.reason}") from e
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        raise ServiceError(f"{path} 返回非 JSON: {raw[:200]}") from None
 
-    namespace：比特对象所在的命名空间（默认本模块 globals；
-    在 LabRAD 里请传**调用方**的 globals，否则找不到比特设备）。
+
+def read_param(base_url: str, qubit: str, key: str, timeout: float = 30.0):
+    """读比特参数旧值（POST /qubit/params）；读不到返回 None。"""
+    body = _post(base_url, "/qubit/params", {"name": qubit}, timeout)
+    if body.get("error"):
+        raise ServiceError(str(body["error"]))
+    params = body.get("params") or {}
+    return params.get(key)
+
+
+def set_param(base_url: str, qubit: str, key: str, value: float,
+              timeout: float = 30.0) -> dict:
+    """写比特参数（POST /qubit/set_params，受服务端写闸门约束）。"""
+    body = _post(base_url, "/qubit/set_params",
+                 {"name": qubit, "params": {key: value}}, timeout)
+    if body.get("error") or not body.get("success"):
+        raise ServiceError(str(body.get("error") or body.get("hint") or "服务端未确认写入成功"))
+    return body
+
+
+def build_service_payloads(assignments, key: str = "fread") -> list:
+    """产出 /qubit/set_params 请求体清单（人工核对或交给服务批量执行）。"""
+    return [{"name": a.qubit, "params": {key: a.value}} for a in assignments]
+
+
+def apply_fread(assignments, base_url: str = DEFAULT_BASE_URL, dry_run: bool = False,
+                verify: bool = True, key: str = "fread", tol: float = 1e-6,
+                timeout: float = 30.0) -> list:
+    """把每个比特的读数写入 <key>（默认 fread）。
+
+    写路径唯一入口是服务端的 /qubit/set_params（写闸门、串行锁、审计链都在服务端）；
+    本模块不直连 LabRAD、不碰厂商对象。
     dry_run=True 时只回报计划，不写硬件。
     返回逐条结果（成功/失败/旧值/新值）。
     """
     results = []
     for a in assignments:
         r = Result(qubit=a.qubit, value=a.value, source=a.source, note=a.note)
-        obj = _resolve(namespace, a.qubit)
-        if obj is None:
-            r.error = f"命名空间里找不到比特对象 {a.qubit}"
-            results.append(r)
-            continue
-        regs = getattr(obj, "regs", None)
-        if regs is None:
-            r.error = f"{a.qubit} 没有 .regs 属性"
-            results.append(r)
-            continue
         try:
-            r.old = getattr(regs, key, None)
-        except Exception as e:                      # 读寄存器可能抛异常
+            r.old = read_param(base_url, a.qubit, key, timeout)
+        except ServiceError as e:
             r.old = f"<读取失败: {e}>"
         if dry_run:
             r.ok = True
@@ -184,20 +224,20 @@ def apply_fread(assignments, namespace=None, dry_run: bool = False,
             results.append(r)
             continue
         try:
-            setattr(regs, key, a.value)
-        except Exception as e:
-            r.error = f"写入失败: {type(e).__name__}: {e}"
+            set_param(base_url, a.qubit, key, a.value, timeout)
+        except ServiceError as e:
+            r.error = f"写入失败: {e}"
             results.append(r)
             continue
         if verify:
             try:
-                r.new = getattr(regs, key)
+                r.new = read_param(base_url, a.qubit, key, timeout)
                 if r.new is None or abs(float(r.new) - a.value) > tol:
                     r.error = f"回读不一致: 期望 {a.value}，实际 {r.new}"
                     results.append(r)
                     continue
-            except Exception as e:
-                r.error = f"回读失败: {type(e).__name__}: {e}"
+            except ServiceError as e:
+                r.error = f"回读失败: {e}"
                 results.append(r)
                 continue
         else:
@@ -205,49 +245,6 @@ def apply_fread(assignments, namespace=None, dry_run: bool = False,
         r.ok = True
         results.append(r)
     return results
-
-
-# ------------------------------------------------------------------ 生成脚本
-def build_labrad_script(assignments, key: str = "fread", title: str = "",
-                         source: str = "") -> str:
-    """生成一段可直接粘进 LabRAD 的赋值脚本（自包含，不依赖本仓库）。"""
-    lines = [
-        "# -*- coding: utf-8 -*-",
-        "# 在 LabRAD 中粘贴并执行：把 S21 照片识别结果写入各比特 regs.%s" % key,
-    ]
-    if title:
-        lines.append(f"# 数据来源：{title}")
-    if source:
-        lines.append(f"# 读数文件：{source}")
-    lines.append("")
-    lines.append("_fread_updates = {")
-    for a in assignments:
-        lines.append(f"    {a.qubit!r}: {a.value!r},   # {a.note}".rstrip())
-    lines.append("}")
-    lines.append("")
-    lines.append("_ok, _fail = [], []")
-    lines.append("for _q, _v in _fread_updates.items():")
-    lines.append("    try:")
-    lines.append(f"        _obj = globals()[_q]")
-    lines.append(f"        _old = getattr(_obj.regs, {key!r}, None)")
-    lines.append(f"        setattr(_obj.regs, {key!r}, _v)")
-    lines.append(f"        _new = getattr(_obj.regs, {key!r}, None)")
-    lines.append("        if _new is None or abs(float(_new) - _v) > 1e-6:")
-    lines.append("            _fail.append((_q, _v, '回读不一致: %s' % _new))")
-    lines.append("        else:")
-    lines.append("            _ok.append((_q, _old, _v))")
-    lines.append("    except Exception as _e:")
-    lines.append("        _fail.append((_q, _v, '%s: %s' % (type(_e).__name__, _e)))")
-    lines.append("")
-    lines.append("print('=== 写入成功 %d 条 ===' % len(_ok))")
-    lines.append("for _q, _old, _v in _ok:")
-    lines.append("    print('  %-10s %s -> %s' % (_q, _old, _v))")
-    lines.append("if _fail:")
-    lines.append("    print('=== 失败 %d 条 ===' % len(_fail))")
-    lines.append("    for _q, _v, _err in _fail:")
-    lines.append("        print('  %-10s %s  (%s)' % (_q, _v, _err))")
-    lines.append("")
-    return "\n".join(lines)
 
 
 def format_report(results) -> str:

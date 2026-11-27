@@ -35,19 +35,19 @@ python -m s21pr "<图片路径>" -o "<输出目录>"
 | `<名字>.md` | 中文报告（主表 + 附加表 + 自检提示 + 方法说明） |
 | `<名字>_annotated.png` | 核对图：绿框=比特标签，蓝框=数值标注，红十字=识别到的波谷点 |
 
-## 写回 LabRAD
+## 写回比特参数（fread）
 
-比特对象只存在于 LabRAD 进程内，赋值必须在 LabRAD 里执行（二选一）：
+写入统一走量子服务（`quantum_service`，默认 `http://127.0.0.1:3003`）的
+`POST /qubit/set_params` —— 写闸门、串行锁、审计链都在服务端，工具不直连 LabRAD。
 
-```python
-# A. 执行生成的赋值脚本（LabRAD 笔记里）
-exec(open(r"<仓库根>/tools/s21_photo_reader/<名字>_labrad_assign.py").read())
-
-# B. 从 CSV 批量赋值
-exec(open(r"<仓库根>/tools/s21_photo_reader/labrad_assign_fread.py").read())
+```powershell
+# 从 CSV 批量写参（量子服务需在跑）
+python tools\s21_photo_reader\assign_fread.py "<读数CSV>"
+python tools\s21_photo_reader\assign_fread.py --dry-run    # 只预览不写
 ```
 
-脚本只写 `regs.fread`，逐条回读校验，单条失败不影响其它比特。
+识别阶段还会产出 `<名字>_set_params.json`（`/qubit/set_params` 的请求体清单），供人工核对。
+只写 `fread` 一个键，逐条回读校验，单条失败不影响其它比特。
 
 ## 读图要点
 
