@@ -982,6 +982,7 @@ curl -s -X POST http://127.0.0.1:3004/health/report `
 | `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=23 FAIL=0 |
 | `_contrast_ep_check.py` | `:3003 /qubit/contrast` 端点（只读对比度分析，处理器级 + 桩，**不连真机**）：路由/handler 存在、口径来自上游门面（不许本地复刻算法）、走 busy 串行通道、参数校验（缺 name / 非法 name / 非法 dataset_id / 非法 threshold） | PASS=15 FAIL=0 |
 | `_analysis_health_ep_check.py` | `:3004 /health/report` 端点（单比特体检，处理器级 + 桩，**不连真机**）：路由/handler 存在、离线只读（不要求 LabRAD 连接）、参数校验（缺 vault_dir / 目录不存在 / start 非整数）、体检实现已下沉服务端（tools 只剩 HTTP 薄壳）、前端代理与文档已登记 | PASS=24 FAIL=0 |
+| `_repo_boundary_check.py` | 仓库边界（公共目录不许漏出真机后端细节）：厂商库 import、真机标识（比特/会话编号、机房代号、真机环境目录）；可执行文件里禁厂商调用片段（`sq.<fn>(`）、禁把厂商调用当命令写（`qter.fitData`/`QubitUpdater`/`labrad_connect`）、禁自开厂商数据文件（`h5py`）；文档字符串/引号样例、政策句、三份边界文档豁免 | PASS=101 FAIL=0 |
 | `_service_groups_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
 | `_web_proxy_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
@@ -1000,7 +1001,7 @@ python checks\_p3_check.py
 ### 一次跑完并落盘（推荐）
 
 ```powershell
-python checks\run_all_checks.py          # 22 套离线自检
+python checks\run_all_checks.py          # 23 套离线自检
 python checks\run_all_checks.py --e2e   # 再加 3 套在线自检（需服务在跑）
 python checks\run_all_checks.py --only _p3_check
 ```
