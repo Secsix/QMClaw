@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 type Dataset = { id: string; name: string; path: string };
 
 export default function DatasetBrowser() {
-  const [path, setPath] = useState("/LQHL/test/20260324");
+  const [path, setPath] = useState("/demo/test/demo_session");
   const [groups, setGroups] = useState<string[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ export default function DatasetBrowser() {
         const res = await api.listQubits() as { sessionPath?: string[]; error?: string };
         if (res.sessionPath && res.sessionPath.length > 0) {
           const sp = res.sessionPath;
-          const user = sp.length > 1 ? sp[1] : 'LQHL';
+          const user = sp.length > 1 ? sp[1] : 'demo';
           const path = sp.slice(2);
           setSessionConfig({ user, path });
           setPath("/" + user + "/" + path.join("/"));
@@ -162,7 +162,7 @@ export default function DatasetBrowser() {
               type="text"
               value={switchUser}
               onChange={(e) => setSwitchUser(e.target.value)}
-              placeholder="User (e.g. LQHL)"
+              placeholder="User (e.g. demo)"
               style={{
                 width: "80px",
                 padding: "0.25rem 0.4rem",
@@ -235,7 +235,7 @@ export default function DatasetBrowser() {
         fontFamily: "monospace",
         background: "#0f172a",
       }}>
-        📍 {sessionConfig?.user || "LQHL"}/{sessionConfig?.path?.join("/") || "test/20260324"}
+        📍 {sessionConfig?.user || "demo"}/{sessionConfig?.path?.join("/") || "test/demo_session"}
       </div>
 
       {/* Breadcrumb */}

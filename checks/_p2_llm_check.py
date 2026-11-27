@@ -7,7 +7,7 @@
   4) executor._compare：数值比较 + 字符串比较（== / != / in / contains）
 
 运行：
-  PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 D:/anaconda3/envs/lqcs/python.exe _p2_llm_check.py
+  PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 python _p2_llm_check.py
 """
 from __future__ import annotations
 

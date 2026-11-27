@@ -155,7 +155,7 @@ import sq
 
 cxn = labrad.connect(host='localhost', port=7682)
 s = switchSession(cxn, user='your_user')
-qobj = s.your_qubit  # e.g., 'q11ld4'
+qobj = s.your_qubit  # e.g., 'q3'
 
 def _execute_workflow(workflow, tid, **kwargs):
     wf_name = getattr(workflow, 'name', str(workflow))

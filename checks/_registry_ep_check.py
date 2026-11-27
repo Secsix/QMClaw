@@ -6,7 +6,7 @@
       - reg_snapshot.py 不再 import labrad_connect（服务边界收口）
       - reg_snapshot.py 走 /qubit/registry + /qubit/set_params
   [2] HTTP 检查（服务在跑时）
-      - POST :3003 /qubit/registry {name: q2ld3} 返回 registry，且含 timing.* 键
+      - POST :3003 /qubit/registry {name: q1} 返回 registry，且含 timing.* 键
       - 服务未重启时给出明确提示（而不是笼统 FAIL）
 
 跑法：
@@ -76,7 +76,7 @@ check("reg_snapshot.py 写走 /qubit/set_params", '"/qubit/set_params"' in snap_
 
 print("[2] HTTP 检查")
 try:
-    res = post("/qubit/registry", {"name": "q2ld3"})
+    res = post("/qubit/registry", {"name": "q1"})
 except urllib.error.HTTPError as e:
     body = e.read().decode("utf-8", "replace")
     if "Unknown path" in body:

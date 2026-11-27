@@ -101,7 +101,7 @@ export default function EditableCommand({ qubit, expType, onRun, onSave, initial
             padding: "0.5rem 0.75rem",
             resize: "vertical", boxSizing: "border-box",
           }}
-          placeholder="sq.iqraw(q3ld4, do_plot=True)"
+          placeholder="sq.iqraw(q0, do_plot=True)"
         />
       ) : (
         <div

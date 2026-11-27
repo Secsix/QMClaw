@@ -390,10 +390,10 @@ GET /sessions
   Response: { current: {...}, sessions: [...] }
 
 POST /sessions/switch
-  Body: { path: ["", "LQHL", "test"] }
+  Body: { path: ["", "demo", "test"] }
   Response: { success: true, path: [...] }
 
-GET /datasets?path=LQHL/test/20260324
+GET /datasets?path=demo/test/demo_session
   Response: { path, groups: [...], datasets: [...] }
 
 GET /datasets/plot?name=xxx&path=xxx
@@ -440,7 +440,7 @@ POST /server/start
 ### Flask 风格请求处理
 Express 向 Python 子进程发送 JSONL 格式消息：
 ```json
-{"type": "flask", "cid": "abc123", "action": "datasets", "data": {"path": "LQHL/test"}}
+{"type": "flask", "cid": "abc123", "action": "datasets", "data": {"path": "demo/test"}}
 ```
 Python 处理后返回结果：
 ```json

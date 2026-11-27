@@ -1,6 +1,6 @@
 """DataVault（LabRAD HDF5）离线读取工具。
 
-只依赖 h5py + numpy，可直接读 D:\\DataVault\\<session>.dir 下的数据文件。
+只依赖 h5py + numpy，可直接读 <vault>/<session>.dir 下的数据文件。
 
 文件命名：  "03649 - q21_5%c IQraw.hdf5"
             └序号 └比特名 └实验名

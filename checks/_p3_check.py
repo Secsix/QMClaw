@@ -69,9 +69,9 @@ check("超额不记账", led.get(tid)["usage"]["experiments"] == 1, led.get(tid)
 # ── B. 写清单 + 哈希稳定性 ────────────────────────────────────────────────
 print("[B] 写清单与哈希")
 manifest = {"writes": [
-    {"key": "PiGate.amp", "qubit": "q2ld3", "count": 1, "maxDelta": 0.05, "delegable": True},
-    {"key": "PiGate.alpha", "qubit": "q2ld3", "count": 1, "maxDelta": 0.2, "delegable": True},
-    {"key": "timing.xy", "qubit": "q2ld3", "count": 1, "maxDelta": 1.0, "delegable": False},
+    {"key": "PiGate.amp", "qubit": "q1", "count": 1, "maxDelta": 0.05, "delegable": True},
+    {"key": "PiGate.alpha", "qubit": "q1", "count": 1, "maxDelta": 0.2, "delegable": True},
+    {"key": "timing.xy", "qubit": "q1", "count": 1, "maxDelta": 1.0, "delegable": False},
 ]}
 saved = led.save_manifest(tid, manifest)
 check("清单落库", saved.get("ok") is True, saved)
@@ -98,17 +98,17 @@ check("签票成功", ok_ticket.get("ok") is True and str(ticket_id).startswith(
 
 # ── D. 授权判定 ───────────────────────────────────────────────────────────
 print("[D] 授权判定")
-in_scope = led.authorize(tid, {"keys": ["PiGate.amp"], "qubit": "q2ld3", "deltas": {"PiGate.amp": 0.01}})
+in_scope = led.authorize(tid, {"keys": ["PiGate.amp"], "qubit": "q1", "deltas": {"PiGate.amp": 0.01}})
 check("票据内放行", in_scope.get("ok") is True, in_scope)
 check("放行来自代理票据", str(in_scope.get("authorizedBy")).startswith("agent-delegated:"), in_scope)
-oversize = led.authorize(tid, {"keys": ["PiGate.amp"], "qubit": "q2ld3", "deltas": {"PiGate.amp": 0.9}})
+oversize = led.authorize(tid, {"keys": ["PiGate.amp"], "qubit": "q1", "deltas": {"PiGate.amp": 0.9}})
 check("超过 maxDelta 要人拍板", oversize.get("needsHuman") is True, oversize)
-never = led.authorize(tid, {"keys": ["timing.xy"], "qubit": "q2ld3", "deltas": {"timing.xy": 0.1}})
+never = led.authorize(tid, {"keys": ["timing.xy"], "qubit": "q1", "deltas": {"timing.xy": 0.1}})
 check("timing.* 命中不可代理地板", never.get("needsHuman") is True and never.get("neverDelegable") == ["timing.xy"], never)
-outside = led.authorize(tid, {"keys": ["ReadOut.amp"], "qubit": "q2ld3", "deltas": {}})
+outside = led.authorize(tid, {"keys": ["ReadOut.amp"], "qubit": "q1", "deltas": {}})
 check("清单外的键被拦", outside.get("needsHuman") is True, outside)
 # D1-①：票只覆盖部分键 → primary reason = partial_scope（不再记成两条事件）
-partial = led.authorize(tid, {"keys": ["PiGate.amp", "ReadOut.amp"], "qubit": "q2ld3", "deltas": {}})
+partial = led.authorize(tid, {"keys": ["PiGate.amp", "ReadOut.amp"], "qubit": "q1", "deltas": {}})
 # 阶段 6 起 ledger 的 reasonCode 是规范错误码（not_authorized / unknown_task …），
 # 领域侧的原因码挪到 detailReasonCode；两种都认，兼容旧行为。
 check("部分覆盖 → partial_scope",
@@ -135,8 +135,8 @@ def make_ir():
     return {
         "irVersion": "1.0",
         "id": "p3_gate",
-        "env": {"qubit": "q2ld3"},
-        "pipeline": [{"op": "measure", "fn": "sq.set_pi", "qubit": "q2ld3", "as": "m1"}],
+        "env": {"qubit": "q1"},
+        "pipeline": [{"op": "measure", "fn": "sq.set_pi", "qubit": "q1", "as": "m1"}],
     }
 
 
@@ -172,7 +172,7 @@ class FakeSvc:
 
 # E1 无 taskId → 完全不受管辖（既有 .qwf 行为不变）
 svc = FakeSvc(shim)
-ex = EX.IrExecutor(svc, make_ir(), {"qubit": "q2ld3"})
+ex = EX.IrExecutor(svc, make_ir(), {"qubit": "q1"})
 ex.run()
 check("无 taskId 时照常执行", ex.status == "completed" and len(svc.calls) == 1, (ex.status, svc.calls))
 check("无 taskId 时不产生闸门记录", ex.gate_notes == [], ex.gate_notes)
@@ -180,7 +180,7 @@ check("无 taskId 时不产生闸门记录", ex.gate_notes == [], ex.gate_notes)
 # E2 带 taskId：第一次放行
 task2 = led.create(objective="P3 闸门", task_id="t-p3-gate")
 svc2 = FakeSvc(shim)
-ex2 = EX.IrExecutor(svc2, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-gate"})
+ex2 = EX.IrExecutor(svc2, make_ir(), {"qubit": "q1", "taskId": "t-p3-gate"})
 ex2.run()
 check("带 taskId 首次执行成功", ex2.status == "completed", (ex2.status, ex2.error))
 check("首次真的下发了硬件", len(svc2.calls) == 1, svc2.calls)
@@ -196,7 +196,7 @@ check("机时被记账 wallSeconds>0", float(led.get("t-p3-gate")["usage"]["wall
 
 # E3 同一 task 第二次 → 额度超额，不再下发
 svc3 = FakeSvc(shim)
-ex3 = EX.IrExecutor(svc3, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-gate"})
+ex3 = EX.IrExecutor(svc3, make_ir(), {"qubit": "q1", "taskId": "t-p3-gate"})
 ex3.run()
 check("同 task 第二次被额度拦住", ex3.outcome.get("status") == "quota_exceeded", ex3.outcome)
 check("超额时一次硬件都没发", svc3.calls == [], svc3.calls)
@@ -211,14 +211,14 @@ check("报表里的额度拦截进入总拦截数",
 # E4 有票据但不覆盖写键 → needs_human，不下发
 led.create(objective="票据不完整", task_id="t-p3-ticket", budgets={"experiments": 5})
 full = {"writes": [
-    {"key": "PiGate.amp", "qubit": "q2ld3", "count": 1, "maxDelta": 0.05, "delegable": True},
-    {"key": "PiGate.alpha", "qubit": "q2ld3", "count": 1, "maxDelta": 0.2, "delegable": True},
+    {"key": "PiGate.amp", "qubit": "q1", "count": 1, "maxDelta": 0.05, "delegable": True},
+    {"key": "PiGate.alpha", "qubit": "q1", "count": 1, "maxDelta": 0.2, "delegable": True},
 ]}
 full_saved = led.save_manifest("t-p3-ticket", full)
 led.issue_ticket("t-p3-ticket", full_saved["manifestHash"],
                  [{"keys": ["PiGate.amp"], "maxDelta": {"PiGate.amp": 0.05}, "limit": 3}])
 svc4 = FakeSvc(shim)
-ex4 = EX.IrExecutor(svc4, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-ticket"})
+ex4 = EX.IrExecutor(svc4, make_ir(), {"qubit": "q1", "taskId": "t-p3-ticket"})
 ex4.run()
 check("票据不覆盖写键 → needs_human", ex4.outcome.get("status") == "needs_human", ex4.outcome)
 check("未授权时一次硬件都没发", svc4.calls == [], svc4.calls)
@@ -232,11 +232,11 @@ check("被拦节点回收数据集占位", _u4.get("datasets") == [], _u4)
 task5 = led.create(objective="强制授权", task_id="t-p3-enforce",
                    budgets={"experiments": 5})
 led.save_manifest("t-p3-enforce", {"writes": [
-    {"key": "PiGate.amp", "qubit": "q2ld3", "count": 1, "maxDelta": 0.05, "delegable": True},
-    {"key": "PiGate.alpha", "qubit": "q2ld3", "count": 1, "maxDelta": 0.2, "delegable": True},
+    {"key": "PiGate.amp", "qubit": "q1", "count": 1, "maxDelta": 0.05, "delegable": True},
+    {"key": "PiGate.alpha", "qubit": "q1", "count": 1, "maxDelta": 0.2, "delegable": True},
 ]})
 svc5 = FakeSvc(shim)
-ex5 = EX.IrExecutor(svc5, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-enforce",
+ex5 = EX.IrExecutor(svc5, make_ir(), {"qubit": "q1", "taskId": "t-p3-enforce",
                                       "enforceTickets": True})
 ex5.run()
 check("强制模式下无票据 → needs_human", ex5.outcome.get("status") == "needs_human", ex5.outcome)
@@ -270,7 +270,7 @@ class FailingSvc(FakeSvc):
 
 
 svcF = FailingSvc(shim)
-exF = EX.IrExecutor(svcF, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-gate"})
+exF = EX.IrExecutor(svcF, make_ir(), {"qubit": "q1", "taskId": "t-p3-gate"})
 exF.run()
 check("落档失败被标记 persistFailed", exF.persist_failed is True, exF.persist_failed)
 check("落档失败进 warnings", any("persist failed" in w for w in exF.warnings), exF.warnings)
@@ -281,7 +281,7 @@ for _d in exF._persist_fallback_dirs():
 check("写了兜底文件 run-persist-failed-*.json", len(_fb) >= 1, [str(d) for d in exF._persist_fallback_dirs()])
 
 svcP = FakeSvc(shim)
-exP = EX.IrExecutor(svcP, make_ir(), {"qubit": "q2ld3", "taskId": "t-p3-gate"})
+exP = EX.IrExecutor(svcP, make_ir(), {"qubit": "q1", "taskId": "t-p3-gate"})
 exP.run()
 _extra = (svcP.persisted or {}).get("extra") or {}
 for _k in ("taskId", "manifestHash", "ticketIds", "quotaBlocked", "gateNotes"):

@@ -352,7 +352,7 @@ const getDefaultNodeConfig = (type: NodeType): Record<string, unknown> => {
     parallel: { mode: 'auto', waitFor: 'all' },
     while: { condition: '{{nodes.n1.SNR}} < 2.0', maxIterations: 10, timeout: 300 },
     notify: { channel: 'feishu', trigger: 'always', template: '' },
-    context: { variables: { qubit: 'q3ld4' } },
+    context: { variables: { qubit: 'q0' } },
     contrast: {
       // 留空则自动取上游 experiment 节点回报的 dataset_id
       datasetId: '',

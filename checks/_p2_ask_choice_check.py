@@ -89,7 +89,7 @@ from services.workflow_service.dsl.textdsl import printer as PR
 qwf = """
 workflow w_ask {
   meta { name "ask demo" }
-  env { qubit "q2ld3" }
+  env { qubit "q1" }
   ask "请选择 zpa 扫描范围" as a1 { options ["0", "0.5"] blocking true }
   decide "下一步做什么" as d1 { mode "analysis" choices ["pidf", "set_pi"] }
 }

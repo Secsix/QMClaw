@@ -97,9 +97,9 @@ def main():
     w = AR.SideEffectWatcher(quantum_base="http://x", queue_base="http://q",
                              task_id="t-1", policy=policy, bounds=bounds)
     check("watcher 默认影子模式", w.mode == "shadow")
-    before = w.snapshot("q2ld3")
+    before = w.snapshot("q1")
     check("snapshot 拿到摊平的 registry", before == {"f10": 3.62})
-    rep = w.after("q2ld3", before, "c1")
+    rep = w.after("q1", before, "c1")
     writes = [c for c in calls if c[0].endswith("/qubit/set_params")]
     check("影子模式没有回滚写入", not writes, writes)
     check("影子模式仍报出改动", len(rep["changes"]) == 0 or True)
@@ -109,7 +109,7 @@ def main():
     auto_policy = dict(policy, mode="auto")
     w2 = AR.SideEffectWatcher(quantum_base="http://x", queue_base="http://q",
                               task_id="t-1", policy=auto_policy, bounds=bounds)
-    w2.snapshot("q2ld3")
+    w2.snapshot("q1")
     # 伪造一次 f10 改动：让 snapshot 返回不同的值
     state = {"n": 0}
 
@@ -126,8 +126,8 @@ def main():
 
     AR._post_json = fake_post2
     calls.clear()
-    b = w2.snapshot("q2ld3")
-    rep2 = w2.after("q2ld3", b, "c1")
+    b = w2.snapshot("q1")
+    rep2 = w2.after("q1", b, "c1")
     writes = [c for c in calls if c[0].endswith("/qubit/set_params")]
     auths = [c for c in calls if c[0].endswith("/task/authorize")]
     check("auto 模式先问票据", len(auths) == 1, calls)
@@ -153,8 +153,8 @@ def main():
     AR._post_json = fake_post3
     w3 = AR.SideEffectWatcher(quantum_base="http://x", queue_base="http://q",
                               task_id="t-1", policy=auto_policy, bounds=bounds)
-    b = w3.snapshot("q2ld3")
-    rep3 = w3.after("q2ld3", b, "c1")
+    b = w3.snapshot("q1")
+    rep3 = w3.after("q1", b, "c1")
     writes = [c for c in calls if c[0].endswith("/qubit/set_params")]
     check("auto 模式无票据不写", not writes, calls)
     check("auto 模式无票据有说明", any("票据" in n for n in rep3["notes"]), rep3)

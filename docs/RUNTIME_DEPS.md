@@ -25,7 +25,7 @@
 
 ### 1.1 本机没有 Python 二进制被注册为 `python`
 
-只有 `C:\Users\39045\AppData\Local\Programs\Python\Python314\python.exe`（无关）。
+只有用户目录下的 Python（版本不匹配，与本项目无关）。
 **所有 Python 命令都必须显式用环境里的解释器**：
 
 ```powershell
@@ -143,9 +143,10 @@ cd $SRV
 
 `deploy\offline_data` 里**没有** `qubits.json` / `datasets.json` / `experiments.json` 索引文件，不建索引的话每次启动都要扫描 5,011 个文件。
 
-> ⚠️ 顺带发现配置冲突：`config/session.json` 写的是 `["test", "20260822_device1"]`，而 `config/system.json` 的
-> `lqcs.session.default_path` 写的是 `["test", "20260324"]`，离线数据里只有 `20251005 / 20251103 / 20260324`。
-> **`20260822_device1` 这个 session 在哪都不存在**，切会话会失败。建议先统一成 `20260324`。
+> ⚠️ 顺带发现配置冲突：`config/session.json` 与 `config/system.json` 的
+> `lqcs.session.default_path` 可能写着不同的会话语义，而离线数据里只有若干批（按日期命名的批次）。
+> **被跟踪的配置文件里只放占位会话语义**；真实账号与会话路径写在 `config/session.local.json`（不入库），
+> 换机器时按被跟踪文件的结构复制一份改值即可。切会话失败时先对一下这三处是否一致。
 
 ### 2.4 建 `.env`（API Key + 解释器路径）
 
@@ -350,5 +351,5 @@ python checks/_service_groups_check.py
 ## 8. 待你确认的三件事
 
 1. **`lqms` 用 0.3.3 还是 0.3.1？** deploy 里的轮子是 0.3.3，环境里装的是 0.3.1，两者矛盾。
-2. **`session.json` 的 `20260822_device1`** 是笔误还是有个没交付的 session？离线数据里只有 20260324 那批。
+2. **`session.json` 里的会话语义**是笔误还是有个没交付的 session？离线数据里只有若干批次。
 3. **`envelopes-qc`** 声明 `>=0.1.0` 但只交付了 0.0.6，且代码零引用 —— 是笔误还是漏交付？

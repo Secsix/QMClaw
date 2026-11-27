@@ -8,7 +8,7 @@
 仓里只有模板 `server/config/device_profile.example.json`。
 
 用法：
-    python checks/_gen_device_profile.py --qubits q1ld3,q2ld3,... --out "server/config/device_profile.json"
+    python checks/_gen_device_profile.py --qubits q0,q1,... --out "server/config/device_profile.json"
     # 只看报告不落盘：--dry-run
 """
 
@@ -64,12 +64,12 @@ def fetch_registry(name: str) -> Dict[str, Any]:
 
 
 def default_qubits() -> List[str]:
-    return [f"q{i}ld3" for i in range(1, 13)]
+    return [f"q{i}" for i in range(1, 13)]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--qubits", default="", help="逗号分隔的比特名；默认 q1ld3..q12ld3")
+    ap.add_argument("--qubits", default="", help="逗号分隔的比特名；默认 q0..q4")
     ap.add_argument("--out", default="", help="输出路径；默认 server/config/device_profile.json")
     ap.add_argument("--dry-run", action="store_true", help="只打印，不落盘")
     args = ap.parse_args()

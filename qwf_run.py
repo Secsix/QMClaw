@@ -10,9 +10,9 @@
     parse_qwf(.qwf) -> validate(requireWrites) -> 成本估算 -> run_ir -> 轮询 -> 汇报
 
 用法：
-    python qwf_run.py t1_q4ld3.qwf              # 只看计划（只解析+校验）
-    python qwf_run.py t1_q4ld3.qwf --dry        # 干跑（不碰硬件）
-    python qwf_run.py t1_q4ld3.qwf --if yes     # 真跑（写 DataVault）
+    python qwf_run.py t1_q2.qwf              # 只看计划（只解析+校验）
+    python qwf_run.py t1_q2.qwf --dry        # 干跑（不碰硬件）
+    python qwf_run.py t1_q2.qwf --if yes     # 真跑（写 DataVault）
 
 P3 额度/票据（`docs/DSL_DESIGN.md` §13.4）：
     python qwf_run.py x.qwf --request-id 20261105-a      # 归属 auto-20261105-a，默认只能跑 1 次实验
@@ -20,7 +20,7 @@ P3 额度/票据（`docs/DSL_DESIGN.md` §13.4）：
     python qwf_run.py x.qwf --task t-20261105-213000      # 用已有 task 的额度
 
 生成 .qwf 用 `qwf_gen.py`，例：
-    python qwf_gen.py --fn sq.t1 --qubit q4ld3 --param zpa=0.0 --param delay=0,84000,6000
+    python qwf_gen.py --fn sq.t1 --qubit q2 --param zpa=0.0 --param delay=0,2000,100
 """
 from __future__ import annotations
 

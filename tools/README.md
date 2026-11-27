@@ -49,15 +49,15 @@ submodule 没拉全时，薄壳会直接报错并给出上面这条提示（不�
 
 ```bash
 # 生成 .qwf（budget 三件套齐全）
-python qwf_gen.py --fn sq.t1 --qubit q4ld3 --param zpa=0.0 --param delay=0,84000,6000 --out t1_q4ld3.qwf
+python qwf_gen.py --fn sq.t1 --qubit q2 --param zpa=0.0 --param delay=0,2000,100 --out t1_q2.qwf
 
 # 静态体检（不起服务、不碰硬件）
-python qwf_lint.py t1_q4ld3.qwf
-python qwf_lint.py t1_q4ld3.qwf --json --strict
+python qwf_lint.py t1_q2.qwf
+python qwf_lint.py t1_q2.qwf --json --strict
 
 # 跑实验
-python qwf_run.py t1_q4ld3.qwf --dry        # 干跑
-python qwf_run.py t1_q4ld3.qwf --if yes     # 真跑
+python qwf_run.py t1_q2.qwf --dry        # 干跑
+python qwf_run.py t1_q2.qwf --if yes     # 真跑
 
 # 批量
 python tools/qwf_exp.py --list

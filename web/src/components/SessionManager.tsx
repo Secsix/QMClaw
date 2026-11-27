@@ -113,7 +113,7 @@ function ChildrenLoader({
     const pathStr = parentPath.slice(1).join("/");  // Remove empty first element for API
     console.log('[ChildrenLoader] Fetching children for path:', pathStr, 'full:', JSON.stringify(parentPath));
 
-    api.listDatasets(pathStr || "LQHL")
+    api.listDatasets(pathStr || "demo")
       .then(res => {
         console.log('[ChildrenLoader] API response:', res);
         if (cancelled) return;

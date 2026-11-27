@@ -18,6 +18,7 @@
 5. 仓库根只允许白名单里的 `.py`（防止根目录再次长出一堆一次性脚本）。
 6. `.gitignore` 里的关键规则还在（有人手改 .gitignore 时能立刻发现）。
 7. tracked 文件里没有个人机器的绝对路径（本机用户名 / 本机仓根 / 旧仓根）。
+8. 对外可见的文件里没有真机标识（比特 ID / 会话目录名 / 设备目录名 / 实验室环境名）。
 
 本自检是纯静态（只读 git 索引 + 读文件），可进 `run_all_checks.py` OFFLINE。
 """
@@ -99,14 +100,23 @@ REQUIRED_IGNORE_RULES = (
 # ---------------------------------------------------------------------------
 # 命中的都是「这台开发机的私路径」，一律不允许出现在 tracked 文件里。
 PERSONAL_PATTERNS = (
-    r"C:\\Users\\lqcs",
+    r"D:\\bishe",
+    r"D:\\deploy",
     r"D:\\Documents\\QMClaw",
     r"d:\\Documents\\QMClaw",
     r"D:\\QMClaw",
 )
+# 用户目录：名字本身才是关键，用捕获组判断，命中后按白名单放行占位名
+USER_HOME_PATTERN = re.compile(r"[A-Za-z]:\\Users\\([^\\/\s\"'`]+)")
+# 允许出现在文档里的**占位**用户名（不是真实机器账号）
+USER_NAME_ALLOWLIST = {
+    "你的用户名", "你的名字", "your_name", "yourname", "username", "user",
+    "<你>", "<用户名>", "<name>", "<user>", "your-username",
+}
 # 命中即放行的整文件（检查脚本自己会把这些路径当「已知历史样例」写进去）
 PERSONAL_FILE_ALLOWLIST = {
     "checks/_docs_paths_check.py",
+    "checks/_repo_hygiene_check.py",   # 本文件内含模式字面量
 }
 # 允许出现的机器路径前缀（实验室机 / 通用占位 / 工具默认）
 ALLOWED_PATH_HINTS = (
@@ -118,8 +128,34 @@ ALLOWED_PATH_HINTS = (
     "D:\\path\\to",          # 文档占位
     "C:\\Users\\你的用户名",
     "C:\\Users\\your_name",
-    "C:\\Users\\39045",
     "C:\\Program Files",
+)
+
+# ---------------------------------------------------------------------------
+# 9) 真机标识残留（对外可见部分）
+# ---------------------------------------------------------------------------
+# 只扫「对外可见」的目录与根级公开脚本；server/ 是测控实现层（实验室细节
+# 本来就住在那），vendor/ 是 submodule，skills/ 有自己的边界自检。
+LAB_SCAN_DIRS = (
+    "checks", "docs", "experiments", "memory",
+    "qwf_examples", "qwf_scripts", "tools", "web/src",
+)
+# 这两包在 P2 整包出库前先豁免；出库后删掉这两行
+LAB_SCAN_SKIP = (
+    "experiments/自动化单比特标定/",
+    "tools/single_qubit_auto_calibration/",
+)
+# 根级公开脚本 / 文档也一起扫
+LAB_SCAN_ROOT_FILES = (
+    "README.md", "install.md",
+    "qwf_gen.py", "qwf_run.py", "qwf_lint.py", "reg_snapshot.py",
+)
+# (正则, 说明)
+LAB_ID_PATTERNS = (
+    (r"\bq\d+ld\d+\b", "真机比特 ID"),
+    (r"\b20\d{6}(?:_[A-Za-z0-9]+)+\b", "真机会话目录名"),
+    (r"\bLQHL\b", "真机设备/数据目录名"),
+    (r"[\\/]envs[\\/]lqcs\b", "实验室 Python 环境名"),
 )
 
 TEXT_SUFFIXES = {
@@ -250,11 +286,17 @@ def main() -> int:
         if not text:
             continue
         for i, line in enumerate(text.splitlines(), 1):
-            if not pat.search(line):
+            norm = line.replace("\\\\", "\\")
+            matched = pat.search(norm)
+            m = USER_HOME_PATTERN.search(norm)
+            if not matched and not m:
                 continue
-            if any(h in line for h in ALLOWED_PATH_HINTS):
+            # 用户目录：捕获组是占位名就放行
+            if m and not matched and m.group(1) in USER_NAME_ALLOWLIST:
                 continue
-            hits.append(f"{rel}:{i}: {line.strip()[:90]}")
+            if matched and any(h in norm for h in ALLOWED_PATH_HINTS):
+                continue
+            hits.append(f"{rel}:{i}: {norm.strip()[:90]}")
     check("tracked 文件里没有个人机器绝对路径", not hits,
           f"{len(hits)} 处：" + "; ".join(hits[:5]))
 
@@ -269,6 +311,31 @@ def main() -> int:
         check("_local/docs/ 收纳了私有文档", n_local > 0, "目录存在但没有 .md")
     else:
         skip("_local/docs/ 收纳了私有文档", "本机未留私有文档副本")
+
+    print("[9] 真机标识残留（对外可见部分）")
+    lab_hits = []
+    scan_files = []
+    for rel in files:
+        if rel.startswith(LAB_SCAN_SKIP):
+            continue
+        if rel.startswith(LAB_SCAN_DIRS) or rel in LAB_SCAN_ROOT_FILES:
+            scan_files.append(rel)
+    lab_pats = [(re.compile(p), why) for p, why in LAB_ID_PATTERNS]
+    for rel in scan_files:
+        p = ROOT / rel
+        if not p.is_file():
+            continue
+        content = read_text(p)
+        if not content:
+            continue
+        for i, line in enumerate(content.splitlines(), 1):
+            norm = line.replace("\\\\", "\\")
+            for lpat, why in lab_pats:
+                if lpat.search(norm):
+                    lab_hits.append(f"{rel}:{i}: [{why}] {norm.strip()[:80]}")
+                    break
+    check("对外可见文件里没有真机标识（比特 ID / 会话名 / 设备目录名）",
+          not lab_hits, f"{len(lab_hits)} 处：" + "; ".join(lab_hits[:6]))
 
     print(f"\n_repo_hygiene_check: PASS={PASS} FAIL={FAIL} SKIP={SKIP}")
     return 1 if FAIL else 0

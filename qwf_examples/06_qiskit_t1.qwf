@@ -13,7 +13,7 @@ workflow ex_qiskit_t1 {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q0"
   }
 
   budget {

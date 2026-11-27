@@ -1,6 +1,6 @@
 """寄存器快照 / 对比 / 回滚工具（防止厂商实验静默改写标定值）。
 
-背景：2026-11-04 的 DSL「真机 D1」流程在 q2ld3 上跑了一串厂商实验
+背景：2026-11-04 的 DSL「真机 D1」流程在 q1 上跑了一串厂商实验
 （TimingXYZ / SpectroscopyAuto / PiAmpFine / AlphaFine），它们会直接改写
 registry 里的 f10 / timing.xy / PiGate.amp / ReadIn.power 等标定量，
 把一个本来 contrast=0.82 的比特静默毁成 0.036。
@@ -12,12 +12,12 @@ D2 改造（2026-11-06）：**不再自己连 LabRAD**，改走 quantum_service 
 推垃圾值。
 
 用法：
-  python reg_snapshot.py snap  q2ld3 [q4ld3 ...]      # 存快照
-  python reg_snapshot.py show  q2ld3                   # 看当前值
-  python reg_snapshot.py diff  q2ld3 snap_before.json  # 对比
-  python reg_snapshot.py restore q2ld3 snap_before.json --keys f10,timing.xy,PiGate.amp
+  python reg_snapshot.py snap  q1 [q2 ...]      # 存快照
+  python reg_snapshot.py show  q1                   # 看当前值
+  python reg_snapshot.py diff  q1 snap_before.json  # 对比
+  python reg_snapshot.py restore q1 snap_before.json --keys f10,timing.xy,PiGate.amp
                                                         # 回滚（默认全部非 discriminator 键）
-  python reg_snapshot.py set   q2ld3 f10=3.6217 PiGate.amp=1.23
+  python reg_snapshot.py set   q1 f10=0.0 PiGate.amp=0.0
 
 快照文件写到 <仓库根>/reg_snapshots/<qubit>_<时间戳>.json
 """
@@ -149,7 +149,7 @@ def main():
         for e in res.get("errors") or []:
             print(f"  ! {e}")
     elif cmd == "set":
-        # python reg_snapshot.py set q2ld3 f10=3.6217 PiGate.amp=1.23
+        # python reg_snapshot.py set q1 f10=0.0 PiGate.amp=0.0
         qubit = args[1]
         kv = {}
         for item in args[2:]:

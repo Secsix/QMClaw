@@ -11,7 +11,7 @@ QWF 是本项目的测控编排 DSL（真源在独立仓 [OpenQWF](https://githu
 | 文件 | 演示内容 | 关键点 |
 |------|----------|--------|
 | `01_iqraw_contrast.qwf` | 最小可用流程：一次实验 + 读结果 | budget 三件套必写；实验节点**不要**写 `do_plot` |
-| `02_ramsey_t2.qwf` | 不写任何寄存器的实验 | `sq.ramsey_t2` 写寄存器为空；T2\* 要用 `analyze`（`qter.fitData`）拟合，`read` 只认 IQraw |
+| `02_ramsey_t2.qwf` | 不写任何寄存器的实验 | `sq.ramsey_t2` 写寄存器为空；T2\* 要用 `analyze`（analysis 端拟合）拟合，`read` 只认 IQraw |
 | `03_t1_fixed_zpa.qwf` | T1 衰减 | `sq.t1` 必须固定 `zpa`，否则展开成二维扫描；`delay` 用 `range` 语法 |
 | `04_decide_branch.qwf` | LLM 决策 + 分支 | `decide` 的 `from` 元素必须带 `$`（`$r1`）；`mode "intent"` / `"analysis"` 含义不同 |
 | `05_goal_loop.qwf` | 有界自主循环 | `goal` 块含 `success` 与 `max_rounds` 硬上限 |
@@ -36,6 +36,6 @@ python qwf_run.py qwf_examples/06_qiskit_t1.qwf --if yes
 
 ## 约定
 
-- 范例里的 `qubit` / `session` 用占位值（如 `q2ld3` / `20251103_LD_SQ`），跑之前改成自己的。
+- 范例里的 `qubit` / `session` 用占位值（`q0` / `demo_session`），跑之前改成自己的。
 - **不要**在这些文件里写真实设备标定值或 API Key。
 - 改完范例要跑 `python qwf_lint.py qwf_examples/*.qwf`，并跑 `python checks/run_all_checks.py`。

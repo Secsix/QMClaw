@@ -17,7 +17,7 @@ workflow ex_s21 {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

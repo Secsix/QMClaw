@@ -17,7 +17,7 @@ workflow ex_spectroscopy {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {
@@ -35,7 +35,7 @@ workflow ex_spectroscopy {
       points 51
       df_hz 5000000
       # 厂商口径必须显式给 freq（不给会报 E_SPEC_NO_FREQ）。
-      # 区间按 q2ld3 的 f10≈3.62 GHz 取；步长 0.002 → 51 个点。
+      # 区间按 q1 的 f10≈3.62 GHz 取；步长 0.002 → 51 个点。
       # **点数别乱加**：下发前的耗时闸门按真机速度估（≈1 s/点），
       # 600 个点会估成 606s > timeout=300s 直接 Halt。
       freq range 3.6 3.7 0.002

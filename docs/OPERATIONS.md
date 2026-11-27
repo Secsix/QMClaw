@@ -55,7 +55,7 @@ python "server\scripts\start_all_services.py"
 ```powershell
 # 1) 通过微服务下发（不要直连 LabRAD）
 curl.exe -X POST http://127.0.0.1:3003/execute -H "Content-Type: application/json" `
-  -d '{"command":"sq.iqraw(q2ld3, do_plot=False)","timeout":120}'
+  -d '{"command":"sq.iqraw(q0, do_plot=False)","timeout":120}'
 ```
 
 ### 3.2 DSL 方式（推荐，带额度与票据）
@@ -87,7 +87,7 @@ measure as c1 {
 }
 ```
 
-* `qubit`（单数）是老写法，等价于 `qubits ["q2ld3"]`；**两者不能同时写**。
+* `qubit`（单数）是老写法，等价于 `qubits ["q0"]`；**两者不能同时写**。
 * 比特个数必须与实验元数相符，元数来自 `config/experiment_configs.json` 的
   `qubits` 字段（`swap` / `drag_calibrate` 是 2，其余是 1）。
   对不上 → `E_QUBIT_ARITY`（**下发前**就拦下，不会白烧额度）。
@@ -102,23 +102,23 @@ measure as c1 {
 
 厂商实验（`s21_zpa2d` / `iqraw` / `pidf` …）会**静默改寄存器**（s21 的 auto-update 回写
 `fread`、宽频 pidf 把 `f10` 写到错误频点），而实验数据集的 `parameters` 里留有当时的完整
-registry 快照（键形如 `q7ld3.f10`）。本端点读回快照、与当前 registry 比对后**只写回有差异的键**。
+registry 快照（键形如 `q2.f10`）。本端点读回快照、与当前 registry 比对后**只写回有差异的键**。
 
 ```powershell
 # 只看差异，不写（dry_run）
 curl -s -X POST http://127.0.0.1:3003/qubit/apply_dataset `
      -H "Content-Type: application/json" `
-     -d '{"name":"q7ld3","dataset":1032,"dry_run":true}'
+     -d '{"name":"q2","dataset":1032,"dry_run":true}'
 
 # 真写回（受写闸门 allow_set_params 约束）
 curl -s -X POST http://127.0.0.1:3003/qubit/apply_dataset `
      -H "Content-Type: application/json" `
-     -d '{"name":"q7ld3","dataset":1032}'
+     -d '{"name":"q2","dataset":1032}'
 
 # 也要写回 discriminator.*（默认跳过，它是测量拟合产物，iqraw 会自动重算）
 curl -s -X POST http://127.0.0.1:3003/qubit/apply_dataset `
      -H "Content-Type: application/json" `
-     -d '{"name":"q7ld3","dataset":1032,"include":["discriminator."]}'
+     -d '{"name":"q2","dataset":1032,"include":["discriminator."]}'
 ```
 
 请求体：`name`（比特名）、`dataset`（数据集编号）、`skip`（默认 `["discriminator."]`）、
@@ -145,7 +145,7 @@ curl -s http://127.0.0.1:3003/qubit/capabilities
 # 扫频找跃迁（会占用真机通道，执行前请先与用户确认）
 curl -s -X POST http://127.0.0.1:3003/qubit/probe_transition `
      -H "Content-Type: application/json" `
-     -d '{"name":"q7ld3","df":0.3,"method":"pidf"}'
+     -d '{"name":"q2","df":0.3,"method":"pidf"}'
 
 # 读最近 20 条运行记录
 curl -s "http://127.0.0.1:3003/qubit/runs?limit=20"
@@ -153,19 +153,19 @@ curl -s "http://127.0.0.1:3003/qubit/runs?limit=20"
 # 纯计算：由已有证据判定比特状态（不碰硬件，可随意调用）
 curl -s -X POST http://127.0.0.1:3003/qubit/assess `
      -H "Content-Type: application/json" `
-     -d '{"name":"q2ld3","evidence":{"freq_locked":true,"contrast":0.765,"t1_us":72.2,"t2_star_us":6.58,"xeb_p":0.9965,"xeb_gate_fidelity":0.9973}}'
+     -d '{"name":"q0","evidence":{"freq_locked":true,"contrast":0.765,"t1_us":72.2,"t2_star_us":6.58,"xeb_p":0.9965,"xeb_gate_fidelity":0.9973}}'
 
 # 单写者状态（离线、无副作用）
 curl -s http://127.0.0.1:3003/qubit/writer
 
 # 设备画像（只读文件，不碰硬件）
 curl -s http://127.0.0.1:3003/qubit/profile
-curl -s "http://127.0.0.1:3003/qubit/profile?name=q7ld3"
+curl -s "http://127.0.0.1:3003/qubit/profile?name=q2"
 
 # 回放层：离线推演一段实验代码会改哪些寄存器、会不会报错（不碰硬件）
 curl -s -X POST http://127.0.0.1:3003/qubit/replay `
      -H "Content-Type: application/json" `
-     -d '{"action":"simulate","code":"sq.pidf(q7ld3, df=0.05, do_plot=False, update=False)","registry":{"f10":3.65,"f21":3.45}}'
+     -d '{"action":"simulate","code":"sq.pidf(q2, df=0.05, do_plot=False, update=False)","registry":{"f10":3.65,"f21":3.45}}'
 
 # 列出已录制的 fixture / 回放并检出漂移
 curl -s -X POST http://127.0.0.1:3003/qubit/replay -H "Content-Type: application/json" -d '{"action":"list"}'
@@ -204,9 +204,9 @@ curl -s "http://127.0.0.1:3003/qubit/profile?refresh=1"
   `_safe_registry_snapshot()`（导致 fixture 的 `registry_before/after` 恒为 `{}`、值级漂移检测从未发生）与
   `_refresh_device_profile()`（导致真机上画像刷新全部被当成"registry 读取失败"，profile 永不更新）。
   两处修复都需要**重启 `:3003`** 才生效。
-- **GET 查询参数会并入请求体**：`handle_request` 会把 query（`?refresh=1&name=q7ld3`）合并进 data，
+- **GET 查询参数会并入请求体**：`handle_request` 会把 query（`?refresh=1&name=q2`）合并进 data，
   body 里的同名字段优先。所以 `GET /qubit/profile?refresh=1` 里的 `refresh` 确实生效，
-  `GET /qubit/profile?refresh=1&name=q7ld3` 还能只回填并返回该比特条目。
+  `GET /qubit/profile?refresh=1&name=q2` 还能只回填并返回该比特条目。
   2026-11-09 修掉了这处 bug：此前 `query` 整个被丢弃，`refresh` 恒为 False，文档写的用法实际无效。
 - `:3003/execute` 的响应现在带 `trace_id`（调用方可自带 `trace_id` / `traceId` 或请求头 `X-Trace-Id` 透传；
   未透传时由服务端生成并在 `trace_hint` 里说明），并落入 RunRecord 台账，可与 `/qubit/runs` 对账。
@@ -230,7 +230,7 @@ curl -s "http://127.0.0.1:3003/qubit/profile?refresh=1"
 # 手动指定一条 trace（Express 会透传，服务端不再生成）
 curl -s -X POST http://127.0.0.1:3003/execute `
      -H "Content-Type: application/json" -H "X-Trace-Id: t-mystudy-001" `
-     -d '{"code":"sq.iqraw(q2ld3, do_plot=False)","timeout":300}'
+     -d '{"code":"sq.iqraw(q0, do_plot=False)","timeout":300}'
 
 # 按 trace 反查执行台账 / 任务
 curl -s "http://127.0.0.1:3003/qubit/runs?trace_id=t-mystudy-001"
@@ -431,7 +431,7 @@ stdout 里**不打印**数据集号，于是 `RunRecord.dataset_ids` 一直是�
 与 `labrad_client.py` 连接时的做法一致，全程只读。真机连接上实测返回 2668 个数据集。
 **该修复需重启 `:3003` 才生效。**
 
-**重启后实测（2026-11-10 09:24）**：`sq.iqraw(q4ld3, do_plot=False, update=False)` 3.2 s 成功，
+**重启后实测（2026-11-10 09:24）**：`sq.iqraw(q1, do_plot=False, update=False)` 3.2 s 成功，
 响应与 RunRecord 都是 `dataset_ids: [2669]`、`dataset_source: "datavault"`，
 `manifest.functions == ["iqraw"]`、`auto_writes == ["discriminator.center0",
 "discriminator.center1", "fread"]`。`/qubit/params` 同步验证 `params_source == "registry"`（28 键）。
@@ -450,14 +450,14 @@ DataVault 子会话或写别处，编号仍会缺失 —— 那时以 `dataset_s
   `JSONDecodeError`，接口回 500 而不是一条可读的校验错误；
 - analysis 的 `/connect` 干脆**忽略**请求里的 `session_path`，只能读配置；
 - "读 `config/session.json` → `['', user] + path`，缺文件回
-  `['', 'LQHL', 'test', '20260324']`" 在 `labrad_client.py` 与
+  `['', 'demo', 'test', 'demo_session']`" 在 `labrad_client.py` 与
   `analysis_service/server.py` 各有一份逐字重复，改一处就会漂。
 
 **现在**：唯一实现在 `services/common/session.py`（纯标准库，不连 LabRAD）。
 
 | 函数 | 作用 |
 |---|---|
-| `parse_session_path(value)` | 接受列表 / 元组 / JSON 字符串 / `LQHL/test/2025`；返回 `(path, error)`，**永不抛异常**；空输入回 `(None, "")` 表示"未指定" |
+| `parse_session_path(value)` | 接受列表 / 元组 / JSON 字符串 / `demo/test/2025`；返回 `(path, error)`，**永不抛异常**；空输入回 `(None, "")` 表示"未指定" |
 | `normalize_session_path(path)` | 折成标准列表；坏输入回 `DEFAULT_SESSION` |
 | `session_key(path)` / `same_session(a, b)` | 稳定的会话标识 / 同一会话判定（坏输入一律判不同，不猜） |
 | `load_session_config(config_path=None)` | 返回 `(path, source)`，`source` 为 `config` / `default`；文件缺失、损坏、`path` 为空数组都回默认 |
@@ -475,7 +475,7 @@ analysis 的 `/connect` 现在会**优先用请求里指定的会话**，没指�
 两处 `_load_session_config` 都变成一行委托。
 
 **校验规则**：每段必须是字符串；除首段外不能有空段；空数组非法；首段为空表示
-"从 LabRAD 根开始"。`/LQHL/test/x` 与 `["", "LQHL", "test", "x"]` 是同一个会话。
+"从 LabRAD 根开始"。`/demo/test/x` 与 `["", "demo", "test", "x"]` 是同一个会话。
 
 ### 3.12 registry 读取收敛：`/qubit/params` 是 registry 的投影（阶段 9）
 
@@ -518,7 +518,7 @@ analysis 的 `/connect` 现在会**优先用请求里指定的会话**，没指�
   "message": "人能看懂的一句话",
   "device": "labrad | datalab", "deviceConnected": true,
   "mode": "online | offline | auto", "fallbackState": "connected",
-  "sessionPath": ["", "LQHL", "test", "20251103_LD_SQ"],
+  "sessionPath": ["", "demo", "test", "demo_session"],
   "busy": false, "ready": true, "offlineAvailable": true, "stuck": false
 }
 ```
@@ -552,13 +552,13 @@ HTTP 码与老消费者行为完全一致；`labrad_connected` / `datalab_connec
 
 **要解决的问题**（roadmap §2.4）：阶段 2 的 `qubit_state.derive_state(evidence)` 只会
 "给证据 → 判在哪一态"，证据得由调用方填 —— 等于标定记录仍在人脑里，系统答不了
-"q7ld3 卡在哪一态、缺什么证据、下一步跑哪个实验"。
+"q2 卡在哪一态、缺什么证据、下一步跑哪个实验"。
 
 **现在**：证据由执行台账推导，人来补的只是少数无法从数据判读的断言。
 
 ```python
 # services/common/state_evidence.py
-evidence_from_records(records, qubit="q4ld3")
+evidence_from_records(records, qubit="q1")
 # → {"evidence": {...}, "sources": {...}, "conflicts": [...],
 #    "considered": 3, "ignored": 1, "ignored_runs": ["run-x"]}
 ```
@@ -576,14 +576,14 @@ evidence_from_records(records, qubit="q4ld3")
 只计入 `records.ignored` 并保留 `run_id`，不产生证据（`ignored_runs` 供人回看）。
 按 `finished_at`（缺失退回 `started_at`）倒序，**新证据覆盖旧证据**；同一指标两次读数
 相对差 > `20%` 时记进 `conflicts`（`{key, kept_run, dropped_run, kept, dropped, relative_delta}`）
-—— 读出链慢漂（例如 q4ld3 的 contrast 从 0.74 掉到 0.58）就该在这里冒头，而不是先污染状态。
+—— 读出链慢漂（例如 q1 的 contrast 从 0.74 掉到 0.58）就该在这里冒头，而不是先污染状态。
 
 **端点**：
 
 ```http
-POST/GET :3003/qubit/state   {"name": "q4ld3", "limit": 200,
+POST/GET :3003/qubit/state   {"name": "q1", "limit": 200,
                               "evidence": {"freq_locked": true}}   # evidence 可省
-→ {"success": true, "name": "q4ld3",
+→ {"success": true, "name": "q1",
    "state": {"state": "state_discriminated", "state_index": 2, "reasons": [...],
              "missing": ["t1_us/t2_star_us"],
              "missing_detail": [{"key": "t1_us", "produced_by": ["sq.t1"], "note": "..."}],
@@ -627,7 +627,7 @@ POST :3002/sessions/plot
 
 ```json
 {"success": true, "plotPath": "...", "plotUrl": "/plots/xxx.png",
- "dataset_index": 2668, "dataset_name": "02668 - q4ld3: IQraw"}
+ "dataset_index": 2668, "dataset_name": "02668 - q1: IQraw"}
 ```
 
 - 前端仍只发 `command`（UI 的语义是"画最新"），行为不变；需要指定数据集的调用方
@@ -648,7 +648,7 @@ POST :3002/sessions/plot
 **现在**：执行器启动时把当前比特的画像折进 env，`.qwf` 里直接引用：
 
 ```text
-env { qubit "q4ld3" }
+env { qubit "q1" }
 
 measure as c1 {
   fn    sq.spectroscopy
@@ -731,7 +731,7 @@ measure as c2 {
 
 ```http
 POST :3003/execute
-{"code": "sq.iqraw(q4ld3, do_plot=False, update=False)", "async": true}
+{"code": "sq.iqraw(q1, do_plot=False, update=False)", "async": true}
 → 200 {"status": "queued", "job_id": "job_...", "run_id": "run-...", "trace_id": "...",
         "queue_position": 0, "poll": "/jobs/job_...", "async": true}
 ```
@@ -779,12 +779,12 @@ POST :3003/execute
 
 **完成态结果就在轮询回包里**（`result` 字段）：worker 跑完后 `_finalize_async_job` 会把 RunRecord 的结论回写到 `job["result"]`，因此终态回包含 `status`、`run_id`、`trace_id`、`dataset_ids`、`dataset_source`、`execute_mode:"async"`，以及 worker 原始输出（`stdout`/`output` 等）。**调用方不必再查 `/qubit/runs`**。这条是 2026-11-10 真机验收时补的——首版 `trace_id` 从 job 上被 `pop` 掉、`result` 也还是原始返回值，异步契约等于"结果要自己另找"。
 
-真机验收口径（同一台 q4ld3，`:3003` 重启后）：
+真机验收口径（同一台 q1，`:3003` 重启后）：
 
 | 用例 | 实测 |
 |---|---|
 | `{"code":"1+1"}`（默认异步） | 0.05 s 回 `queued` + `job_id`/`run_id`/`trace_id`/`poll`/`execute_mode:"async"` |
-| `{"code":"sq.iqraw(q4ld3, do_plot=False, update=False)","wait":true}` | 3.33 s 回 `success`、`execute_mode:"sync"`、`dataset_ids:[2670]` |
+| `{"code":"sq.iqraw(q1, do_plot=False, update=False)","wait":true}` | 3.33 s 回 `success`、`execute_mode:"sync"`、`dataset_ids:[2670]` |
 | 同一 iqraw 走默认异步 | 提交 0.04 s；轮询到 `success`；`/qubit/runs` 该 run 有 `dataset_ids:[2671]`、`dataset_source:"datavault"`、`trace_id`、`job_id`、`manifest.functions:["iqraw"]` |
 
 **消费方（本阶段全部显式表态，行为不变）**：
@@ -833,7 +833,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 
 ### 3.21 审计查询：`/qubit/runs` 过滤（阶段 18）
 
-`GET :3003/qubit/runs` 原来只能"取最近 N 条"，查"q4ld3 上周那批失败的"得自己拉全量再筛。
+`GET :3003/qubit/runs` 原来只能"取最近 N 条"，查"q1 上周那批失败的"得自己拉全量再筛。
 现在服务端过滤，且**过滤发生在截断之前**：
 
 | 参数 | 说明 |

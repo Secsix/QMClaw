@@ -2,7 +2,7 @@
 
 # 要点：
 #   - sq.t1 不传 zpa 会展开成 zpa×时间二维扫描（几百点），极慢
-#   - 传固定 zpa 才是 1D 时间扫描；1D 结果没法用 qter.fitData 拟合（KeyError 'z pulse amplitude'）
+#   - 传固定 zpa 才是 1D 时间扫描；1D 结果没法用 analysis 端的拟合接口 拟合（KeyError 'z pulse amplitude'）
 #   - delay 用 range 语法：delay range 起点 终点 步长（单位 ns）
 
 workflow ex03_t1_fixed_zpa {
@@ -13,8 +13,8 @@ workflow ex03_t1_fixed_zpa {
   }
 
   env {
-    qubit   "q2ld3"
-    session "20251103_LD_SQ"
+    qubit   "q0"
+    session "demo_session"
   }
 
   budget {
@@ -30,10 +30,10 @@ workflow ex03_t1_fixed_zpa {
     fn      sq.t1
     qubit   $env.qubit
     timeout 300
-    note    "T1：zpa=0.0，delay 0-84000ns，共 16 点"
+    note    "T1：zpa=0.0，delay 0-2000ns，共 21 点"
     args {
       zpa 0.0
-      delay range 0 84000 6000
+      delay range 0 2000 100
     }
   }
 

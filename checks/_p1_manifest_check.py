@@ -35,7 +35,7 @@ def ir_of(pipeline, **extra):
     return ir
 
 
-def measure(fn, qubit="q4ld3", **params):
+def measure(fn, qubit="q2", **params):
     st = {"op": "measure", "fn": fn, "qubit": qubit}
     if params:
         st["params"] = params
@@ -158,7 +158,7 @@ check("未知函数 ⇒ dynamic", man["dynamic"] is True)
 # ── 14. 文本 DSL bounds 块往返 ─────────────────────────────────
 BOUNDS_QWF = """workflow bounds_test {
   meta { name "bounds_test" }
-  env { qubit "q4ld3" }
+  env { qubit "q2" }
   budget { max_wall 300  max_writes 3 }
   bounds {
     f10 0.01

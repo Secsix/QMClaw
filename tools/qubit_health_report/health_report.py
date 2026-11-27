@@ -1,7 +1,7 @@
 """DataVault 单比特体检报告。
 
 用法：
-    python health_report.py --vault "D:\\DataVault\\LQHL.dir\\test.dir\\20260822_device1.dir" \
+    python health_report.py --vault "<vault>/<session>.dir" \
         --start 3648 --end 4455 -o out
 
 输出：
@@ -314,7 +314,7 @@ def write_md(rows, path: Path, vault: str, start, end):
     lines.append("## 四、活比特可写入 LabRAD 的参数\n")
     if alive:
         lines.append("```python")
-        lines.append("# 活比特寄存器快照（来自 20260822_device1 会话的工作点记录）")
+        lines.append("# 活比特寄存器快照（来自所给会话的工作点记录）")
         for r in alive:
             regs = r.get("wp_regs", {}) or {}
             lines.append(f"{r['qubit']}.regs.f10   = {fmt(r['wp_f10'], 8)}   "

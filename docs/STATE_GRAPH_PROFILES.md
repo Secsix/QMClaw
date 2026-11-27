@@ -37,7 +37,7 @@ curl -s localhost:3002/api/quantum/qubit/scopes | python -m json.tool
 返回每个 scope 的 `enabled / reason / source / enabled_by / missing / engine / prerequisite / states / edge_count`。
 前端 `/control` 只画启用的那几张，并在卡片副标题里写「为什么启用」（例如 `按能力启用：tunable`）。
 
-当前本机（`LQHL-20251103_LD_SQ`，12 比特可调、需 DRAG、DCZTuner 双比特）四张图全开：
+下面是一台**示例芯片**（12 比特可调、需 DRAG、DCZTuner 双比特）时四张图全开的样子：
 
 | scope | 标签 | 启用依据 | 状态 | 边 |
 |-------|------|----------|------|----|
@@ -92,7 +92,7 @@ DRAG 系数偏差、脉冲形状、单比特门保真度。前置：单比特到
 
 ```json
 {
-  "chip": {"name": "LQHL-20251103_LD_SQ", "qubits": 12},
+  "chip": {"name": "example-chip", "qubits": 12},
   "capabilities": ["tunable", "drag_required", "coupler", "readout"],
   "scopes": {"tunable": {"enabled": false}},              // 人工覆盖优先于能力推导
   "edge_overrides": {"qubit": {"state_discriminated--self--drag": {"action": {"fn": "sq.allxy"}}}},

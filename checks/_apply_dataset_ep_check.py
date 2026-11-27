@@ -31,7 +31,7 @@ SERVER = os.path.join(ROOT, "server", "services",
 PROXY = os.path.join(ROOT, "server", "src",
                      "services", "serviceProxy.ts")
 BASE = os.environ.get("QMCLAW_QUANTUM_URL", "http://127.0.0.1:3003")
-QUBIT = os.environ.get("APPLY_DATASET_QUBIT", "q7ld3")
+QUBIT = os.environ.get("APPLY_DATASET_QUBIT", "q3")
 DATASET = int(os.environ.get("APPLY_DATASET_ID", "1032"))
 
 PASS, FAIL, WARN = 0, 0, 0

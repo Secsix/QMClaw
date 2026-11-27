@@ -50,7 +50,7 @@ def get(base, path, timeout=30):
 QWF = """
 workflow p3_e2e {
   env {
-    qubit "q2ld3"
+    qubit "q1"
   }
   budget {
     max_writes 4
@@ -100,13 +100,13 @@ ticket_id = (tick.get("ticket") or {}).get("id")
 check("签票成功", str(ticket_id).startswith("tk-"), tick)
 
 print("[4] 授权（HTTP）")
-ok = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q2ld3", "keys": [keys[0]],
+ok = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q1", "keys": [keys[0]],
                                   "deltas": {}})
 check("票据内放行", ok.get("ok") is True, ok)
-out = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q2ld3",
+out = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q1",
                                    "keys": ["timing.xy"], "deltas": {"timing.xy": 0.1}})
 check("越界要人拍板", out.get("needsHuman") is True, out)
-partial = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q2ld3",
+partial = post(TQ, "/task/authorize", {"taskId": tid, "qubit": "q1",
                                        "keys": [keys[0]] + [k for k in keys[1:]] if len(keys) > 1
                                        else ["ReadOut.amp"], "deltas": {}})
 check("部分覆盖不能放行", partial.get("needsHuman") is True, partial)
@@ -136,7 +136,7 @@ print("[7] 干跑 run_ir（带 taskId，不消耗额度）")
 before = (get(TQ, f"/task/{tid}").get("remaining") or {}).get("experiments")
 launch = post(WF, "/workflows/run_ir", {"ir": post(WF, "/workflows/parse_qwf",
                                                    {"text": QWF}).get("ir"),
-                                        "context": {"qubit": "q2ld3", "taskId": tid},
+                                        "context": {"qubit": "q1", "taskId": tid},
                                         "dryRun": True})
 check("干跑启动", launch.get("ok") is True, launch)
 wid = launch.get("workflowId")

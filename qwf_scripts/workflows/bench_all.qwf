@@ -25,7 +25,7 @@ workflow ex_bench_all {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

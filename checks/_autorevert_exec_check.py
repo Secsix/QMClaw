@@ -93,8 +93,8 @@ def make_ir():
     return {
         "irVersion": "1.0",
         "id": "arv",
-        "env": {"qubit": "q2ld3"},
-        "pipeline": [{"op": "measure", "fn": "sq.iqraw", "qubit": "q2ld3", "as": "m1"}],
+        "env": {"qubit": "q1"},
+        "pipeline": [{"op": "measure", "fn": "sq.iqraw", "qubit": "q1", "as": "m1"}],
     }
 
 
@@ -105,11 +105,11 @@ def main():
     # 1) 真机路径：拍快照 + 出报告
     FakeWatcher.calls = []
     svc = FakeSvc()
-    ex = EX.IrExecutor(svc, make_ir(), {"qubit": "q2ld3"})
+    ex = EX.IrExecutor(svc, make_ir(), {"qubit": "q1"})
     ex.run()
     snaps = [c for c in FakeWatcher.calls if c[0] == "snapshot"]
     afters = [c for c in FakeWatcher.calls if c[0] == "after"]
-    check("实验前拍了快照", len(snaps) == 1 and snaps[0][1] == "q2ld3", FakeWatcher.calls)
+    check("实验前拍了快照", len(snaps) == 1 and snaps[0][1] == "q1", FakeWatcher.calls)
     check("实验后做了副作用比对", len(afters) == 1 and afters[0][2] == "m1", FakeWatcher.calls)
     check("报告进了 side_effect_reports", len(ex.side_effect_reports) == 1, ex.side_effect_reports)
     check("gateNotes 里有副作用摘要",
@@ -123,7 +123,7 @@ def main():
     # 2) 干跑路径：不拍快照
     FakeWatcher.calls = []
     svc2 = FakeSvc()
-    ex2 = EX.IrExecutor(svc2, make_ir(), {"qubit": "q2ld3"}, dry_run=True)
+    ex2 = EX.IrExecutor(svc2, make_ir(), {"qubit": "q1"}, dry_run=True)
     ex2.run()
     check("干跑不拍快照", not FakeWatcher.calls, FakeWatcher.calls)
 

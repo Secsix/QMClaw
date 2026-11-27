@@ -7,7 +7,7 @@
   4) _finalize 把 outcome 写进 workflow.settings
 
 运行：
-  PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 D:/anaconda3/envs/lqcs/python.exe _p2_outcome_check.py
+  PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 python _p2_outcome_check.py
 """
 from __future__ import annotations
 

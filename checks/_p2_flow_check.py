@@ -68,7 +68,7 @@ class FakeNode:
 print("[A] ask 干跑")
 ir_ask = TP.parse("""
 workflow w_ask {
-  env { qubit "q2ld3" }
+  env { qubit "q1" }
   ask "请选择 zpa 扫描范围" as a1 { options ["0", "0.5"] }
   say "asked: ${a1.question}"
 }
@@ -83,7 +83,7 @@ check("ask 绑定 question", (ex.bindings.get("a1") or {}).get("question") == "�
 print("[B] decide → choice → if")
 ir_dec = TP.parse("""
 workflow w_dec {
-  env { qubit "q2ld3" }
+  env { qubit "q1" }
   decide "选下一步" as d1 { mode "analysis" choices ["pidf", "set_pi"] }
   if d1.choice == "pidf" {
     say "走 pidf"
@@ -124,7 +124,7 @@ print("[D] 真跑 ask → NeedsHuman")
 
 ir_ask2 = TP.parse("""
 workflow w_ask2 {
-  env { qubit "q2ld3" }
+  env { qubit "q1" }
   ask "选哪个 zpa?" as a1 { options ["0", "0.5"] }
 }
 """)

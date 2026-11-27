@@ -78,7 +78,9 @@ ARTIFACT_SOURCES = {
 }
 # 体积大 / 活的源目录：只在 manifest 里记路径
 EXTERNAL_SOURCES = {
-    "datavault": "D:/DataVault/LQHL.dir/test.dir/20251103_LD_SQ.dir",
+    # 真机数据源目录（会话语义）：由环境变量给，不同机器不同，不写死。
+    # 未配置时该条目在 manifest 里记 "(未配置)"，不影响任何自检结果。
+    "datavault": os.environ.get("QMCLAW_DATA_VAULT_DIR", ""),
     "plots": os.path.join(ROOT, "web", "public", "plots"),
     "reg_snapshots": os.path.join(ROOT, "reg_snapshots"),
 }
@@ -195,6 +197,10 @@ def collect_artifacts(outdir: str, since_ts: float) -> list:
 def external_index() -> dict:
     out = {}
     for key, path in EXTERNAL_SOURCES.items():
+        if not path:
+            # 未配置的外部源（如真机 DataVault 目录）不写空路径，只标状态
+            out[key] = {"path": "(未配置)", "exists": False}
+            continue
         entry = {"path": path, "exists": os.path.isdir(path)}
         if entry["exists"]:
             try:

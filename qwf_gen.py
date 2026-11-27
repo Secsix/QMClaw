@@ -15,7 +15,7 @@
 `measure` 的字段白名单只有 `fn / qubit / args / params / reportDataset`
 （外加通用的 `as / timeout / note / retries / onError`），直接写在测量块里会报 `E_UNKNOWN_FIELD`：
     zpa=0.0                 标量
-    delay=0,84000,6000      区间 → np.arange(0, 84000, 6000)
+    delay=0,2000,100       区间 → np.arange(0, 2000, 100)
     states=[0,1]            列表字面量
     update=false            布尔
     gate=X                  字符串
@@ -28,7 +28,7 @@
    成 `repeat + if/else + assert`；执行器零改动：
 
        goal {
-         objective   "复现 q4ld3 的 iqraw 对比度"
+         objective   "复现 q2 的 iqraw 对比度"
          success { metric r1.contrast  operator >=  value 0.6 }
          max_rounds  3
          on_achieved "continue"
@@ -55,9 +55,9 @@
 - 循环结束后，体内绑定默认被清掉 → 想让尾部的 `assert` 用到最后一轮的值，必须 `export r1`。
 
 用法：
-    python qwf_gen.py --fn sq.t1 --qubit q4ld3 --param zpa=0.0 --param delay=0,84000,6000 --timeout 120 --out t1_q4ld3.qwf
-    python qwf_gen.py --fn sq.ramsey_t2 --qubit q4ld3 --read Ramsey --assert 'T2_us>=5' --out ramsey_q4ld3.qwf
-    python qwf_gen.py --fn sq.iqraw --qubit q4ld3 --goal-objective "复现 q4ld3 的 iqraw 对比度" --success-metric contrast --success-op ">=" --success-value 0.6 --max-rounds 3 --out iqraw_goal_q4ld3.qwf
+    python qwf_gen.py --fn sq.t1 --qubit q2 --param zpa=0.0 --param delay=0,2000,100 --timeout 120 --out t1_q2.qwf
+    python qwf_gen.py --fn sq.ramsey_t2 --qubit q2 --read Ramsey --assert 'T2_us>=5' --out ramsey_q2.qwf
+    python qwf_gen.py --fn sq.iqraw --qubit q2 --goal-objective "复现 q2 的 iqraw 对比度" --success-metric contrast --success-op ">=" --success-value 0.6 --max-rounds 3 --out iqraw_goal_q2.qwf
     python qwf_gen.py --help
 """
 from __future__ import annotations

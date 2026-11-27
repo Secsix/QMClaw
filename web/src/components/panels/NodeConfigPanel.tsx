@@ -828,7 +828,7 @@ const ConfigForm = memo(({ nodeType, config, allNodes, onChange, availableVariab
               value={qubitValue}
               onChange={(v) => onChange('qubit', v)}
               availableVariables={availableVariables}
-              placeholder="e.g. {{qubit}} or q3ld4"
+              placeholder="e.g. {{qubit}} or q0"
             />
             {isQubitMissing && (
               <div style={{

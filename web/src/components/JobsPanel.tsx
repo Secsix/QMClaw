@@ -215,7 +215,7 @@ function DataVaultCard({ refreshTrigger }: { refreshTrigger: number }) {
         const res = await api.listQubits() as { sessionPath?: string[]; error?: string; source?: string };
         if (res.sessionPath && res.sessionPath.length > 0) {
           const sp = res.sessionPath;
-          const user = sp.length > 1 ? sp[1] : 'LQHL';
+          const user = sp.length > 1 ? sp[1] : 'demo';
           const path = sp.slice(2);
           setSessionConfig({ user, path });
         }

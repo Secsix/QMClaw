@@ -101,10 +101,10 @@ def part_a():
         svc._labrad = type("FakeLabrad", (), {
             "_cxn": object(),
             "connected": True,
-            "session_path": ["", "LQHL", "test", "20251103_LD_SQ"],
+            "session_path": ["", "demo", "test", "demo_session"],
         })()
 
-        res = svc._handle_qubit_registry({"name": "q2ld3"})
+        res = svc._handle_qubit_registry({"name": "q1"})
         check("返回 ok 且无 error", not res.get("error"), res.get("error"))
         reg = res.get("registry") or {}
         check("含顶层标量 f10", "f10" in reg, list(reg)[:6])
@@ -116,7 +116,7 @@ def part_a():
         # 未连接 LabRAD 时必须报错而不是崩
         # 注意：不能把 _labrad 置 None 后直接调用，否则 _ensure_connected() 会真的去连 LabRAD
         svc._ensure_connected = lambda: False
-        res2 = svc._handle_qubit_registry({"name": "q2ld3"})
+        res2 = svc._handle_qubit_registry({"name": "q1"})
         check("未连接时返回 error", bool(res2.get("error")), res2)
 
         # 静态检查：读操作必须在 _labrad_lock 内
@@ -155,7 +155,7 @@ class _StubHandler(BaseHTTPRequestHandler):
         _StubHandler.received.append((self.path, payload))
         if self.path == "/qubit/registry":
             self._json({"name": payload.get("name"), "registry": FAKE_REGISTRY,
-                        "session_path": ["", "LQHL", "test", "20251103_LD_SQ"],
+                        "session_path": ["", "demo", "test", "demo_session"],
                         "source": "labrad"})
         elif self.path == "/qubit/set_params":
             self._json({"success": True, "updated": list((payload.get("params") or {}).keys()),
@@ -184,33 +184,33 @@ def part_b():
     orig_argv = sys.argv
     try:
         # 1) dump
-        d = rs.dump("q2ld3", base=base)
+        d = rs.dump("q1", base=base)
         check("dump 拿到 registry", isinstance(d, dict) and "f10" in d, list(d)[:5])
         check("dump 含 timing.xy（摊平前是子字典）", "xy" in d.get("timing", {}))
         check("flat 摊平 PiGate.amp", "PiGate.amp" in rs.flat(d))
 
         # 2) CLI: snap
-        sys.argv = ["reg_snapshot.py", "snap", "q2ld3", "--base", base]
+        sys.argv = ["reg_snapshot.py", "snap", "q1", "--base", base]
         rs.main()
-        snaps = list(Path(snap_dir).glob("q2ld3_*.json"))
+        snaps = list(Path(snap_dir).glob("q1_*.json"))
         check("snap 落盘快照文件", len(snaps) == 1, [s.name for s in snaps])
         if snaps:
             data = json.loads(snaps[0].read_text(encoding="utf-8"))
             check("快照含 timing.xy", "xy" in data.get("timing", {}))
 
         # 3) CLI: show
-        sys.argv = ["reg_snapshot.py", "show", "q2ld3", "--base", base]
+        sys.argv = ["reg_snapshot.py", "show", "q1", "--base", base]
         rs.main()
 
         # 4) CLI: diff（无变化）
         if snaps:
-            sys.argv = ["reg_snapshot.py", "diff", "q2ld3", str(snaps[0]), "--base", base]
+            sys.argv = ["reg_snapshot.py", "diff", "q1", str(snaps[0]), "--base", base]
             rs.main()
 
         # 5) CLI: restore → 应跳过 discriminator.*，写回真实键
         if snaps:
             _StubHandler.received.clear()
-            sys.argv = ["reg_snapshot.py", "restore", "q2ld3", str(snaps[0]), "--base", base]
+            sys.argv = ["reg_snapshot.py", "restore", "q1", str(snaps[0]), "--base", base]
             rs.main()
             writes = [p for p in _StubHandler.received if p[0] == "/qubit/set_params"]
             check("restore 走了 /qubit/set_params", len(writes) == 1, writes)

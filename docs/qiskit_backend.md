@@ -84,7 +84,7 @@ services/quantum_service/
 
 | 环境 | lqms（真机 LabRAD 必需） | qiskit |
 |------|------------------------|--------|
-| `D:\anaconda3\envs\lqcs`（服务运行环境） | ✅ | ❌ |
+| `D:\anaconda3\envs\qmclaw`（服务运行环境） | ✅ | ❌ |
 | `D:\anaconda3\envs\qiskit`（本任务新建） | ❌ | ✅ |
 
 换任何一个解释器跑整个服务都会废掉另一半，所以 `qiskit_backend` 支持
@@ -206,7 +206,7 @@ extra_in_qiskit, covered, total}`。
   "execution": "subprocess",             // in_process | subprocess
   "versions": { "qiskit": "2.6.2", "qiskit_aer": "0.18.4" },
   "python_executable": "D:\\anaconda3\\envs\\qiskit\\python.exe",
-  "service_python": "D:\\anaconda3\\envs\\lqcs\\python.exe",
+  "service_python": "D:\\anaconda3\\envs\\qmclaw\\python.exe",
   "unit_system": "qiskit_normalized",
   "error": null,
   "install_hint": "pip install -r python/requirements-qiskit.txt…",
@@ -267,7 +267,7 @@ conda activate qiskit
 pip install -r python/requirements-qiskit.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # 方式 B：装进服务自己的解释器（省掉子进程开销）
-& "D:\anaconda3\envs\lqcs\python.exe" -m pip install -r python/requirements-qiskit.txt
+& "D:\anaconda3\envs\qmclaw\python.exe" -m pip install -r python/requirements-qiskit.txt
 # 然后把 config/system.json 的 qiskit.python_executable 设为 ""
 ```
 
@@ -276,7 +276,7 @@ pip install -r python/requirements-qiskit.txt -i https://mirrors.aliyun.com/pypi
 ```powershell
 cd "server"
 # 单测（28 个用例，含 13 个实验各一条）
-& "D:\anaconda3\envs\lqcs\python.exe" -m unittest tests.test_qiskit_backend -v
+& "D:\anaconda3\envs\qmclaw\python.exe" -m unittest tests.test_qiskit_backend -v
 
 # 健康检查（服务起来之后）
 curl http://localhost:3002/api/quantum/qiskit/health
@@ -303,8 +303,8 @@ curl -X POST http://localhost:3002/api/quantum/qiskit/run `
 4. **超时只能事后报错**。进程内路径用线程包了一层超时，但 Python 杀不掉线程，
    后台还会跑完；真正挡得住的是 `max_shots` / `max_points` 入参钳位。
    子进程路径的超时是真杀进程。
-5. **qiskit 装不装得进 `lqcs` 环境未验证**。qiskit 可能要求更高的 numpy/scipy，
-   而 `lqcs` 里 numpy 是 2.2.5、且有真机依赖 —— 所以本机默认走独立环境 + 子进程，
+5. **qiskit 装不装得进真机环境未验证**。qiskit 可能要求更高的 numpy/scipy，
+   而真机环境里的 numpy 版本较低、且带真机依赖 —— 所以本机默认走独立环境 + 子进程，
    **不动生产环境**。
 
 ---
@@ -412,7 +412,7 @@ measure as c1 {
 }
 ```
 
-* `qubit`（单数）是历史写法，等价于 `qubits ["q2ld3"]`；**两者不能同时写**
+* `qubit`（单数）是历史写法，等价于 `qubits ["q0"]`；**两者不能同时写**
   （同时写 → `E_SCHEMA`）。
 * 老 `.qwf` 一个字都不用改 —— IR v1 纯增量，旧文件照跑。
 

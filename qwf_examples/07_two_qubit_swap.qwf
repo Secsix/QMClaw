@@ -2,7 +2,7 @@
 #
 # 多比特的写法（2026-11-19 起）：
 #   measure { fn sq.swap  qubits ["q0", "q1"] }
-# `qubit`（单数）是历史写法，等价于 `qubits ["q2ld3"]`；两者**不能同时写**。
+# `qubit`（单数）是历史写法，等价于 `qubits ["q0"]`；两者**不能同时写**。
 #
 # 元数由 `config/experiment_configs.json` 的 `qubits` 字段决定：
 #   swap / drag_calibrate → 2 个比特，其余实验 → 1 个。
@@ -20,7 +20,7 @@ workflow ex_two_qubit_swap {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q0"
   }
 
   budget {

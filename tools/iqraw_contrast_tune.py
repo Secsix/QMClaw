@@ -2,7 +2,7 @@
 
 Why
 ---
-`q2ld3` currently shows only ~0.22 contrast (P(1|prep X) - P(1|prep I)), which is above
+`q1` currently shows only ~0.22 contrast (P(1|prep X) - P(1|prep I)), which is above
 the 0.2 "good enough to start from" line but far below the lab's 0.4 threshold.  The
 recipe is to alternate:
 
@@ -22,9 +22,9 @@ a GUI backend would wedge it.
 
 Usage
 -----
-    python tools/iqraw_contrast_tune.py --qubit q2ld3
-    python tools/iqraw_contrast_tune.py --qubit q2ld3 --rounds 2
-    python tools/iqraw_contrast_tune.py --qubit q2ld3 --dry-run
+    python tools/iqraw_contrast_tune.py --qubit q1
+    python tools/iqraw_contrast_tune.py --qubit q1 --rounds 2
+    python tools/iqraw_contrast_tune.py --qubit q1 --dry-run
 
 Options
 -------
@@ -51,7 +51,7 @@ SERVER_DIR = os.path.abspath(os.path.join(HERE, "..", "server"))
 sys.path.insert(0, SERVER_DIR)
 
 QUANTUM_URL = "http://127.0.0.1:3003"
-SESSION = ["", "LQHL", "test", "20251103_LD_SQ"]
+SESSION = ["", "demo", "test", "demo_session"]
 
 
 # --------------------------------------------------------------------------- HTTP
@@ -78,7 +78,7 @@ def latest_dataset(cxn, kind: str = "IQraw"):
     spectroscopy do), so the number has to be read back from the DataVault listing.
     """
     best = None
-    cxn.data_vault.cd(SESSION)            # the raw connection starts at ['', 'LQHL']
+    cxn.data_vault.cd(SESSION)            # the raw connection starts at ['', <device-dir>']
     _dirs, files = cxn.data_vault.dir()   # (subdirectories, dataset files)
     for entry in files:
         entry = str(entry)
@@ -178,7 +178,7 @@ def steps_for(qubit: str, df: float) -> list[tuple[str, str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--qubit", default="q2ld3")
+    ap.add_argument("--qubit", default="q1")
     ap.add_argument("--df", type=float, default=0.03, help="pidf half-width, GHz")
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--rounds", type=int, default=1)

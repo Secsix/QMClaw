@@ -20,7 +20,7 @@ workflow ex_cz_dcz {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

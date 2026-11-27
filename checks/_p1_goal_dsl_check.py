@@ -23,12 +23,12 @@ FAIL = []
 GOAL_QWF = """workflow goal_dsl_test {
   meta { name "goal_dsl_test" }
 
-  env { qubit "q4ld3" }
+  env { qubit "q2" }
 
   budget { max_wall 300  max_writes 3  max_datasets 3 }
 
   goal {
-    objective "复现 q4ld3 的 iqraw 对比度并判断是否漂移"
+    objective "复现 q2 的 iqraw 对比度并判断是否漂移"
     success {
       metric   r1.contrast
       operator >=

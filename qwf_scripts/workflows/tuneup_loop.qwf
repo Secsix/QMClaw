@@ -23,7 +23,7 @@ workflow ex_tuneup_loop {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

@@ -26,7 +26,7 @@ workflow ex_calib_single {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

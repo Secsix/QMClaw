@@ -15,8 +15,8 @@ workflow ex04_decide_branch {
   }
 
   env {
-    qubit   "q2ld3"
-    session "20251103_LD_SQ"
+    qubit   "q0"
+    session "demo_session"
   }
 
   budget {

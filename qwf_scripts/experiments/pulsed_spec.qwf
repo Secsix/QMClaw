@@ -17,7 +17,7 @@ workflow ex_pulsed_spec {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {

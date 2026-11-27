@@ -77,7 +77,7 @@ if not _tq_alive():
 
 print("[1] 只写派生键 → 自动放行（不需要票据）")
 tid = new_task("only-derived")
-res = post("/task/authorize", {"taskId": tid, "qubit": "q2ld3", "keys": DERIVED, "deltas": {}, "enforce": True})
+res = post("/task/authorize", {"taskId": tid, "qubit": "q1", "keys": DERIVED, "deltas": {}, "enforce": True})
 check("放行", res.get("ok") is True, res)
 check("authorizedBy=derived", res.get("authorizedBy") == "derived", res)
 check("reasonCode=derived_keys", res.get("reasonCode") == "derived_keys", res)
@@ -91,21 +91,21 @@ check("needsHuman=False", res.get("needsHuman") is False, res)
 print("[2] 派生键 + 票内真实键 f10 → 放行")
 tid = new_task("derived+f10")
 mh = post("/task/%s/manifest" % tid, {"manifest": {"writes": [
-    {"key": "f10", "qubit": "q2ld3", "maxDelta": 0.05},
-    {"key": "discriminator.center0", "qubit": "q2ld3", "maxDelta": None},
+    {"key": "f10", "qubit": "q1", "maxDelta": 0.05},
+    {"key": "discriminator.center0", "qubit": "q1", "maxDelta": None},
 ]}})
 hash_val = mh.get("manifestHash") or mh.get("hash")
 tk = post("/task/%s/ticket" % tid, {"manifestHash": hash_val,
-                                    "scope": [{"cls": "write", "qubit": "q2ld3", "keys": ["f10"], "maxDelta": {"f10": 0.05}, "limit": 1}],
+                                    "scope": [{"cls": "write", "qubit": "q1", "keys": ["f10"], "maxDelta": {"f10": 0.05}, "limit": 1}],
                                     "grantedBy": "human"})
 check("票据已签发", bool((tk.get("ticket") or {}).get("id") or tk.get("ticketId") or tk.get("id")), tk)
-res = post("/task/authorize", {"taskId": tid, "qubit": "q2ld3",
+res = post("/task/authorize", {"taskId": tid, "qubit": "q1",
                                "keys": ["f10"] + DERIVED, "deltas": {"f10": 0.01}})
 check("放行", res.get("ok") is True, res)
 check("authorizedBy 是 agent-delegated", str(res.get("authorizedBy", "")).startswith("agent-delegated"), res)
 
 print("[3] 派生键 + 票外真实键 g1 → 拦截，原因不指向 discriminator.*")
-res = post("/task/authorize", {"taskId": tid, "qubit": "q2ld3",
+res = post("/task/authorize", {"taskId": tid, "qubit": "q1",
                                "keys": ["g1"] + DERIVED, "deltas": {}})
 check("被拦", res.get("ok") is not True, res)
 check("needsHuman=True", res.get("needsHuman") is True, res)
@@ -114,12 +114,12 @@ check("reasonCode 不在派生键上", "discriminator" not in json.dumps(res, en
 print("[4] 有 f10 票时 sq.iqraw（只写 discriminator.*）不卡死")
 tid = new_task("iqraw-with-f10-ticket")
 mh = post("/task/%s/manifest" % tid, {"manifest": {"writes": [
-    {"key": "f10", "qubit": "q2ld3", "maxDelta": 0.05}]}})
+    {"key": "f10", "qubit": "q1", "maxDelta": 0.05}]}})
 hash_val = mh.get("manifestHash") or mh.get("hash")
 post("/task/%s/ticket" % tid, {"manifestHash": hash_val,
-                               "scope": [{"cls": "write", "qubit": "q2ld3", "keys": ["f10"], "maxDelta": {"f10": 0.05}, "limit": 1}],
+                               "scope": [{"cls": "write", "qubit": "q1", "keys": ["f10"], "maxDelta": {"f10": 0.05}, "limit": 1}],
                                "grantedBy": "human"})
-res = post("/task/authorize", {"taskId": tid, "qubit": "q2ld3", "keys": DERIVED, "deltas": {}})
+res = post("/task/authorize", {"taskId": tid, "qubit": "q1", "keys": DERIVED, "deltas": {}})
 check("iqraw 不被拦", res.get("ok") is True, res)
 check("needsHuman=False", res.get("needsHuman") is False, res)
 

@@ -42,13 +42,13 @@ IR = {
     "id": "p1_selftest",
     "budget": {"maxWrites": 3, "maxDatasets": 3, "maxWallSeconds": 300},
     "goal": {
-        "objective": "复现 q4ld3 的 iqraw 对比度并判断是否漂移",
+        "objective": "复现 q2 的 iqraw 对比度并判断是否漂移",
         "success": {"metric": "$c1.contrast", "operator": ">=", "value": 0.6},
         "maxRounds": 3,
     },
     "pipeline": [
-        {"op": "measure", "as": "c1", "fn": "sq.iqraw", "qubit": "q4ld3",
-         "args": {"qubit": "q4ld3", "do_plot": False}},
+        {"op": "measure", "as": "c1", "fn": "sq.iqraw", "qubit": "q2",
+         "args": {"qubit": "q2", "do_plot": False}},
         {"op": "read", "as": "r1", "kind": "IQraw", "dataset": "$c1", "threshold": 0.4},
     ],
 }

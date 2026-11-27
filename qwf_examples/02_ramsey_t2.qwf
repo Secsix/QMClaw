@@ -2,7 +2,7 @@
 
 # 要点：
 #   - sq.ramsey_t2 完全不写寄存器（WRITE_EFFECTS 里 mode=none）→ 不需要写清单/票据
-#   - T2* 的数值要用 analyze 节点（qter.fitData）拟合，不能用 read（read 只认 IQraw）
+#   - T2* 的数值要用 analyze 节点（analysis 端的拟合接口）拟合，不能用 read（read 只认 IQraw）
 
 workflow ex02_ramsey_t2 {
   meta {
@@ -12,8 +12,8 @@ workflow ex02_ramsey_t2 {
   }
 
   env {
-    qubit   "q2ld3"
-    session "20251103_LD_SQ"
+    qubit   "q0"
+    session "demo_session"
   }
 
   budget {

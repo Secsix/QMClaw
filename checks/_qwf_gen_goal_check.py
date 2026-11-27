@@ -40,9 +40,9 @@ def _args(**kw):
     import argparse
 
     base = dict(
-        fn="sq.iqraw", qubit="q4ld3", param=[], name="", title="", out="", stamp="check",
-        max_wall="10m", max_writes="4", session="20251103_LD_SQ", plot="", timeout="120",
-        read="IQraw", say="", threshold="0.4", assert_="", note="", goal_objective="复现 q4ld3 的 iqraw 对比度",
+        fn="sq.iqraw", qubit="q2", param=[], name="", title="", out="", stamp="check",
+        max_wall="10m", max_writes="4", session="demo_session", plot="", timeout="120",
+        read="IQraw", say="", threshold="0.4", assert_="", note="", goal_objective="复现 q2 的 iqraw 对比度",
         success_metric="contrast", success_op=">=", success_value="0.6", max_rounds="3",
         goal_style="native",
     )

@@ -8,8 +8,8 @@
 ## 用法
 
 ```powershell
-python health_report.py --vault "D:\DataVault\LQHL.dir\test.dir\20260822_device1.dir" `
-                        --start 3648 --end 4455 -o "..\..\reports\20260822_device1"
+python health_report.py --vault "<vault>/<session>.dir" `
+                        --start 3648 --end 4455 -o "<out-dir>"
 ```
 
 输出：

@@ -159,7 +159,7 @@ import sq
 # Connect
 cxn = labrad.connect(host='localhost', port=7682)
 s = switchSession(cxn, user='YOUR_USERNAME')
-qobj = s.YOUR_QUBIT_NAME  # e.g., 'q11ld4'
+qobj = s.YOUR_QUBIT_NAME  # e.g., 'q1'
 ```
 
 > **Note:** The quantum control system setup varies by lab. Consult your system administrator for the correct connection parameters and workflow directory path.

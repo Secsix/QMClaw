@@ -17,7 +17,7 @@ workflow ex_drag_calibrate {
   }
 
   env {
-    qubit   "q2ld3"
+    qubit   "q1"
   }
 
   budget {
