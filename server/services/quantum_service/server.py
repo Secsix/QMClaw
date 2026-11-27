@@ -820,6 +820,8 @@ class QuantumService(BaseService):
             return self._handle_qubit_set_params(data)
         elif path == "/qubit/apply_dataset":
             return self._handle_qubit_apply_dataset(data)
+        elif path == "/qubit/contrast":
+            return self._handle_qubit_contrast(data)
         elif path == "/qubit/capabilities":
             return self._handle_qubit_capabilities(data)
         elif path == "/qubit/probe_transition":
@@ -4465,6 +4467,163 @@ class QuantumService(BaseService):
                 "updated": res["updated"],
                 "errors": res["errors"] if res["errors"] else None,
             }
+
+    # ── 只读分析：读出对比度（contrast） ─────────────────────────────────
+    def _handle_qubit_contrast(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """只读：计算某个比特的读出对比度（contrast）。
+
+        只读豁免写闸门（口径同 /qubit/registry）：它只从 DataVault 读历史
+        数据集 + 查 discriminator 标定值，不向真机下发任何指令。
+        但仍走同一条执行通道（busy 串行 + 看门狗），避免与真机实验并发。
+
+        口径代码不在本仓：来自上游 vendor/OpenQWF/adapters/lqcs.py 的
+        build_contrast_code / annotate，本仓只做转发与判据。
+        """
+        from ..common.metrics import evaluate_contrast, resolve_threshold
+        from .experiments.codegen import SAFE_QUBIT_RE
+
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return {
+                **error_envelope("validation_error", "Qubit name required", success=False),
+                "hint": 'POST /qubit/contrast {"name": "<qubit>"}',
+            }
+        if not SAFE_QUBIT_RE.match(name):
+            return {
+                **error_envelope("validation_error", f"Invalid qubit name: {name!r}", success=False),
+                "hint": "比特名只允许 A-Za-z0-9_%-（上游片段会把名字写进下发代码）",
+            }
+        kind = str(data.get("kind") or "IQraw").strip()
+        if not SAFE_QUBIT_RE.match(kind):
+            return {
+                **error_envelope("validation_error", f"Invalid dataset kind: {kind!r}", success=False),
+                "hint": "kind 只允许 A-Za-z0-9_%-",
+            }
+        dataset_id = data.get("dataset_id", data.get("dataset"))
+        if dataset_id in (None, ""):
+            dataset_id = None
+        else:
+            try:
+                dataset_id = int(dataset_id)
+            except (TypeError, ValueError):
+                return {
+                    **error_envelope("validation_error", f"Invalid dataset id: {dataset_id!r}", success=False),
+                }
+        # 门限默认取 lab_criteria.json 的 weak_but_usable（与上游 0.4 同源）
+        raw_threshold = data.get("threshold")
+        if raw_threshold is None:
+            resolved = resolve_threshold("contrast", "weak_but_usable")
+            raw_threshold = resolved.get("value")
+            if raw_threshold is None:
+                raw_threshold = 0.4
+        try:
+            threshold = float(raw_threshold)
+        except (TypeError, ValueError):
+            return {
+                **error_envelope("validation_error", f"Invalid threshold: {raw_threshold!r}", success=False),
+            }
+
+        if self._exec_stuck:
+            return {
+                **error_envelope("stuck", self._exec_stuck, success=False),
+                "hint": "上一次执行超时后工作线程可能仍在真机上运行，已拒绝新的只读分析。",
+            }
+        if self._fallback.is_degraded:
+            return {
+                **error_envelope(
+                    "degraded",
+                    "LabRAD 不可用（降级模式），无法读取历史数据集",
+                    success=False,
+                    fallback_message=self._get_fallback_message(),
+                )
+            }
+        if not self._ensure_connected():
+            return {
+                **error_envelope("not_connected", "Not connected to LabRAD", success=False)
+            }
+
+        try:
+            from services.workflow_service.dsl.backends.lqcs import (
+                annotate,
+                build_contrast_code,
+            )
+        except Exception as exc:  # 上游 submodule 没初始化 / 上游改坏了
+            return {
+                **error_envelope(
+                    "backend_unavailable",
+                    f"对比度口径不可用：{type(exc).__name__}: {exc}",
+                    success=False,
+                ),
+                "hint": "上游 submodule 未初始化：git submodule update --init --recursive vendor/OpenQWF",
+            }
+
+        code = build_contrast_code(dataset_id, name, kind)
+        task_id = str(data.get("task_id") or f"contrast_{int(time.time() * 1000)}")
+        try:
+            timeout = float(data.get("timeout") or 300)
+        except (TypeError, ValueError):
+            timeout = 300.0
+
+        event = threading.Event()
+        job_id = self._submit_job(code, task_id, timeout, wait_event=event)
+        try:
+            wait_s = timeout + 30.0
+            finished = event.wait(timeout=wait_s)
+        finally:
+            self._job_events.pop(job_id, None)
+        job = self._jobs.get(job_id) or {}
+        if not finished:
+            return {
+                **error_envelope(
+                    "timeout",
+                    f"waited {wait_s:.0f}s in hardware lane without finishing",
+                    success=False,
+                    task_id=task_id,
+                    job_id=job_id,
+                ),
+                "hint": "任务仍在排队或执行中，可用 GET /jobs/{job_id} 查进度。",
+            }
+
+        res = job.get("result") or {}
+        if res.get("error") or res.get("status") not in (None, "success", "completed"):
+            return {
+                **error_envelope(
+                    "internal_error",
+                    res.get("error") or f"contrast execution failed: {res.get('status')}",
+                    success=False,
+                    task_id=task_id,
+                    job_id=job_id,
+                ),
+                "stdout": res.get("stdout", ""),
+                "stderr": res.get("stderr", ""),
+            }
+
+        parsed = annotate("contrast", {"threshold": threshold}, res)
+        if parsed.get("error"):
+            return {
+                **error_envelope(
+                    "validation_error", str(parsed["error"]), success=False,
+                    task_id=task_id, job_id=job_id,
+                ),
+                "hint": "常见原因：没有匹配的 IQraw 数据集 / 数据集形状不是 IQraw(shape[1]>=5)。",
+            }
+
+        contrast = parsed.get("contrast")
+        assessment = evaluate_contrast(contrast) if contrast is not None else None
+        return {
+            "success": True,
+            "name": name,
+            "dataset_id": parsed.get("dataset_id"),
+            "contrast": contrast,
+            "metrics": parsed.get("metrics") or {},
+            "passed": bool(parsed.get("passed")),
+            "threshold": threshold,
+            "verdict": (assessment or {}).get("verdict"),
+            "assessment": assessment,
+            "source": "lqcs",
+            "task_id": task_id,
+            "job_id": job_id,
+        }
 
     # ── 寄存器写入（set_params / apply_dataset 共用） ─────────────────────
     def _write_qubit_params(self, qname: str, params: Dict[str, Any]) -> Dict[str, Any]:

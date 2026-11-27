@@ -442,6 +442,12 @@ export function createServiceProxy() {
     res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
   });
 
+  /** 只读：算某个比特的读出对比度（contrast）。口径在 quantum_service 内部。 */
+  proxy.post('/quantum/qubit/contrast', async (req, res) => {
+    const result = await proxyToService('quantum', '/qubit/contrast', 'POST', req.body ?? {});
+    res.status(result.ok ? 200 : 502).json(result.data ?? { error: result.error });
+  });
+
   proxy.get('/quantum/datasets', async (req, res) => {
     const path = req.query.path as string | undefined;
     const result = await proxyToService('quantum', '/datasets', 'POST', { path: path ?? null });

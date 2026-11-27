@@ -10,7 +10,7 @@
 | 端口 | 服务 | 作用 | 备注 |
 |---|---|---|---|
 | 3002 | Express (server) | `/sessions/plot` 等 | **不透传 `dataset_index`**，只能画"最新"数据集；要画指定数据集直连 3004 |
-| 3003 | quantum_service | `/execute` `/health` `/qubit/params` `/qubit/registry` `/qubit/set_params` `/qubit/apply_dataset` `/qubit/capabilities` `/qubit/probe_transition` `/qubit/runs` `/qubit/assess` `/qubit/writer` `/qubit/profile` `/qubit/replay` | 真机执行；实验**必须** `do_plot=False` |
+| 3003 | quantum_service | `/execute` `/health` `/qubit/params` `/qubit/registry` `/qubit/set_params` `/qubit/apply_dataset` `/qubit/contrast` `/qubit/capabilities` `/qubit/probe_transition` `/qubit/runs` `/qubit/assess` `/qubit/writer` `/qubit/profile` `/qubit/replay` | 真机执行；实验**必须** `do_plot=False` |
 | 3004 | analysis_service | `/connect` `/plot` `/plot/online/v2` | 绘图与拟合都归它 |
 | 3008 | workflow_service | `/workflows/parse_qwf` `/workflows/validate` `/workflows/lint` `/workflows/manifest` | DSL 执行主体 |
 | 3009 | task_queue | `/task*`（额度、清单、票据、审计报表） | P3 治理层 |
@@ -212,6 +212,40 @@ curl -s "http://127.0.0.1:3003/qubit/profile?refresh=1"
   未透传时由服务端生成并在 `trace_hint` 里说明），并落入 RunRecord 台账，可与 `/qubit/runs` 对账。
 - `program`（执行 IR）**不在**端口层直接提供，避免绕过治理层；IR 请走 `:3008/workflows/run_ir`。
 - 端口层的写操作仍受 `quantum_service.actuation` 的 `allow_execute` / `allow_set_params` 闸门约束。
+
+### 3.4.1 只读分析：读出对比度（`/qubit/contrast`）
+
+算某个比特的读出对比度（contrast）：把 shots 投影到 discriminator 的 center0→center1 轴上，
+阈值取两点中点，`contrast = |P(1|X 制备) − P(1|I 制备)|`。
+
+**这是只读端点**：只从 DataVault 读历史数据集、查 discriminator 标定值，**不下发任何实验指令**，
+因此**豁免 `allow_execute` 写闸门**（口径同 `/qubit/registry`）；但仍走同一条执行通道
+（busy 串行 + 看门狗），不会与真机实验并发。
+
+```powershell
+# 自动挑最新的 IQraw 数据集算对比度
+curl -s -X POST http://127.0.0.1:3003/qubit/contrast `
+     -H "Content-Type: application/json" `
+     -d '{"name":"q2"}'
+
+# 指定数据集编号 + 自定门限
+curl -s -X POST http://127.0.0.1:3003/qubit/contrast `
+     -H "Content-Type: application/json" `
+     -d '{"name":"q2","dataset_id":1032,"threshold":0.4}'
+```
+
+请求体：`name`（比特名，必填）、`dataset_id`（可省，省略则取 DataVault 里最新的同名 IQraw 数据集）、
+`kind`（默认 `"IQraw"`）、`threshold`（默认取 `config/lab_criteria.json` 的 `weak_but_usable`）。
+
+返回：`contrast` / `metrics{p1_i,p1_x,contrast,separation,sigma,snr,shots}` / `passed` / `threshold` /
+`verdict`（`unusable` / `weak_but_usable` / `good`，判据同样来自 `lab_criteria.json`）/ `source` / `job_id`。
+
+说明：
+- **口径代码不在本仓**：由上游 `vendor/OpenQWF` 的 `adapters/lqcs.py` 提供，本仓只做转发与判据
+  （见 `docs/OPENQWF_SYNC.md`）。改口径请改上游仓，不要在本仓复制第二份。
+- 比特名与 `kind` 会被写进下发的代码片段，因此端点只接受 `A-Za-z0-9_%-` 的名字。
+- 数据集形状不是 IQraw（`shape[1] < 5`）时返回 `validation_error`，并提示改用 `analyze` 节点
+  （`qter.fitData`）——Ramsey / T1 / XEB 不走这条口径。
 
 ### 3.5 traceId 全链贯通（阶段 3 第二批）
 
@@ -918,6 +952,7 @@ python scripts/start_group.py --group core             # workflow :3008 + task_q
 | `_registry_ep_check.py` | `:3003 /qubit/registry` 端点 + reg_snapshot 走 HTTP | PASS=14 FAIL=0（服务已重启时 WARN=0） |
 | `_apply_dataset_ep_check.py` | `:3003 /qubit/apply_dataset` 端点（数据集参数快照写回） | 静态 PASS=5；HTTP 段需服务重启后才有意义 |
 | `_d2_registry_offline_check.py` | D2 边界收口（处理器级 + 桩 HTTP，**不连真机**） | PASS=23 FAIL=0 |
+| `_contrast_ep_check.py` | `:3003 /qubit/contrast` 端点（只读对比度分析，处理器级 + 桩，**不连真机**）：路由/handler 存在、口径来自上游门面（不许本地复刻算法）、走 busy 串行通道、参数校验（缺 name / 非法 name / 非法 dataset_id / 非法 threshold） | PASS=15 FAIL=0 |
 | `_service_groups_check.py` | 阶段 17：服务进程组（端口表与启动脚本/config 一致 / 端口唯一 / 组定义与 `plan_group` / 不可合并服务必须写理由 / 启动器不硬编码端口 / `--dry-run` 不启动进程 / 未知组与 `lab` 组退出码 2） | PASS=38 FAIL=0 |
 | `_web_proxy_check.py` | 阶段 19：前端排队/轮询 + Express 作业代理（终态集合 / 超时与传输层重试 / 两个执行入口都轮询 / 摊平字段对齐后端 / `GET·POST /api/quantum/jobs/:id` / 页面进度提示 / 防"同步"回退扫描） | PASS=62 FAIL=0 |
 | `_docs_paths_check.py` | 文档漂移：`docs/*.md` 与根 `*.md` 里的仓库路径必须存在；§4 本表必须与 `run_all_checks.py` 的 OFFLINE/ONLINE 列表一致（两个方向） | PASS=6 FAIL=0 |
@@ -936,7 +971,7 @@ python checks\_p3_check.py
 ### 一次跑完并落盘（推荐）
 
 ```powershell
-python checks\run_all_checks.py          # 18 套离线自检
+python checks\run_all_checks.py          # 21 套离线自检
 python checks\run_all_checks.py --e2e   # 再加 3 套在线自检（需服务在跑）
 python checks\run_all_checks.py --only _p3_check
 ```

@@ -42,7 +42,7 @@ author: qmclaw
 | hermes | 3012 | `/api/hermes` | 11 |
 | image | 3007 | `/api/image` | 6 |
 | llm | 3006 | `/api/llm` | 3 |
-| quantum | 3003 | `/api/quantum` | 43 |
+| quantum | 3003 | `/api/quantum` | 44 |
 | qubitclient | 3010 | `（不对外）` | 10 |
 | workflow | 3008 | `/api/workflow` | 19 |
 
@@ -145,6 +145,7 @@ author: qmclaw
 - `/qubit/registry`
 - `/qubit/set_params`
 - `/qubit/apply_dataset`
+- `/qubit/contrast`
 - `/qubit/capabilities`
 - `/qubit/probe_transition`
 - `/qubit/runs`
