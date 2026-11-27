@@ -257,7 +257,7 @@ tools/s21_photo_reader/_tmp_test/
 /nul
 /docs/reports/
 
-# 根目录一次性实验 .qwf（产品范例在 qwf_examples/，不受影响）
+# 根目录一次性实验 .qwf（产品范例在 qwf_scripts/examples/，不受影响）
 /*.qwf
 
 # 文档口径（2026-11-24 用户决定）：GitHub 上只保留**精简版**——

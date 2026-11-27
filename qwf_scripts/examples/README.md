@@ -1,10 +1,11 @@
-# qwf_examples/ — QWF DSL 教学范例
+# qwf_scripts/examples/ — QWF DSL 教学范例
 
 QWF 是本项目的测控编排 DSL（真源在独立仓 [OpenQWF](https://github.com/Secsix/OpenQWF)，本仓通过
 `vendor/OpenQWF` submodule 引用，见 [`docs/OPENQWF_SYNC.md`](../docs/OPENQWF_SYNC.md)）。
 
 本目录放**带注释的教学范例**：每份文件开头都写清「这个例子演示什么、坑在哪」。
-日常实验脚本在 [`qwf_scripts/`](../qwf_scripts/)，两者区别见该目录 README。
+日常实验脚本在 [`qwf_scripts/`](../qwf_scripts/)（`workflows/` 与 `experiments/`），
+本目录只放教学范例。
 
 ## 范例清单
 
@@ -22,13 +23,13 @@ QWF 是本项目的测控编排 DSL（真源在独立仓 [OpenQWF](https://githu
 
 ```bash
 # 语法检查（CI 必跑，必须 0 error）
-python qwf_lint.py qwf_examples/*.qwf
+python qwf_lint.py qwf_scripts/examples/*.qwf
 
 # 干跑，不碰硬件
-python qwf_run.py qwf_examples/06_qiskit_t1.qwf --dry
+python qwf_run.py qwf_scripts/examples/06_qiskit_t1.qwf --dry
 
 # 真跑（走 qiskit 模拟）
-python qwf_run.py qwf_examples/06_qiskit_t1.qwf --if yes
+python qwf_run.py qwf_scripts/examples/06_qiskit_t1.qwf --if yes
 ```
 
 真机跑法（`01`–`05`）需要 LabRAD + `lqcs`，且会触发写闸门，详见
@@ -38,4 +39,4 @@ python qwf_run.py qwf_examples/06_qiskit_t1.qwf --if yes
 
 - 范例里的 `qubit` / `session` 用占位值（`q0` / `demo_session`），跑之前改成自己的。
 - **不要**在这些文件里写真实设备标定值或 API Key。
-- 改完范例要跑 `python qwf_lint.py qwf_examples/*.qwf`，并跑 `python checks/run_all_checks.py`。
+- 改完范例要跑 `python qwf_lint.py qwf_scripts/examples/*.qwf`，并跑 `python checks/run_all_checks.py`。

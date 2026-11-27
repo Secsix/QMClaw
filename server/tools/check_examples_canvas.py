@@ -28,7 +28,7 @@ def main() -> int:
     files = example_files()
     if not files:
         print("!! 没有找到任何示例 .qwf"
-              "（运行期 data/workflows/examples/ 与仓库根 qwf_examples/ 都没有）")
+              "（运行期 data/workflows/examples/ 与仓库根 qwf_scripts/examples/ 都没有）")
         return 1
     bad = 0
     for path in files:

@@ -666,7 +666,7 @@ export function createServiceProxy() {
 
   // ── `.qwf` ⇄ 画布 ─────────────────────────────────────────────────────────
   // qwf_examples   列出服务端示例 .qwf（运行期 data/workflows/examples/，
-  //                回落到仓库根 qwf_examples/——产品范例真正入库的地方）
+  //                回落到仓库根 qwf_scripts/examples/——产品范例真正入库的地方）
   // qwf_to_canvas  .qwf 文本 → 画布节点图（IR 是中表示）
   // canvas_to_qwf  画布节点图 → .qwf 文本（带语义等价判定）
 

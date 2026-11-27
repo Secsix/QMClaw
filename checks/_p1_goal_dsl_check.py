@@ -128,9 +128,9 @@ except Exception as e:  # noqa: BLE001
     check("validate", False, repr(e))
 
 # ── 6. 既有 .qwf 回归 ───────────────────────────────────────────
-# 产品范例在仓库根 `qwf_examples/`（上游 CI lint 的也是这个目录），
+# 产品范例在仓库根 `qwf_scripts/examples/`（上游 CI lint 的也是这个目录），
 # 运行期目录 `data/workflows/examples/` 被 .gitignore 排除、通常是空的。
-for f in sorted(glob.glob(os.path.join(REPO_ROOT, "qwf_examples", "*.qwf"))) + \
+for f in sorted(glob.glob(os.path.join(REPO_ROOT, "qwf_scripts", "examples", "*.qwf"))) + \
         sorted(glob.glob(os.path.join(REPO_ROOT, "*.qwf"))):
     try:
         r = parse_qwf(open(f, encoding="utf-8").read())
@@ -144,19 +144,20 @@ for f in sorted(glob.glob(os.path.join(REPO_ROOT, "qwf_examples", "*.qwf"))) + \
 # ── 7. 画布往返：顶层块（goal / bounds）必须原样带回 ────────────
 # 回归两个上游缺陷：
 #   A) 示例目录：服务端只认 data/workflows/examples/（被 .gitignore 排除，
-#      永远为空），产品范例其实在仓库根 qwf_examples/；
+#      永远为空），产品范例其实在仓库根 qwf_scripts/examples/；
 #   B) goal 块：ir_to_canvas 不带 goal → canvas_to_ir 重建不出 goal，
 #      画布往返一次就把目标契约丢了（diff 里是 `$.goal: {...} → 缺失`）。
-EXAMPLES_DIR = os.path.join(REPO_ROOT, "qwf_examples")
+EXAMPLES_DIR = os.path.join(REPO_ROOT, "qwf_scripts", "examples")
 try:
     sys.path.insert(0, os.path.join(REPO_ROOT, "server"))
     from services.workflow_service import qwf_store  # noqa: E402
 
     found = qwf_store.example_files()
-    check("qwf_store 能找到产品示例（仓库根 qwf_examples/）",
+    check("qwf_store 能找到产品示例（仓库根 qwf_scripts/examples/）",
           len(found) >= 1, f"{[p.name for p in found]}")
     check("qwf_store 示例目录含运行期目录或仓库根回落",
-          any(d.name == "qwf_examples" for d in qwf_store.example_dirs()),
+          any(str(d).endswith(os.path.join("qwf_scripts", "examples"))
+              for d in qwf_store.example_dirs()),
           str([str(d) for d in qwf_store.example_dirs()]))
 except Exception as e:  # noqa: BLE001
     check("qwf_store 示例解析", False, repr(e))

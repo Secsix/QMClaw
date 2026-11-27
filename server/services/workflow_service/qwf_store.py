@@ -34,10 +34,10 @@ EXAMPLES_DIR = WORKFLOWS_DIR / "examples"
 # 为什么需要回落：`data/` 整个目录被仓库根 `.gitignore` 排除
 # （`server/data/`），所以放在 `data/workflows/examples/`
 # 里的 `.qwf` 永远进不了版本库；上游真正入库的产品示例在**仓库根**
-# `qwf_examples/`（上游 CI 就是 lint 这个目录，见 .github/workflows/checks.yml）。
+# `qwf_scripts/examples/`（上游 CI 就是 lint 这个目录，见 .github/workflows/checks.yml）。
 # 运行期目录仍然优先（部署时可以覆盖），找不到时回落到仓库根。
 REPO_ROOT_DIR = ROOT_DIR.parent
-REPO_EXAMPLES_DIR = REPO_ROOT_DIR / "qwf_examples"
+REPO_EXAMPLES_DIR = REPO_ROOT_DIR / "qwf_scripts" / "examples"
 
 # 文件名安全：只留字母数字、下划线、连字符、点
 _SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -55,11 +55,11 @@ def _meta_of(ir: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def example_dirs() -> List[Path]:
-    """示例 `.qwf` 所在目录（运行期目录优先，回落到仓库根 `qwf_examples/`）。
+    """示例 `.qwf` 所在目录（运行期目录优先，回落到仓库根 `qwf_scripts/examples/`）。
 
     上游把示例只认 `data/workflows/examples/`，但那个目录被 `.gitignore`
     整条排除，示例永远进不了版本库——真正入库的产品示例在仓库根
-    `qwf_examples/`（上游 CI lint 的就是它）。这里把两处都收进来，
+    `qwf_scripts/examples/`（上游 CI lint 的就是它）。这里把两处都收进来，
     运行时目录优先（部署可覆盖），同名文件以先到的为准。
     """
     dirs: List[Path] = []

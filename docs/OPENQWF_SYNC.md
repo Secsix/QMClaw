@@ -169,7 +169,7 @@ python tools/check_openqwf_drift.py
 
 # 5) 回归网
 python -m pytest "server/tests" -q
-python qwf_lint.py qwf_examples/*.qwf        # 必须 0 error
+python qwf_lint.py qwf_scripts/examples/*.qwf        # 必须 0 error
 ```
 
 ## 故障排查

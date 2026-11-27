@@ -20,7 +20,7 @@
 - **标定口径**：在服务端 `server/services/analysis_service/calibration_metrics.py`，
   门限真源 `server/config/lab_criteria.json` 的 `calibration_gates` 段
 - **实验执行**：一律先落成 QWF 再提交（执行层唯一入口），脚本在 `qwf_scripts/`
-- **QWF 范例**：教学/演示用范例在 `qwf_examples/`（被 CI 的 lint 任务直接引用）
+- **QWF 范例**：教学/演示用范例在 `qwf_scripts/examples/`（被 CI 的 lint 任务直接引用）
 
 本目录不再放入库的脚本；要复现一段实验，请把它写成 QWF 放进 `qwf_scripts/`，
 或写成一个走服务端的客户端工具放进 `tools/`。

@@ -1,7 +1,7 @@
 """仓库边界自检：公共目录里不许漏出「真机后端」的实现细节。
 
 背景（2026-11-27）：本仓分层的硬规矩是「**所有调用底层测控软件的行为都收进测控微服务**」。
-公共目录（`checks/` `docs/` `experiments/` `memory/` `qwf_examples/` `qwf_scripts/` `tools/`）
+公共目录（`checks/` `docs/` `experiments/` `memory/` `qwf_scripts/` `tools/`）
 里的内容会被别人读、被 Agent 读、被 CI 读；一旦里面出现厂商库的调用写法或真机比特编号，
 读者就会绕过服务直接动手——绕过的是写闸门、审计、串行锁与后端适配层。
 
@@ -10,7 +10,7 @@
 A. 全部公共目录：
    1. 没有厂商库的 `import` / `from ... import`（`lqms` / `qter` / `pylabrad` / `labrad`）。
    2. 没有真机标识（比特编号 / 会话编号 / 机房代号 / 真机环境目录）。
-B. 可执行文件（`tools/` `qwf_examples/` `qwf_scripts/` `experiments/` 下的 .py/.qwf/.cmd/.sh）：
+B. 可执行文件（`tools/` `qwf_scripts/` `experiments/` 下的 .py/.qwf/.cmd/.sh）：
    3. 没有厂商调用片段（`sq.<fn>(...)`）。
    4. 没有把厂商调用当命令写（`qter.fitData(...)`、`QubitUpdater(...)`、`labrad_connect`）。
    5. 没有自己打开厂商数据文件（`import h5py` / `h5py.File`）。
@@ -50,13 +50,12 @@ SCAN_DIRS = (
     "docs",
     "experiments",
     "memory",
-    "qwf_examples",
     "qwf_scripts",
     "tools",
 )
 
 # B 组规则只管「会被执行的文件」
-CODE_DIRS = ("experiments", "qwf_examples", "qwf_scripts", "tools")
+CODE_DIRS = ("experiments", "qwf_scripts", "tools")
 CODE_SUFFIXES = {".py", ".qwf", ".cmd", ".sh", ".ps1"}
 
 # 只看文本文件；二进制与依赖目录不看

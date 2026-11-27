@@ -16,7 +16,7 @@
 | `tools/` | 运维脚本与工具子目录 | OpenQWF 同步与漂移、对比度调参、比特体检客户端、照片读取 |
 | `skills/` | Agent 技能（SKILL.md） | |
 | `qwf_scripts/` | QWF DSL 脚本与工作流 | 被测试与文档直接引用，**留在根目录**（见下） |
-| `qwf_examples/` | QWF DSL 示例 | |
+| `qwf_scripts/examples/` | QWF DSL 示例 | |
 | `vendor/` | 上游仓 **submodule**（只存指针） | `vendor/OpenQWF` 等，见 `docs/OPENQWF_SYNC.md` |
 | `memory/` | 静态说明文件（`MEMORY.md`） | 运行期记忆在 `server/config/memory/`，**不入库** |
 | `qwf_gen.py` / `qwf_run.py` / `qwf_lint.py` | QWF DSL CLI | 薄壳，委派上游 `vendor/OpenQWF/tools/`，见 `tools/README.md` |

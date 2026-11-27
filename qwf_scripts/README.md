@@ -22,7 +22,7 @@ python tools/qwf_exp.py t1 swap --if yes              # 一次跑多个（名字
 `lqcs` 真机 → `qiskit`/Aer → `offline_sim` 离线回放。
 **本机没接真机时自动落到 qiskit**（所以下面这些脚本在开发机上也能跑出数）。
 
-## 分两层：workflows/ 与 experiments/
+## 分三层：workflows/ · experiments/ · examples/
 
 qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/`：
 
@@ -30,8 +30,9 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 |---|---|---|---|
 | 工作流 | `workflows/` | **多个实验 + 门槛 + 分支 + 循环** | 跑一条完整工艺链（标定、体检、复测） |
 | 单项 | `experiments/` | 一个实验 | 隔离失败、快速定位、单独复测一个实验 |
+| 范例 | `examples/` | 带注释的最小示例 | 教 DSL 语法，不进 `qwf_exp.py` 的执行清单 |
 
-两层互不重名（`server/tests/test_qwf_scripts.py` 盯着），`tools/qwf_exp.py` 按名字选脚本。
+三层互不重名（`server/tests/test_qwf_scripts.py` 盯着），`tools/qwf_exp.py` 按名字选脚本。
 
 ## workflows/ —— 4 条工作流
 
@@ -91,8 +92,8 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 过滤掉，所以多给几个厂商口径的参数不会把 qiskit 跑歪。
 
 **上真机前要换口径**：厂商函数要的是 `zpa` / `delay` / `freq` 这类，
-见 `qwf_examples/03_t1_fixed_zpa.qwf`（真机版 T1）和
-`qwf_examples/01_iqraw_contrast.qwf`。
+见 `qwf_scripts/examples/03_t1_fixed_zpa.qwf`（真机版 T1）和
+`qwf_scripts/examples/01_iqraw_contrast.qwf`。
 
 两个容易踩的点：
 
@@ -121,11 +122,15 @@ qwf 本来就是**面向工作流运行**的设计，所以主体是 `workflows/
 - `decide` 要 `config/qubitclient.json` 的 `llm_decision` 段（模板见 `config/qubitclient.example.json`）
 - `read` / `analyze` 在 qiskit 后端拿不到 `dataset_id`，会失败 —— 用 `onError continue` 跳过
 
-## 和 `qwf_examples/` 的区别
+## examples/ —— 教学范例（本目录的子目录）
 
-- `qwf_examples/` —— **教学用范例**：带注释、讲 DSL 语法，`06/07` 是 qiskit 与双比特的例子
-- `qwf_scripts/` —— **实测用脚本**：参数调好、注释只讲怎么跑
+- `examples/` —— **教学用范例**：带注释、讲 DSL 语法，`06/07` 是 qiskit 与双比特的例子；
+  清单与跑法见 [`examples/README.md`](examples/README.md)
+- `workflows/` 与 `experiments/` —— **实测用脚本**：参数调好、注释只讲怎么跑
 - `qwf_gen.py` —— 按命令行参数**现生成**一份 `.qwf`（要临时改参数时用它）
+
+> 2026-11-27 目录合并：原仓根 `qwf_examples/` 已并入本目录下的 `examples/`，
+> 「能跑的 QWF 只放一处」，CI 的 lint 目标也同步改成 `qwf_scripts/examples/*.qwf`。
 
 ## 跑完之后
 

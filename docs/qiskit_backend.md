@@ -317,8 +317,8 @@ curl -X POST http://localhost:3002/api/quantum/qiskit/run `
 代码 → Aer 真跑一遍。
 
 ```powershell
-python qwf_run.py qwf_examples\06_qiskit_t1.qwf --dry     # 干跑（不碰硬件）
-python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 模拟）
+python qwf_run.py qwf_scripts/examples\06_qiskit_t1.qwf --dry     # 干跑（不碰硬件）
+python qwf_run.py qwf_scripts/examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 模拟）
 ```
 
 `06_qiskit_t1.qwf` 是给 qiskit 准备的最小样例（measure + say）。
@@ -328,7 +328,7 @@ python qwf_run.py qwf_examples\06_qiskit_t1.qwf --if yes  # 真跑（走 qiskit 
 1. **`read` / `analyze` 节点在 qiskit 下必然失败**。它们要读 LabRAD DataVault 的
    数据集，而 qiskit 是纯本地模拟，**不产生 DataVault 数据集**（`dataset_id` 为
    `null`）。所以 qiskit 演示流只保留 `measure`，结果直接看节点指标。
-   直接跑 `qwf_examples/01_iqraw_contrast.qwf` 会看到：`c1`（measure）completed，
+   直接跑 `qwf_scripts/examples/01_iqraw_contrast.qwf` 会看到：`c1`（measure）completed，
    `r1`（read）failed，报"实验模拟器未初始化…离线数据未就绪"。
 2. **下发前的耗时闸门按真机速度算**。`dsl/backends/lqcs.py` 的耗时表是给真机的
    （`sq.t1` 不给 `zpa`/`delay` 会按厂商默认展开成 3216 点 → 估 40 分钟 →
@@ -453,7 +453,7 @@ measure as c1 {
 cd "server"
 D:\anaconda3\python.exe -m unittest tests.test_multiqubit_ir -v      # 17 项
 D:\anaconda3\python.exe -m unittest tests.test_qiskit_backend -v     # 30 项
-python qwf_lint.py qwf_examples\07_two_qubit_swap.qwf                # error=0
+python qwf_lint.py qwf_scripts/examples\07_two_qubit_swap.qwf                # error=0
 ```
 
 ---

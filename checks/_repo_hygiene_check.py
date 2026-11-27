@@ -69,8 +69,8 @@ PRIVATE_DOC_PATTERNS = (
 # 4) 必须有 README 的目录
 # ---------------------------------------------------------------------------
 DIRS_WITH_README = (
-    "docs", "web", "skills", "qwf_examples", "server", "server/services",
-    "tools", "checks", "qwf_scripts", "experiments",
+    "docs", "web", "skills", "server", "server/services",
+    "tools", "checks", "qwf_scripts", "qwf_scripts/examples", "experiments",
 )
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ ALLOWED_PATH_HINTS = (
 # 本来就住在那），vendor/ 是 submodule，skills/ 有自己的边界自检。
 LAB_SCAN_DIRS = (
     "checks", "docs", "experiments", "memory",
-    "qwf_examples", "qwf_scripts", "tools", "web/src",
+    "qwf_scripts", "tools", "web/src",
 )
 # 单比特标定两包已整包出库到本机历史归档，不再豁免
 LAB_SCAN_SKIP = ()
@@ -147,6 +147,10 @@ LAB_SCAN_ROOT_FILES = (
     "README.md", "install.md",
     "qwf_gen.py", "qwf_run.py", "qwf_lint.py", "reg_snapshot.py",
 )
+# 命中即放行的整文件（自检脚本要把这些标识当「要拦的模式」写进去）
+LAB_FILE_ALLOWLIST = {
+    "checks/_repo_boundary_check.py",   # 本文件内含真机标识模式字面量
+}
 # (正则, 说明)
 LAB_ID_PATTERNS = (
     (r"\bq\d+ld\d+\b", "真机比特 ID"),
@@ -314,6 +318,8 @@ def main() -> int:
     scan_files = []
     for rel in files:
         if rel.startswith(LAB_SCAN_SKIP):
+            continue
+        if rel in LAB_FILE_ALLOWLIST:
             continue
         if rel.startswith(LAB_SCAN_DIRS) or rel in LAB_SCAN_ROOT_FILES:
             scan_files.append(rel)

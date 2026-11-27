@@ -2003,7 +2003,7 @@ class WorkflowService(BaseService):
         前端拿文本后调 `/workflows/qwf_to_canvas` 转成画布节点。
 
         示例目录有两处：运行期 `data/workflows/examples/` 与仓库根
-        `qwf_examples/`（产品范例真正入库的地方，见 `qwf_store.example_dirs()`）。
+        `qwf_scripts/examples/`（产品范例真正入库的地方，见 `qwf_store.example_dirs()`）。
 
         `includeText` 可以放 body（POST）或 query（GET，如 `?includeText=1`）。
         """
@@ -2051,7 +2051,7 @@ class WorkflowService(BaseService):
         """`POST /workflows/qwf_to_canvas {text|path}`：`.qwf` → 画布节点图。
 
         `path` 相对示例目录（运行期 `data/workflows/examples/` 或仓库根
-        `qwf_examples/`）；给了 `text` 就用文本。
+        `qwf_scripts/examples/`）；给了 `text` 就用文本。
         """
         from . import qwf_store
         from .dsl import parse_qwf

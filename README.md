@@ -35,7 +35,7 @@ QMClaw 把这件事拆成四层：Agent 只在规则允许的范围内动手，�
 证据再决定状态是否推进。画面里的比特从 `unknown` 一路走到 `characterized`。
 
 **QWF 不是只能跑一个实验**：录屏后段跑的是一条多节点标定链
-（[`qwf_examples/08_calib_chain.qwf`](qwf_examples/08_calib_chain.qwf)），
+（[`qwf_scripts/examples/08_calib_chain.qwf`](qwf_scripts/examples/08_calib_chain.qwf)），
 控制台上的流程图按真实拓扑连线展示：
 
 ![多节点 QWF 流程图](docs/assets/qwf-flow-closeup.png)
